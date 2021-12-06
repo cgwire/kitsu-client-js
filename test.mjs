@@ -5,7 +5,7 @@ const client = kitsu.createClient('http://localhost:8080/api')
 client.isLoggedIn()
   .then((res) => {
     console.log(res.isLoggedIn)
-    return client.login('frank@cg-wire.com', 'cococo08')
+    return client.login('frank@cg-wire.com', 'password')
   })
   .then(res => {
     return client.isLoggedIn()

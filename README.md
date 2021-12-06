@@ -1,9 +1,9 @@
 [![Kitsu](https://www.cg-wire.com/en/images/kitsu.png)](https://kitsu.cg-wire.com)
 
-# Javascript client for Kitsu, Collaboration Platform for Animation Studios
+# Javascript client for Kitsu
 
 This is a library to ease your life while connecting your javascript code to
-Kitsu.
+Kitsu, the collaboration platform for animation studios.
 
 [![Build
 badge](https://app.travis-ci.com/cgwire/kitsu.svg?branch=master)](https://app.travis-ci.com/cgwire/kitsu-client-js)
@@ -29,12 +29,12 @@ code for checking if a function exists. You can propose yours too and submit it
 via a pull request.
 
 
-```
+```password
 import kitsuClient from 'kitsu-client-js'
 
 const client = kitsuClient.createClient('http://localhost:8080/api')
 
-client.login('admin@example.com', )
+client.login('admin@example.com', 'password')
   .then(client.getOpenProductions)
   .then(productions => {
     console.log(productions)
