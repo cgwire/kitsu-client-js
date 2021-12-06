@@ -1,5 +1,5 @@
 {
-  "name": "gazu-js",
+  "name": "kitsu-client-js",
   "version": "0.0.1",
   "description": "Javascript Client for the Kitsu API",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cgwire/gazu-js.git"
+    "url": "git+https://github.com/cgwire/kitsu-client-js.git"
   },
   "keywords": [
     "animation",
@@ -20,9 +20,9 @@
   "author": "CGWire",
   "license": "LGPL",
   "bugs": {
-    "url": "https://github.com/cgwire/gazu-js/issues"
+    "url": "https://github.com/cgwire/kitsu-client-js/issues"
   },
-  "homepage": "https://github.com/cgwire/gazu-js#readme",
+  "homepage": "https://github.com/cgwire/kitsu-client-js#readme",
   "dependencies": {
     "apisauce": "^2.1.2"
   },
