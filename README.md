@@ -18,7 +18,7 @@ badge](https://app.travis-ci.com/cgwire/kitsu.svg?branch=master)](https://app.tr
 
 Installation can be done via npm:
 
-```
+```bash
 npm i kitsu-client-js
 ```
 
@@ -29,7 +29,7 @@ code for checking if a function exists. You can propose yours too and submit it
 via a pull request.
 
 
-```password
+```javascript
 import kitsuClient from 'kitsu-client-js'
 
 const client = kitsuClient.createClient('http://localhost:8080/api')
