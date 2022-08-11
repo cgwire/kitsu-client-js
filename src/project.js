@@ -9,7 +9,11 @@ KitsuClient.prototype.getOpenProductions = function () {
 }
 
 KitsuClient.prototype.getProduction = function (productionId) {
-  return this.get(`data/projects/{productionId}`)
+  return this.fetchFirst(`data/projects/{productionId}`)
+}
+
+KitsuClient.prototype.getProductionByName = function (name) {
+  return this.fetchFirst(`data/projects?name=${name}`)
 }
 
 export default {}

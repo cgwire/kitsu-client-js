@@ -1,14 +1,14 @@
 import { KitsuClient } from './client.js'
 
-KitsuClient.prototype.login = function (email, password) {
+KitsuClient.prototype.login = function (email, password, setToken = true) {
   return this
     .post('auth/login', { email, password })
     .then(data => {
       if (data) {
-        this.setAuthToken(data.access_token)
+        if (setToken) this.setAuthToken(data.access_token)
         return Promise.resolve(data)
       } else {
-        return Promise.reject('Auth failed')
+        return Promise.reject('The authentication failed.')
       }
     })
 }
