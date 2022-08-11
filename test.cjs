@@ -1,4 +1,5 @@
 const kitsu = require('./lib/index.js')
+
 const client = kitsu.createClient('http://localhost:8080/api')
 
 let project, taskType, taskStatus, asset, task
