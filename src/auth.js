@@ -1,5 +1,18 @@
+/**
+ * @module Authentication
+ */
+
 import { KitsuClient } from './client.js'
 
+ /**
+  * 
+  * Login
+  * 
+  * @param {string} email 
+  * @param {string} password 
+  * @param {boolean} setToken 
+  * @returns logs in
+  */
 KitsuClient.prototype.login = function (email, password, setToken = true) {
   return this
     .post('auth/login', { email, password })
@@ -13,14 +26,32 @@ KitsuClient.prototype.login = function (email, password, setToken = true) {
     })
 }
 
+ /**
+  * 
+  * Logout
+  * 
+  * @returns Logs out
+  */
 KitsuClient.prototype.logout = function () {
   return this.get('auth/logout')
 }
 
+ /**
+  * 
+  * Reset password
+  * 
+  * @param {string} email 
+  * @returns Resets password
+  */
 KitsuClient.prototype.resetPassword = function (email) {
   return this.post('auth/reset-password', { email })
 }
 
+/**
+  * Authenticated
+  * 
+  * @returns Authentication status
+  */
 KitsuClient.prototype.isLoggedIn = function () {
   return this.api
     .get('auth/authenticated')

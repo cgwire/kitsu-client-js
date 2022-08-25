@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "npx rollup --config",
-    "test": "npx jest"
+    "test": "npx jest",
+    "generate-docs": "jsdoc -c conf.json"
   },
   "repository": {
     "type": "git",
@@ -35,6 +36,7 @@
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-node-resolve": "^13.3.0",
     "jest": "^28.1.3",
+    "jsdoc": "^3.6.11",
     "rollup": "^2.77.2"
   }
 }
