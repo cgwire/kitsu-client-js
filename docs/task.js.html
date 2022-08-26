@@ -27,58 +27,72 @@
     <section>
         <article>
             <pre class="prettyprint source linenums"><code>/**
- * @module Task
+ * @namespace Task
  */
 
 import { KitsuClient } from './client.js'
 
-/**
-* Get task type by name
-* 
-* @param {string} name Name of the task
-* @returns Task type by name
-*/
+ /**
+  * @function getTaskType
+  * @memberof Task
+  * @instance
+  *
+  * Get task type by name
+  * 
+  * @param {string} name Name of the task
+  * @returns Task type by name
+  */
 KitsuClient.prototype.getTaskType = function (name) {
   return this.fetchFirst(`data/task-types?name=${name}`)
 }
 
-/**
-* Get task status by name
-* 
-* @param {string} name Name of the task
-* @returns Task status by name
-*/
+ /**
+  * @function getTaskStatus
+  * @memberof Task
+  * @instance
+  * 
+  * Get task status by name
+  * 
+  * @param {string} name Name of the task
+  * @returns Task status by name
+  */
 KitsuClient.prototype.getTaskStatus = function (name) {
   return this.fetchFirst(`data/task-status?short_name=${name}`)
 }
 
-/**
-* 
-* Get task by entity ID and task type ID
-* 
-* @param {string} entityId ID of the entity
-* @param {string} taskTypeId ID of the task type
-* @returns Task by ID
-*/
+ /**
+  * @function getTask
+  * @memberof Task
+  * @instance
+  * 
+  * Get task by entity ID and task type ID
+  * 
+  * @param {string} entityId ID of the entity
+  * @param {string} taskTypeId ID of the task type
+  * @returns Task by ID
+  */
 KitsuClient.prototype.getTask = function (entityId, taskTypeId) {
   return this.fetchFirst(
     `data/tasks?entity_id=${entityId}&amp;task_type_id=${taskTypeId}`
   )
 }
 
-/**
-* 
-* Add comment
-* 
-* @param {string} taskId ID of the task
-* @param {string} taskStatusId ID of the task status
-* @param {string} comment Comment
-* @param {Array} checklist Checklist array
-* @param {Array} attachments Attachments array
-* @param {string} personId ID of the person
-* @param {string} createdAt Date of creation
-* @returns Adds comment
-*/
+ /**
+  * @function addComment
+  * @memberof Task
+  * @instance
+  * 
+  * Add comment
+  * 
+  * @param {string} taskId ID of the task
+  * @param {string} taskStatusId ID of the task status
+  * @param {string} comment Comment
+  * @param {Array} checklist Checklist array
+  * @param {Array} attachments Attachments array
+  * @param {string} personId ID of the person
+  * @param {string} createdAt Date of creation
+  * @returns Adds comment
+  */
 KitsuClient.prototype.addComment = function (
   taskId,
   taskStatusId,
@@ -113,16 +127,19 @@ KitsuClient.prototype.addComment = function (
   }
 }
 
-/**
-* 
-* Add preview to comment
-* 
-* @param {string} taskId ID of task
-* @param {string} commentId ID of comment
-* @param {string} previewFilePath Path of preview file
-* @param {boolean} normalizeMovie Movie normalized
-* @returns Adds preview
-*/
+ /**
+  * @function addPreview
+  * @memberof Task
+  * @instance
+  * 
+  * Add preview to comment
+  * 
+  * @param {string} taskId ID of task
+  * @param {string} commentId ID of comment
+  * @param {string} previewFilePath Path of preview file
+  * @param {boolean} normalizeMovie Movie normalized
+  * @returns Adds preview
+  */
 KitsuClient.prototype.addPreview = function (
   taskId,
   commentId,
@@ -140,18 +157,21 @@ KitsuClient.prototype.addPreview = function (
     })
 }
 
-/**
-* 
-* Publish comment with preview
-* 
-* @param {string} taskId ID of task
-* @param {string} taskStatusId ID of task status
-* @param {string} previewFilePath Path of preview file
-* @param {string} personId ID of person
-* @param {string} createdAt Date of creation
-* @param {boolean} normalizeMovie Movie normalized
-* @returns Adds comment and preview
-*/
+ /**
+  * @function publish
+  * @memberof Task
+  * @instance
+  * 
+  * Publish comment with preview
+  * 
+  * @param {string} taskId ID of task
+  * @param {string} taskStatusId ID of task status
+  * @param {string} previewFilePath Path of preview file
+  * @param {string} personId ID of person
+  * @param {string} createdAt Date of creation
+  * @param {boolean} normalizeMovie Movie normalized
+  * @returns Adds comment and preview
+  */
 KitsuClient.prototype.publish = function (
   taskId,
   taskStatusId,
@@ -182,13 +202,13 @@ export default {}
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-Asset.html">Asset</a></li><li><a href="module-Authentication.html">Authentication</a></li><li><a href="module-Client.html">Client</a></li><li><a href="module-Project.html">Project</a></li><li><a href="module-Task.html">Task</a></li></ul><h3>Classes</h3><ul><li><a href="module-Client.KitsuClient.html">KitsuClient</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Namespaces</h3><ul><li><a href="Asset.html">Asset</a></li><li><a href="Authentication.html">Authentication</a></li><li><a href="Client.html">Client</a></li><li><a href="Project.html">Project</a></li><li><a href="Task.html">Task</a></li></ul><h3>Classes</h3><ul><li><a href="KitsuClient.html">KitsuClient</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Thu Aug 25 2022 16:37:43 GMT+0200 (heure d’été d’Europe centrale)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.11</a> on Fri Aug 26 2022 01:23:05 GMT+0200 (heure d’été d’Europe centrale)
 </footer>
 
 <script> prettyPrint(); </script>

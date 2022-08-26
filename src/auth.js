@@ -1,10 +1,13 @@
 /**
- * @module Authentication
+ * @namespace Authentication
  */
 
 import { KitsuClient } from './client.js'
 
  /**
+  * @function login
+  * @memberof Authentication
+  * @instance
   * 
   * Login
   * 
@@ -27,7 +30,9 @@ KitsuClient.prototype.login = function (email, password, setToken = true) {
 }
 
  /**
-  * 
+  * @function logout
+  * @memberof Authentication
+  * @instance
   * Logout
   * 
   * @returns Logs out
@@ -37,6 +42,9 @@ KitsuClient.prototype.logout = function () {
 }
 
  /**
+  * @function resetPassword
+  * @memberof Authentication
+  * @instance
   * 
   * Reset password
   * 
@@ -48,6 +56,10 @@ KitsuClient.prototype.resetPassword = function (email) {
 }
 
 /**
+  * @function isLoggedIn
+  * @memberof Authentication
+  * @instance
+  * 
   * Authenticated
   * 
   * @returns Authentication status

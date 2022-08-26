@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npx rollup --config",
     "test": "npx jest",
-    "generate-docs": "jsdoc -c conf.json"
+    "generate-docs": "jsdoc -c conf.json README.md"
   },
   "repository": {
     "type": "git",

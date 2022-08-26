@@ -1,11 +1,13 @@
 /**
- * @module Project
+ * @namespace Project
  */
 
 import { KitsuClient } from './client.js'
 
  /**
-  * 
+  * @function getProductions
+  * @memberof Project
+  * @instance
   * Get all projects
   * 
   * @returns All projects
@@ -15,7 +17,9 @@ KitsuClient.prototype.getProductions = function () {
 }
 
  /**
-  * 
+  * @function getOpenProductions
+  * @memberof Project
+  * @instance
   * Get all open projects
   * 
   * @returns All open projects
@@ -25,7 +29,9 @@ KitsuClient.prototype.getOpenProductions = function () {
 }
 
  /**
-  * 
+  * @function getProduction
+  * @memberof Project
+  * @instance
   * Get the project given by ID
   * 
   * @param {string} productionId ID of the project
@@ -36,7 +42,9 @@ KitsuClient.prototype.getProduction = function (productionId) {
 }
 
  /**
-  * 
+  * @function getProductionByName
+  * @memberof Project
+  * @instance
   * Get the project by name
   * 
   * @param {string} name Name of the project

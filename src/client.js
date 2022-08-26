@@ -1,5 +1,5 @@
 /**
- * @module Client
+ * @namespace Client
  */
 
 import { create } from 'apisauce'
@@ -17,8 +17,11 @@ if (typeof window === 'undefined') {
 }
 
  /**
-  * Creates API.
+  * @function createApi
+  * @memberof Client
+  * @instance
   * 
+  * Creates API.
   * 
   * @param {string} host The host name
   * @returns Returns the API
@@ -148,7 +151,10 @@ export function KitsuClient(host) {
 }
 
  /**
-  *
+  * @function createClient
+  * @memberof Client
+  * @instance
+  * 
   * @param {string} host The host name
   * @returns creates new Kitsu Client
   */
