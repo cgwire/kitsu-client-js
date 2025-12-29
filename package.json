@@ -2,7 +2,7 @@
   "name": "kitsu-client-js",
   "version": "0.0.1",
   "description": "Javascript Client for the Kitsu API",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "build": "npx rollup --config",
     "test": "npx jest",
