@@ -57,8 +57,8 @@ Feature requests must be posted on our [Canny page](https://cgwire.canny.io/).
 
 ### Translations
 
-If you want to contribute to translations, you can connect directly to the 
-[POEditor platform](https://poeditor.com/join/project?hash=fpUejpWDVo).
+If you want to contribute to translations, open an issue or pull request
+directly on the [Kitsu repository](https://github.com/cgwire/kitsu).
 
 ### Code
 
