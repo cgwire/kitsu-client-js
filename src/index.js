@@ -1,14 +1,19 @@
 import { assetApi } from './api/asset.js'
 import { castingApi } from './api/casting.js'
 import { conceptApi } from './api/concept.js'
+import { customActionApi } from './api/customAction.js'
 import { editApi } from './api/edit.js'
 import { entityApi } from './api/entity.js'
+import { eventApi } from './api/event.js'
 import { filesApi } from './api/files.js'
+import { hardwareApi } from './api/hardware.js'
+import { newsApi } from './api/news.js'
 import { personApi } from './api/person.js'
 import { playlistApi } from './api/playlist.js'
 import { projectApi } from './api/project.js'
 import { projectTemplateApi } from './api/projectTemplate.js'
 import { sceneApi } from './api/scene.js'
+import { scheduleApi } from './api/schedule.js'
 import { searchApi } from './api/search.js'
 import { shotApi } from './api/shot.js'
 import { studioApi } from './api/studio.js'
@@ -31,14 +36,19 @@ export const createClient = options => {
     asset: assetApi(http),
     casting: castingApi(http),
     concept: conceptApi(http),
+    customAction: customActionApi(http),
     edit: editApi(http),
     entity: entityApi(http),
+    event: eventApi(http),
     files: filesApi(http),
+    hardware: hardwareApi(http),
+    news: newsApi(http),
     person: personApi(http),
     playlist: playlistApi(http),
     project: projectApi(http),
     projectTemplate: projectTemplateApi(http),
     scene: sceneApi(http),
+    schedule: scheduleApi(http),
     search: searchApi(http),
     shot: shotApi(http),
     studio: studioApi(http),
