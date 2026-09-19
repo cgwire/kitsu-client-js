@@ -1,4 +1,5 @@
 import { authApi } from './auth.js'
+import { createEvents } from './events.js'
 import { createHttp } from './http.js'
 import { createSession } from './session.js'
 
@@ -35,7 +36,8 @@ const resolveTimeout = (timeout = {}) =>
  * @property {() => void} [onUnauthorized] Called when a request stays
  *   unauthorized after the refresh attempt.
  * @property {string} [eventHost] Defaults to the host without "/api".
- * @property {Function} [io] The socket.io-client "io" function.
+ * @property {Function} [io] The socket.io-client "io" function. Left out,
+ *   the first events.on() imports the optional peer "socket.io-client".
  * @property {{response?: number|null, deadline?: number|null}} [timeout]
  *   Milliseconds to the first byte (60 000) and for the whole call
  *   (300 000). A key left out, undefined or null keeps its default; 0 or
@@ -62,19 +64,41 @@ export const createCore = options => {
     // would act as the logged-in user.
     credentials: auth === 'cookie' ? 'same-origin' : 'omit'
   })
+  const persistTokens = options.onTokensChange || (() => {})
   const session = createSession({
     auth,
     tokens: options.tokens,
-    onTokensChange: options.onTokensChange,
+    onTokensChange: tokens => {
+      // The socket follows the session first. The app hook persists the
+      // tokens: it runs whatever happens to the socket.
+      try {
+        syncSession()
+      } finally {
+        persistTokens(tokens)
+      }
+    },
     onUnauthorized: options.onUnauthorized
   })
   const http = createHttp(config, session)
+  const { syncSession, ...events } = createEvents({
+    eventHost: (
+      options.eventHost || config.host.replace(/\/api\/?$/, '')
+    ).replace(/\/+$/, ''),
+    session,
+    io: options.io
+  })
 
   return {
     host: config.host,
     http,
-    events: null,
-    close: () => http.abortAll(),
+    events,
+    close: () => {
+      try {
+        events.disconnect()
+      } finally {
+        http.abortAll()
+      }
+    },
     ...authApi(http, session)
   }
 }
