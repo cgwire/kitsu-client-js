@@ -39,6 +39,19 @@ export const conceptApi = http => {
         .then(sortedByName),
 
     /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The concepts of the project, each with its
+     *   tasks.
+     */
+    allConceptsWithTasks: async (project, { signal } = {}) =>
+      http.get(
+        'data/concepts/with-tasks',
+        { project_id: idOf(project) },
+        { signal }
+      ),
+
+    /**
      * @param {Model} concept
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The preview files of the concept.
