@@ -1,9 +1,17 @@
 import { assetApi } from './api/asset.js'
+import { castingApi } from './api/casting.js'
+import { conceptApi } from './api/concept.js'
+import { editApi } from './api/edit.js'
 import { entityApi } from './api/entity.js'
 import { filesApi } from './api/files.js'
 import { personApi } from './api/person.js'
+import { playlistApi } from './api/playlist.js'
 import { projectApi } from './api/project.js'
+import { projectTemplateApi } from './api/projectTemplate.js'
+import { sceneApi } from './api/scene.js'
+import { searchApi } from './api/search.js'
 import { shotApi } from './api/shot.js'
+import { studioApi } from './api/studio.js'
 import { taskApi } from './api/task.js'
 import { userApi } from './api/user.js'
 import { createCore } from './core/index.js'
@@ -21,11 +29,19 @@ export const createClient = options => {
   return Object.freeze({
     ...core,
     asset: assetApi(http),
+    casting: castingApi(http),
+    concept: conceptApi(http),
+    edit: editApi(http),
     entity: entityApi(http),
     files: filesApi(http),
     person: personApi(http),
+    playlist: playlistApi(http),
     project: projectApi(http),
+    projectTemplate: projectTemplateApi(http),
+    scene: sceneApi(http),
+    search: searchApi(http),
     shot: shotApi(http),
+    studio: studioApi(http),
     task: taskApi(http),
     user: userApi(http)
   })
