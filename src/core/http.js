@@ -8,6 +8,7 @@ import {
 import { readNdjson } from './ndjson.js'
 import { orNull } from './params.js'
 import { buildUrl } from './query.js'
+import { createUpload } from './upload.js'
 
 const isFormData = body =>
   typeof FormData !== 'undefined' && body instanceof FormData
@@ -218,11 +219,49 @@ export const createHttp = (config, session) => {
     return get(path, query, options)
   }
 
+  // For transports that do not go through send (XHR uploads): they join the
+  // in-flight set, so abortAll and close() reach them too.
+  const track = signal => {
+    const controller = new AbortController()
+    const abortFromCaller = () => controller.abort()
+    inflight.add(controller)
+    if (signal) {
+      if (signal.aborted) controller.abort()
+      else signal.addEventListener('abort', abortFromCaller)
+    }
+    return {
+      signal: controller.signal,
+      release: () => {
+        inflight.delete(controller)
+        if (signal) signal.removeEventListener('abort', abortFromCaller)
+      }
+    }
+  }
+
+  const upload = createUpload({
+    host,
+    request,
+    withAuthReplay,
+    track,
+    withCredentials: credentials === 'same-origin'
+  })
+
+  /**
+   * @param {string} path
+   * @param {{query?: object, signal?: AbortSignal}} [options]
+   * @returns {Promise<Response>} The raw response: the caller reads
+   *   .blob() or .body. The client never writes to disk.
+   */
+  const download = (path, { query, signal } = {}) =>
+    request('GET', path, { query, signal, raw: true })
+
   return {
     host,
     send,
     request,
     withAuthReplay,
+    upload,
+    download,
     get,
     getNdjson,
     post,
