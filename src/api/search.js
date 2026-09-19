@@ -1,4 +1,4 @@
-import { idsOf, optionalIdOf, withoutNil } from '../core/params.js'
+import { optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -7,27 +7,34 @@ import { idsOf, optionalIdOf, withoutNil } from '../core/params.js'
 
 export const searchApi = http => ({
   /**
-   * Search for entities matching the given query.
+   * Full text search. Zou keeps one index per kind of entity and searches
+   * the ones named in indexNames.
+   *
+   * gazu's entity_types filter is not ported: Zou never read that key.
    * @param {string} query Search query string.
    * @param {{
    *   project?: Model,
-   *   entityTypes?: Model[],
+   *   indexNames?: Array<'assets'|'shots'|'persons'>,
+   *   limit?: number,
+   *   offset?: number,
    *   signal?: AbortSignal
-   * }} [options] project limits the search to one project, entityTypes
-   *   filters by entity type.
+   * }} [options] project limits the search to one project. indexNames
+   *   defaults to every index. limit is per index and defaults to 3 in Zou.
    * @returns {Promise<Record<string, Entity[]>>} Matching entities grouped
-   *   by index name ("persons", "assets", "shots").
+   *   by index name.
    */
-  searchEntities: async (query, { project, entityTypes, signal } = {}) =>
+  searchEntities: async (
+    query,
+    { project, indexNames, limit, offset, signal } = {}
+  ) =>
     http.post(
       'data/search',
       withoutNil({
-        query,
+        query: requiredOf('query', query),
         project_id: optionalIdOf(project),
-        entity_types:
-          entityTypes === null || entityTypes === undefined
-            ? null
-            : idsOf(entityTypes)
+        index_names: indexNames ? [...indexNames] : null,
+        limit,
+        offset
       }),
       { signal }
     )

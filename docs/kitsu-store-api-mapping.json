@@ -429,7 +429,7 @@
     "route": "/data/search",
     "client": "search.searchEntities",
     "status": "existing",
-    "note": "Body differs: the client sends query, project_id and entity_types. Kitsu also sends limit, offset and index_names: the function needs these options."
+    "note": "Same body as Kitsu: query, project_id, limit, offset and index_names (options project, limit, offset, indexNames)."
   },
   {
     "module": "concepts",
