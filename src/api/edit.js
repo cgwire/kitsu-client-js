@@ -1,4 +1,10 @@
-import { idOf, requiredOf, sortedByName, withoutNil } from '../core/params.js'
+import {
+  idOf,
+  optionalIdOf,
+  requiredOf,
+  sortedByName,
+  withoutNil
+} from '../core/params.js'
 import { getEditUrl, webHostOf } from '../utils/urls.js'
 
 /**
@@ -23,6 +29,14 @@ export const editApi = http => {
   // Edits are saved through the entity route.
   const saveEdit = (edit, signal) =>
     http.put(`data/entities/${idOf(edit)}`, edit, { signal })
+
+  // Kitsu pseudo-episodes are not ids: 'main' keeps the edits out of any
+  // episode, 'all' does not filter, so it is dropped as Kitsu does.
+  const episodeFilterOf = episode => {
+    const id = episode && typeof episode === 'object' ? episode.id : episode
+    if (id === 'main') return id
+    return id === 'all' ? null : optionalIdOf(episode)
+  }
 
   return {
     /**
@@ -59,6 +73,31 @@ export const editApi = http => {
       http
         .fetchAll(`projects/${idOf(project)}/edits`, {}, { signal })
         .then(sortedByName),
+
+    /**
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the edits of that episode: an episode or its id. The pseudo-episodes
+     *   of Kitsu are accepted too, as a string or as an id: 'main' keeps the
+     *   edits out of any episode, 'all' does not filter.
+     * @returns {Promise<Entity[]>} The edits of the project, each with its
+     *   tasks.
+     */
+    allEditsWithTasks: async (project, { episode, signal } = {}) =>
+      http.get(
+        'data/edits/with-tasks',
+        { project_id: idOf(project), episode_id: episodeFilterOf(episode) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} edit
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The data history of the edit: one entry
+     *   per saved version of its metadata.
+     */
+    allVersionsForEdit: async (edit, { signal } = {}) =>
+      http.get(`data/edits/${idOf(edit)}/versions`, {}, { signal }),
 
     /**
      * @param {Model} edit
@@ -98,6 +137,33 @@ export const editApi = http => {
       const existing = await editByName(project, name, signal)
       return existing || http.post(path, body, { signal })
     },
+
+    /**
+     * Import the edits of a CSV file into the project.
+     * @param {Model} project
+     * @param {Blob} csvFile The CSV data, as a Blob or a File.
+     * @param {{
+     *   update?: boolean,
+     *   fileName?: string,
+     *   onProgress?: (progress: {loaded: number, total: number}) => void,
+     *   signal?: AbortSignal
+     * }} [options] update also updates the edits that already exist.
+     *   fileName names the uploaded file when it is a plain Blob. onProgress
+     *   needs XMLHttpRequest (browsers, webviews).
+     * @returns {Promise<Entity[]>} The edits created or updated by the import.
+     */
+    importEditsWithCsv: async (
+      project,
+      csvFile,
+      { update = false, fileName, onProgress, signal } = {}
+    ) =>
+      http.upload(`import/csv/projects/${idOf(project)}/edits`, {
+        file: requiredOf('csvFile', csvFile),
+        query: { update: update ? true : null },
+        fileName,
+        onProgress,
+        signal
+      }),
 
     /**
      * An edit with tasks is only marked as canceled, unless forced.
