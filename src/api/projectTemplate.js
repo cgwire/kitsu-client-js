@@ -1,5 +1,6 @@
 import {
   idOf,
+  idsOf,
   optionalIdOf,
   requiredOf,
   sortedByName,
@@ -26,6 +27,13 @@ export const projectTemplateApi = http => {
     http.del(
       `${templatePath(projectTemplate)}/${segment}/${idOf(link)}`,
       undefined,
+      { signal }
+    )
+
+  const reorderLinks = (projectTemplate, segment, key, models, signal) =>
+    http.post(
+      `actions/project-templates/${idOf(projectTemplate)}/${segment}/reorder`,
+      { [key]: idsOf(requiredOf(key, models)) },
       { signal }
     )
 
@@ -420,6 +428,48 @@ export const projectTemplateApi = http => {
         `${templatePath(projectTemplate)}/metadata-descriptors`,
         { metadata_descriptors: descriptors },
         { signal }
+      ),
+
+    /**
+     * Set the priority of every task type link of the template from the order
+     * of the list, in one request.
+     * @param {Model} projectTemplate
+     * @param {Model[]} taskTypes Task types or ids, in their new order.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The updated task type links.
+     */
+    reorderTaskTypesForProjectTemplate: async (
+      projectTemplate,
+      taskTypes,
+      { signal } = {}
+    ) =>
+      reorderLinks(
+        projectTemplate,
+        'task-types',
+        'task_type_ids',
+        taskTypes,
+        signal
+      ),
+
+    /**
+     * Set the priority of every task status link of the template from the
+     * order of the list, in one request.
+     * @param {Model} projectTemplate
+     * @param {Model[]} taskStatuses Task statuses or ids, in their new order.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The updated task status links.
+     */
+    reorderTaskStatusesForProjectTemplate: async (
+      projectTemplate,
+      taskStatuses,
+      { signal } = {}
+    ) =>
+      reorderLinks(
+        projectTemplate,
+        'task-statuses',
+        'task_status_ids',
+        taskStatuses,
+        signal
       )
   }
 }
