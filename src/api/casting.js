@@ -1,4 +1,4 @@
-import { idOf, orNull, withoutNil } from '../core/params.js'
+import { idOf, orNull, requiredOf, withoutNil } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -8,6 +8,7 @@ import { idOf, orNull, withoutNil } from '../core/params.js'
  *   CastingEntry
  * @typedef {Record<string, CastingEntry[]>} CastingMap Casting lists keyed by
  *   entity id.
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
 export const castingApi = http => {
@@ -67,6 +68,42 @@ export const castingApi = http => {
      */
     updateEpisodeCasting: async (project, episode, casting, { signal } = {}) =>
       updateEntityCasting(project, episode, casting, signal),
+
+    /**
+     * Replace the whole casting of several entities in one request. Entities
+     * missing from the map keep their casting.
+     * @param {Model} project
+     * @param {CastingMap} castings The new casting of each entity, keyed by
+     *   entity id.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<CastingMap>} The updated casting of each entity.
+     */
+    updateCastings: async (project, castings, { signal } = {}) =>
+      http.put(
+        `data/projects/${idOf(project)}/entities/casting`,
+        requiredOf('castings', castings),
+        { signal }
+      ),
+
+    /**
+     * Import the breakdown of a CSV file into the project.
+     * @param {Model} project
+     * @param {Blob} csvFile The CSV data, as a Blob or a File.
+     * @param {TransferOptions} [options]
+     * @returns {Promise<null[]>} One entry per imported row: Zou answers no
+     *   data for a casting row.
+     */
+    importCastingWithCsv: async (
+      project,
+      csvFile,
+      { fileName, onProgress, signal } = {}
+    ) =>
+      http.upload(`import/csv/projects/${idOf(project)}/casting`, {
+        file: requiredOf('csvFile', csvFile),
+        fileName,
+        onProgress,
+        signal
+      }),
 
     /**
      * Cast an asset in entities without touching the rest of their casting.
