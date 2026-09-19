@@ -134,5 +134,32 @@ export const entityApi = http => ({
       `entities/${idOf(entity)}/entities-linked/with-tasks`,
       {},
       { signal }
-    )
+    ),
+
+  /**
+   * @param {Model} entity
+   * @param {RequestOptions} [options]
+   * @returns {Promise<{data: Entity[], total: number, nb_pages: number,
+   *   limit: number, offset: number, page: number}>} The news page of the
+   *   entity: the API answers a page envelope, the news are in `data`.
+   */
+  allNewsForEntity: async (entity, { signal } = {}) =>
+    http.get(`data/entities/${idOf(entity)}/news`, {}, { signal }),
+
+  /**
+   * @param {Model} entity
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} Preview files of every task of the entity,
+   *   ordered by task type name, then by descending revision.
+   */
+  allPreviewFilesForEntity: async (entity, { signal } = {}) =>
+    http.fetchAll(`entities/${idOf(entity)}/preview-files`, {}, { signal }),
+
+  /**
+   * @param {Model} entity
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} Time spents logged on the entity tasks.
+   */
+  allTimeSpentsForEntity: async (entity, { signal } = {}) =>
+    http.fetchAll(`entities/${idOf(entity)}/time-spents`, {}, { signal })
 })
