@@ -8,6 +8,7 @@ import {
   getAssetTypeUrl,
   getAssetUrl,
   getAttachmentThumbnailPath,
+  getEditUrl,
   getEpisodeUrl,
   getPersonUrl,
   getPreviewFilePath,
@@ -20,6 +21,7 @@ import {
 } from '../../src/utils/urls.js'
 import {
   ASSET_ID,
+  EDIT_ID,
   EPISODE_ID,
   OTHER_ID,
   PERSON_ID,
@@ -119,6 +121,16 @@ describe('shot, sequence, episode and task URLs', () => {
     )
     expect(getShotUrl(WEB, { ...shot, episode_id: EPISODE_ID })).toBe(
       `${WEB}/productions/${PROJECT_ID}/episodes/${EPISODE_ID}/shots/${SHOT_ID}/`
+    )
+  })
+
+  it('getEditUrl with and without episode', () => {
+    const edit = { id: EDIT_ID, project_id: PROJECT_ID, episode_id: null }
+    expect(getEditUrl(`${WEB}/`, edit)).toBe(
+      `${WEB}/productions/${PROJECT_ID}/edits/${EDIT_ID}/`
+    )
+    expect(getEditUrl(WEB, { ...edit, episode_id: EPISODE_ID })).toBe(
+      `${WEB}/productions/${PROJECT_ID}/episodes/${EPISODE_ID}/edits/${EDIT_ID}/`
     )
   })
 

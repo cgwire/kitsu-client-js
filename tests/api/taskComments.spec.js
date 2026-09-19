@@ -5,13 +5,13 @@ import { makeClient } from '../helpers/client.js'
 import {
   OTHER_ID,
   PERSON_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
   TASK_ID,
   TASK_STATUS_ID
 } from '../helpers/ids.js'
 
 const COMMENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-const PREVIEW_FILE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const TIME_SPENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const ATTACHMENT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 

@@ -5,14 +5,13 @@ import { makeClient } from '../helpers/client.js'
 import {
   OTHER_ID,
   PERSON_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
   TASK_ID,
   TASK_STATUS_ID
 } from '../helpers/ids.js'
 
 const COMMENT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-
-const PREVIEW_FILE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
 const COMMENT_ROUTE = `/actions/tasks/${TASK_ID}/comment`
 const ATTACHMENT_ROUTE = `/actions/tasks/${TASK_ID}/comments/${COMMENT_ID}/add-attachment`

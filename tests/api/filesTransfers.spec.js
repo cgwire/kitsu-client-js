@@ -5,11 +5,11 @@ import { makeClient } from '../helpers/client.js'
 import {
   OTHER_ID,
   PERSON_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
   WORKING_FILE_ID
 } from '../helpers/ids.js'
 
-const PREVIEW_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const ATTACHMENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 
 const blob = new Blob(['pixels'], { type: 'image/png' })
@@ -163,22 +163,24 @@ describe('files namespace: downloads', () => {
   })
 
   it('downloadPreviewFile reads a movie from the movie route', async () => {
-    const path = `/movies/originals/preview-files/${PREVIEW_ID}.mp4`
-    fake.reply(200, { id: PREVIEW_ID, extension: 'mp4' })
+    const path = `/movies/originals/preview-files/${PREVIEW_FILE_ID}.mp4`
+    fake.reply(200, { id: PREVIEW_FILE_ID, extension: 'mp4' })
     fake.on('GET', path, rawResponse)
-    const response = await kitsu.files.downloadPreviewFile({ id: PREVIEW_ID })
+    const response = await kitsu.files.downloadPreviewFile({
+      id: PREVIEW_FILE_ID
+    })
     expect(await response.text()).toBe('bytes')
     expect(fake.calls.map(call => `${call.method} ${call.path}`)).toEqual([
-      `GET /data/preview-files/${PREVIEW_ID}`,
+      `GET /data/preview-files/${PREVIEW_FILE_ID}`,
       `GET ${path}`
     ])
   })
 
   it('downloadPreviewFile reads other files from the picture route', async () => {
-    const path = `/pictures/originals/preview-files/${PREVIEW_ID}.png`
-    fake.reply(200, { id: PREVIEW_ID, extension: 'png' })
+    const path = `/pictures/originals/preview-files/${PREVIEW_FILE_ID}.png`
+    fake.reply(200, { id: PREVIEW_FILE_ID, extension: 'png' })
     fake.on('GET', path, rawResponse)
-    const response = await kitsu.files.downloadPreviewFile(PREVIEW_ID)
+    const response = await kitsu.files.downloadPreviewFile(PREVIEW_FILE_ID)
     expect(await response.text()).toBe('bytes')
     expect(fake.calls[1]).toMatchObject({ method: 'GET', path })
   })
@@ -186,7 +188,7 @@ describe('files namespace: downloads', () => {
   it('downloadPreviewFile rejects when the preview is missing', async () => {
     fake.reply(404, {})
     await expect(
-      kitsu.files.downloadPreviewFile(PREVIEW_ID)
+      kitsu.files.downloadPreviewFile(PREVIEW_FILE_ID)
     ).rejects.toBeInstanceOf(NotFoundError)
     expect(fake.calls).toHaveLength(1)
   })
@@ -226,11 +228,11 @@ describe('files namespace: downloads', () => {
   it('downloadPreviewFileThumbnail returns the raw response', async () => {
     fake.on(
       'GET',
-      `/pictures/thumbnails/preview-files/${PREVIEW_ID}.png`,
+      `/pictures/thumbnails/preview-files/${PREVIEW_FILE_ID}.png`,
       rawResponse
     )
     const response = await kitsu.files.downloadPreviewFileThumbnail({
-      id: PREVIEW_ID
+      id: PREVIEW_FILE_ID
     })
     expect(await response.text()).toBe('bytes')
     expect(fake.calls).toHaveLength(1)
@@ -239,10 +241,10 @@ describe('files namespace: downloads', () => {
   it('downloadPreviewFileCover returns the raw response', async () => {
     fake.on(
       'GET',
-      `/pictures/originals/preview-files/${PREVIEW_ID}.png`,
+      `/pictures/originals/preview-files/${PREVIEW_FILE_ID}.png`,
       rawResponse
     )
-    const response = await kitsu.files.downloadPreviewFileCover(PREVIEW_ID)
+    const response = await kitsu.files.downloadPreviewFileCover(PREVIEW_FILE_ID)
     expect(await response.text()).toBe('bytes')
     expect(fake.calls).toHaveLength(1)
   })
@@ -260,13 +262,15 @@ describe('files namespace: downloads', () => {
   })
 
   it('downloadPreviewMovie reads the original movie', async () => {
-    const path = `/movies/originals/preview-files/${PREVIEW_ID}.mp4`
-    fake.reply(200, { id: PREVIEW_ID, extension: 'mp4' })
+    const path = `/movies/originals/preview-files/${PREVIEW_FILE_ID}.mp4`
+    fake.reply(200, { id: PREVIEW_FILE_ID, extension: 'mp4' })
     fake.on('GET', path, rawResponse)
-    const response = await kitsu.files.downloadPreviewMovie({ id: PREVIEW_ID })
+    const response = await kitsu.files.downloadPreviewMovie({
+      id: PREVIEW_FILE_ID
+    })
     expect(await response.text()).toBe('bytes')
     expect(fake.calls.map(call => `${call.method} ${call.path}`)).toEqual([
-      `GET /data/preview-files/${PREVIEW_ID}`,
+      `GET /data/preview-files/${PREVIEW_FILE_ID}`,
       `GET ${path}`
     ])
   })
@@ -274,13 +278,18 @@ describe('files namespace: downloads', () => {
   it('downloadPreviewMovie rejects when the preview is missing', async () => {
     fake.reply(404, {})
     await expect(
-      kitsu.files.downloadPreviewMovie(PREVIEW_ID)
+      kitsu.files.downloadPreviewMovie(PREVIEW_FILE_ID)
     ).rejects.toBeInstanceOf(NotFoundError)
   })
 
   it('downloadPreviewLowdefMovie reads the low definition movie', async () => {
-    fake.on('GET', `/movies/low/preview-files/${PREVIEW_ID}.mp4`, rawResponse)
-    const response = await kitsu.files.downloadPreviewLowdefMovie(PREVIEW_ID)
+    fake.on(
+      'GET',
+      `/movies/low/preview-files/${PREVIEW_FILE_ID}.mp4`,
+      rawResponse
+    )
+    const response =
+      await kitsu.files.downloadPreviewLowdefMovie(PREVIEW_FILE_ID)
     expect(await response.text()).toBe('bytes')
     expect(fake.calls).toHaveLength(1)
   })
@@ -301,13 +310,15 @@ describe('files namespace: downloads', () => {
   it('downloads forward the caller signal', async () => {
     fake.on(
       'GET',
-      `/pictures/thumbnails/preview-files/${PREVIEW_ID}.png`,
+      `/pictures/thumbnails/preview-files/${PREVIEW_FILE_ID}.png`,
       rawResponse
     )
     const controller = new AbortController()
     controller.abort()
     await kitsu.files
-      .downloadPreviewFileThumbnail(PREVIEW_ID, { signal: controller.signal })
+      .downloadPreviewFileThumbnail(PREVIEW_FILE_ID, {
+        signal: controller.signal
+      })
       .catch(() => {})
     expect(fake.calls[0].signal.aborted).toBe(true)
   })

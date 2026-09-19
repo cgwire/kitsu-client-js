@@ -86,6 +86,18 @@ export const getShotUrl = (webHost, shot) => {
 
 /**
  * @param {string} webHost
+ * @param {Entity} edit Needs project_id, and episode_id in a TV show.
+ * @returns {string}
+ */
+export const getEditUrl = (webHost, edit) => {
+  const base = productionUrl(webHost, edit.project_id)
+  return edit.episode_id
+    ? `${base}/episodes/${idOf(edit.episode_id)}/edits/${idOf(edit)}/`
+    : `${base}/edits/${idOf(edit)}/`
+}
+
+/**
+ * @param {string} webHost
  * @param {Entity} sequence Needs project_id, and parent_id in a TV show.
  * @returns {string}
  */

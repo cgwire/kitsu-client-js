@@ -4,6 +4,8 @@ import { NotFoundError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
+  CONCEPT_ID,
+  EDIT_ID,
   ENTITY_ID,
   EPISODE_ID,
   OTHER_ID,
@@ -16,9 +18,6 @@ import {
   TASK_STATUS_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
-
-const CONCEPT_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
-const EDIT_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
 const UNSORTED = [{ name: 'main' }, { name: 'Alt' }, { name: 'extra' }]
 const SORTED_NAMES = ['Alt', 'extra', 'main']

@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeClient } from '../helpers/client.js'
-import { OTHER_ID, PROJECT_ID, TASK_ID } from '../helpers/ids.js'
+import {
+  OTHER_ID,
+  PREVIEW_FILE_ID,
+  PROJECT_ID,
+  TASK_ID
+} from '../helpers/ids.js'
 
-const PREVIEW_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 const ATTACHMENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 
 const pngResponse = () =>
@@ -19,34 +23,37 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('getPreviewFile returns the preview file, null on 404', async () => {
-    fake.reply(200, { id: PREVIEW_ID }).reply(404, {})
-    expect(await kitsu.files.getPreviewFile(PREVIEW_ID)).toEqual({
-      id: PREVIEW_ID
+    fake.reply(200, { id: PREVIEW_FILE_ID }).reply(404, {})
+    expect(await kitsu.files.getPreviewFile(PREVIEW_FILE_ID)).toEqual({
+      id: PREVIEW_FILE_ID
     })
-    expect(await kitsu.files.getPreviewFile({ id: PREVIEW_ID })).toBeNull()
+    expect(await kitsu.files.getPreviewFile({ id: PREVIEW_FILE_ID })).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: `/data/preview-files/${PREVIEW_ID}`
+      path: `/data/preview-files/${PREVIEW_FILE_ID}`
     })
   })
 
   it('removePreviewFile deletes the preview, forcing on demand', async () => {
     fake.reply(204).reply(204)
-    await kitsu.files.removePreviewFile(PREVIEW_ID)
-    await kitsu.files.removePreviewFile({ id: PREVIEW_ID }, { force: true })
+    await kitsu.files.removePreviewFile(PREVIEW_FILE_ID)
+    await kitsu.files.removePreviewFile(
+      { id: PREVIEW_FILE_ID },
+      { force: true }
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
-      path: `/data/preview-files/${PREVIEW_ID}`
+      path: `/data/preview-files/${PREVIEW_FILE_ID}`
     })
     expect(fake.calls[0].query.has('force')).toBe(false)
     expect(fake.calls[1].query.get('force')).toBe('true')
   })
 
   it('getAllPreviewFilesForTask filters the previews by task', async () => {
-    fake.reply(200, [{ id: PREVIEW_ID }])
+    fake.reply(200, [{ id: PREVIEW_FILE_ID }])
     expect(
       await kitsu.files.getAllPreviewFilesForTask({ id: TASK_ID })
-    ).toEqual([{ id: PREVIEW_ID }])
+    ).toEqual([{ id: PREVIEW_FILE_ID }])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/preview-files'
@@ -92,20 +99,20 @@ describe('files namespace: preview and attachment files', () => {
 
   it('updatePreview saves the given data on the preview file', async () => {
     const data = { name: 'turntable' }
-    fake.reply(200, { id: PREVIEW_ID, name: 'turntable' })
+    fake.reply(200, { id: PREVIEW_FILE_ID, name: 'turntable' })
     expect(
-      await kitsu.files.updatePreview({ id: PREVIEW_ID }, data)
+      await kitsu.files.updatePreview({ id: PREVIEW_FILE_ID }, data)
     ).toMatchObject({ name: 'turntable' })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/preview-files/${PREVIEW_ID}`,
+      path: `/data/preview-files/${PREVIEW_FILE_ID}`,
       body: { name: 'turntable' }
     })
     expect(data).toEqual({ name: 'turntable' })
   })
 
   it('getRunningPreviewFiles lists the previews being processed', async () => {
-    fake.reply(200, [{ id: PREVIEW_ID, status: 'processing' }])
+    fake.reply(200, [{ id: PREVIEW_FILE_ID, status: 'processing' }])
     expect(await kitsu.files.getRunningPreviewFiles()).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
@@ -114,9 +121,12 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('extractFrameFromPreview returns the raw response of the frame', async () => {
-    const path = `/actions/preview-files/${PREVIEW_ID}/extract-frame`
+    const path = `/actions/preview-files/${PREVIEW_FILE_ID}/extract-frame`
     fake.on('GET', path, pngResponse)
-    const response = await kitsu.files.extractFrameFromPreview(PREVIEW_ID, 12)
+    const response = await kitsu.files.extractFrameFromPreview(
+      PREVIEW_FILE_ID,
+      12
+    )
     expect(response).toBeInstanceOf(Response)
     expect(await response.text()).toBe('png-bytes')
     expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
@@ -124,10 +134,10 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('extractTileFromPreview returns the raw response of the tile', async () => {
-    const path = `/actions/preview-files/${PREVIEW_ID}/extract-tile`
+    const path = `/actions/preview-files/${PREVIEW_FILE_ID}/extract-tile`
     fake.on('GET', path, pngResponse)
     const response = await kitsu.files.extractTileFromPreview({
-      id: PREVIEW_ID
+      id: PREVIEW_FILE_ID
     })
     expect(response).toBeInstanceOf(Response)
     expect(await response.text()).toBe('png-bytes')
@@ -135,31 +145,31 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('updatePreviewPosition sets the order of the preview', async () => {
-    fake.reply(200, { id: PREVIEW_ID, position: 2 })
+    fake.reply(200, { id: PREVIEW_FILE_ID, position: 2 })
     expect(
-      await kitsu.files.updatePreviewPosition(PREVIEW_ID, 2)
+      await kitsu.files.updatePreviewPosition(PREVIEW_FILE_ID, 2)
     ).toMatchObject({ position: 2 })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/actions/preview-files/${PREVIEW_ID}/update-position`,
+      path: `/actions/preview-files/${PREVIEW_FILE_ID}/update-position`,
       body: { position: 2 }
     })
   })
 
   it('updatePreviewAnnotations only sends the given change lists', async () => {
-    fake.reply(200, { id: PREVIEW_ID }).reply(200, { id: PREVIEW_ID })
+    fake.reply(200, { id: PREVIEW_FILE_ID }).reply(200, { id: PREVIEW_FILE_ID })
     const additions = [{ x: 100, y: 200, type: 'drawing' }]
     await kitsu.files.updatePreviewAnnotations(
-      { id: PREVIEW_ID },
+      { id: PREVIEW_FILE_ID },
       { additions }
     )
-    await kitsu.files.updatePreviewAnnotations(PREVIEW_ID, {
+    await kitsu.files.updatePreviewAnnotations(PREVIEW_FILE_ID, {
       updates: [{ id: OTHER_ID, x: 150 }],
       deletions: [OTHER_ID]
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/actions/preview-files/${PREVIEW_ID}/update-annotations`
+      path: `/actions/preview-files/${PREVIEW_FILE_ID}/update-annotations`
     })
     expect(fake.calls[0].body).toEqual({ additions })
     expect(fake.calls[1].body).toEqual({
