@@ -390,6 +390,55 @@ export const assetApi = http => {
       ),
 
     /**
+     * Import the assets of a CSV file (same columns as the CSV export) into
+     * the project.
+     * @param {Model} project
+     * @param {Blob} csvFile
+     * @param {{
+     *   fileName?: string,
+     *   onProgress?: (progress: {loaded: number, total: number}) => void,
+     *   signal?: AbortSignal
+     * }} [options] onProgress needs XMLHttpRequest (browsers, webviews).
+     * @returns {Promise<Entity[]>} The assets created by the import.
+     */
+    importAssetsWithCsv: async (
+      project,
+      csvFile,
+      { fileName, onProgress, signal } = {}
+    ) =>
+      http.upload(`import/csv/projects/${idOf(project)}/assets`, {
+        file: csvFile,
+        fileName,
+        onProgress,
+        signal
+      }),
+
+    /**
+     * Export the assets of the project as CSV.
+     * @param {Model} project
+     * @param {{
+     *   episode?: Model,
+     *   assignedTo?: Model,
+     *   signal?: AbortSignal
+     * }} [options] episode keeps the assets linked to that episode.
+     *   assignedTo keeps the assets with an assigned task: Zou reads it as a
+     *   flag and always filters on the logged in user, whoever is given.
+     * @returns {Promise<string>} The CSV text.
+     */
+    exportAssetsWithCsv: async (
+      project,
+      { episode, assignedTo, signal } = {}
+    ) =>
+      http.request('GET', `export/csv/projects/${idOf(project)}/assets.csv`, {
+        query: {
+          episode_id: optionalIdOf(episode),
+          assigned_to: optionalIdOf(assignedTo)
+        },
+        signal,
+        read: response => response.text()
+      }),
+
+    /**
      * @param {{source_id?: string|null, episode_id?: string|null}} asset
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The episode of the asset, null when the

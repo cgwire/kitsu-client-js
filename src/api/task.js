@@ -17,9 +17,47 @@ import {
  * @typedef {{relations?: boolean, signal?: AbortSignal}} RelationsOptions
  * @typedef {{forEntity?: string, department?: Model,
  *   signal?: AbortSignal}} TaskTypeFilters
+ * @typedef {{
+ *   fileName?: string,
+ *   onProgress?: (progress: {loaded: number, total: number}) => void,
+ *   signal?: AbortSignal
+ * }} TransferOptions fileName names the first file sent: a bare Blob has no
+ *   name, and a preview needs one, Zou reads the preview type from the
+ *   extension of the file name. onProgress needs XMLHttpRequest (browsers,
+ *   webviews).
+ * @typedef {{
+ *   comment?: string,
+ *   person?: Model,
+ *   checklist?: object[],
+ *   attachments?: Blob[],
+ *   createdAt?: string,
+ *   links?: string[]
+ * }} CommentFields person is the author, checklist holds entries like
+ *   {text: "Item 1", checked: false}, createdAt is the comment date.
  */
 
 const HEX_COLOR = /^#[0-9a-fA-F]*$/
+
+/**
+ * FormData names a bare Blob "blob", and Zou reads the preview type from the
+ * extension of the file name: it would refuse the upload, after the comment
+ * and the preview entry were created. Same for a file that is not a Blob (a
+ * path string, the gazu habit, or the null of canvas.toBlob): FormData would
+ * refuse it that late too, whether a fileName is given or not.
+ * @param {Blob & {name?: string}} file
+ * @param {string} [fileName]
+ * @returns {Blob}
+ */
+const namedPreviewOf = (file, fileName) => {
+  const given = requiredOf('file', file)
+  if (!(given instanceof Blob)) {
+    throw new ParameterError('Wrong format: file must be a Blob or a File')
+  }
+  if (fileName || given.name) return given
+  throw new ParameterError(
+    'Missing parameter: fileName is required when the file has no name'
+  )
+}
 
 export const taskApi = http => {
   /**
@@ -165,6 +203,156 @@ export const taskApi = http => {
       { task_type_ids: idsOf(taskTypes) },
       { signal }
     )
+
+  /**
+   * Comment the task: every comment sets the status of the task. The text
+   * can be empty. Sent as JSON, or as a multipart form when there are
+   * attachments.
+   * @param {Model} task
+   * @param {Model} taskStatus
+   * @param {CommentFields & TransferOptions & {forClient?: boolean}} [options]
+   *   forClient makes the comment visible to clients (managers only).
+   * @returns {Promise<Entity>} The created comment.
+   */
+  const addComment = async (
+    task,
+    taskStatus,
+    {
+      comment = '',
+      person,
+      checklist = [],
+      attachments,
+      createdAt,
+      links = [],
+      forClient = false,
+      fileName,
+      onProgress,
+      signal
+    } = {}
+  ) => {
+    const path = `actions/tasks/${idOf(task)}/comment`
+    const data = {
+      task_status_id: idOf(taskStatus),
+      comment,
+      checklist,
+      links,
+      person_id: optionalIdOf(person),
+      created_at: createdAt
+    }
+    if (!attachments || attachments.length === 0) {
+      return http.post(path, withoutNil({ ...data, for_client: forClient }), {
+        signal
+      })
+    }
+    // Form parts are strings, and a Zou reading for_client with bool(str)
+    // takes "false" as true: it is left out, the API defaults it to false.
+    return http.upload(path, {
+      file: attachments,
+      fields: { ...data, for_client: forClient ? true : null },
+      fileName,
+      onProgress,
+      signal
+    })
+  }
+
+  /**
+   * Create the preview file entry of a comment. Its content is uploaded
+   * afterwards.
+   * @param {Model} task
+   * @param {Model} comment
+   * @param {{revision?: number, signal?: AbortSignal}} [options]
+   * @returns {Promise<Entity>} The created preview file.
+   */
+  const createPreview = async (task, comment, { revision, signal } = {}) =>
+    http.post(
+      `${commentPath('actions', task, comment)}/add-preview`,
+      withoutNil({ revision }),
+      { signal }
+    )
+
+  /**
+   * Create one more preview file entry on a comment, sharing the revision
+   * of the given preview file. Its content is uploaded afterwards.
+   * @param {Model} task
+   * @param {Model} comment
+   * @param {Model} previewFile
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The created preview file.
+   */
+  const createExtraPreview = async (
+    task,
+    comment,
+    previewFile,
+    { signal } = {}
+  ) =>
+    http.post(
+      `${commentPath('actions', task, comment)}/preview-files/${idOf(previewFile)}`,
+      {},
+      { signal }
+    )
+
+  /**
+   * Use the preview as the thumbnail of its entity.
+   * @param {Model} previewFile
+   * @param {{frameNumber?: number, signal?: AbortSignal}} [options]
+   *   frameNumber picks the frame of a movie preview.
+   * @returns {Promise<Entity>} The preview file.
+   */
+  const setMainPreview = async (previewFile, { frameNumber, signal } = {}) =>
+    http.put(
+      `actions/preview-files/${idOf(previewFile)}/set-main-preview`,
+      withoutNil({ frame_number: frameNumber }),
+      { signal }
+    )
+
+  /**
+   * Upload the content of a preview file entry (see createPreview).
+   * @param {Model} previewFile
+   * @param {Blob} file The picture, movie or any other file, a Blob or a
+   *   File. A bare Blob needs fileName.
+   * @param {TransferOptions & {normalizeMovie?: boolean}} [options]
+   *   normalizeMovie set to false keeps the movie as it is on the server.
+   * @returns {Promise<Entity>} The preview file.
+   */
+  const uploadPreviewFile = async (
+    previewFile,
+    file,
+    { normalizeMovie = true, fileName, onProgress, signal } = {}
+  ) =>
+    http.upload(`pictures/preview-files/${idOf(previewFile)}`, {
+      file: namedPreviewOf(file, fileName),
+      fileName,
+      query: { normalize: normalizeMovie ? null : false },
+      onProgress,
+      signal
+    })
+
+  /**
+   * Add a preview to a comment: create the entry, then upload its content.
+   * @param {Model} task
+   * @param {Model} comment
+   * @param {Blob} file The picture, movie or any other file, a Blob or a
+   *   File. A bare Blob needs fileName.
+   * @param {TransferOptions & {normalizeMovie?: boolean, revision?: number}}
+   *   [options] normalizeMovie set to false keeps the movie as it is on the
+   *   server.
+   * @returns {Promise<Entity>} The created preview file.
+   */
+  const addPreview = async (
+    task,
+    comment,
+    file,
+    { normalizeMovie, revision, fileName, onProgress, signal } = {}
+  ) => {
+    namedPreviewOf(file, fileName)
+    const created = await createPreview(task, comment, { revision, signal })
+    return uploadPreviewFile(created, file, {
+      normalizeMovie,
+      fileName,
+      onProgress,
+      signal
+    })
+  }
 
   return {
     /**
@@ -797,19 +985,35 @@ export const taskApi = http => {
           "No 'wip' task status: give one in the startedTaskStatus option"
         )
       }
-      return http.post(
-        `actions/tasks/${idOf(task)}/comment`,
-        withoutNil({
-          task_status_id: idOf(status),
-          comment: '',
-          checklist: [],
-          links: [],
-          for_client: false,
-          person_id: optionalIdOf(person)
-        }),
-        { signal }
+      return addComment(task, status, { person, signal })
+    },
+
+    addComment,
+
+    /**
+     * @param {Model} task
+     * @param {Model} comment
+     * @param {Blob|Blob[]} attachments One file or a list of files.
+     * @param {TransferOptions} [options]
+     * @returns {Promise<Entity[]>} The added attachment files.
+     */
+    addAttachmentFilesToComment: async (
+      task,
+      comment,
+      attachments,
+      { fileName, onProgress, signal } = {}
+    ) => {
+      const files = [].concat(attachments || [])
+      if (files.length === 0) {
+        throw new ParameterError('The attachments list is empty')
+      }
+      return http.upload(
+        `${commentPath('actions', task, comment)}/add-attachment`,
+        { file: files, fileName, onProgress, signal }
       )
     },
+
+    uploadPreviewFile,
 
     /**
      * @param {Model} task
@@ -956,36 +1160,97 @@ export const taskApi = http => {
     allSubscriptionsForProject: async (project, options) =>
       allForProject(project, 'subscriptions', options),
 
-    /**
-     * Create the preview file entry of a comment. Its content is uploaded
-     * afterwards.
-     * @param {Model} task
-     * @param {Model} comment
-     * @param {{revision?: number, signal?: AbortSignal}} [options]
-     * @returns {Promise<Entity>} The created preview file.
-     */
-    createPreview: async (task, comment, { revision, signal } = {}) =>
-      http.post(
-        `${commentPath('actions', task, comment)}/add-preview`,
-        withoutNil({ revision }),
-        { signal }
-      ),
+    createPreview,
+
+    createExtraPreview,
+
+    addPreview,
 
     /**
-     * Create one more preview file entry on a comment, sharing the revision
-     * of the given preview file. Its content is uploaded afterwards.
+     * Add one more preview to a comment: create the entry, which shares the
+     * revision of the given preview file, then upload its content.
      * @param {Model} task
      * @param {Model} comment
-     * @param {Model} previewFile
-     * @param {RequestOptions} [options]
+     * @param {Model} previewFile The preview file whose revision is shared.
+     * @param {Blob} file The picture, movie or any other file, a Blob or a
+     *   File. A bare Blob needs fileName.
+     * @param {TransferOptions & {normalizeMovie?: boolean}} [options]
+     *   normalizeMovie set to false keeps the movie as it is on the server.
      * @returns {Promise<Entity>} The created preview file.
      */
-    createExtraPreview: async (task, comment, previewFile, { signal } = {}) =>
-      http.post(
-        `${commentPath('actions', task, comment)}/preview-files/${idOf(previewFile)}`,
-        {},
-        { signal }
-      ),
+    addExtraPreview: async (
+      task,
+      comment,
+      previewFile,
+      file,
+      { normalizeMovie, fileName, onProgress, signal } = {}
+    ) => {
+      namedPreviewOf(file, fileName)
+      const created = await createExtraPreview(task, comment, previewFile, {
+        signal
+      })
+      return uploadPreviewFile(created, file, {
+        normalizeMovie,
+        fileName,
+        onProgress,
+        signal
+      })
+    },
+
+    /**
+     * Comment the task, which sets its status, then add the preview to the
+     * comment.
+     * @param {Model} task
+     * @param {Model} taskStatus
+     * @param {Blob} file The preview: a picture, a movie or any other file, a
+     *   Blob or a File. A bare Blob needs fileName.
+     * @param {CommentFields & TransferOptions & {normalizeMovie?: boolean,
+     *   revision?: number, setThumbnail?: boolean}} [options] fileName and
+     *   onProgress apply to the preview, not to the attachments.
+     *   normalizeMovie set to false keeps the movie as it is on the server;
+     *   setThumbnail uses the preview as the thumbnail of the entity.
+     * @returns {Promise<{comment: Entity, preview_file: Entity}>} The created
+     *   comment and the created preview file.
+     */
+    publishPreview: async (
+      task,
+      taskStatus,
+      file,
+      {
+        comment,
+        person,
+        checklist,
+        attachments,
+        createdAt,
+        links,
+        normalizeMovie,
+        revision,
+        setThumbnail = false,
+        fileName,
+        onProgress,
+        signal
+      } = {}
+    ) => {
+      namedPreviewOf(file, fileName)
+      const newComment = await addComment(task, taskStatus, {
+        comment,
+        person,
+        checklist,
+        attachments,
+        createdAt,
+        links,
+        signal
+      })
+      const previewFile = await addPreview(task, newComment, file, {
+        normalizeMovie,
+        revision,
+        fileName,
+        onProgress,
+        signal
+      })
+      if (setThumbnail) await setMainPreview(previewFile, { signal })
+      return { comment: newComment, preview_file: previewFile }
+    },
 
     /**
      * @param {Model} task
@@ -1006,19 +1271,7 @@ export const taskApi = http => {
         { signal }
       ),
 
-    /**
-     * Use the preview as the thumbnail of its entity.
-     * @param {Model} previewFile
-     * @param {{frameNumber?: number, signal?: AbortSignal}} [options]
-     *   frameNumber picks the frame of a movie preview.
-     * @returns {Promise<Entity>} The preview file.
-     */
-    setMainPreview: async (previewFile, { frameNumber, signal } = {}) =>
-      http.put(
-        `actions/preview-files/${idOf(previewFile)}/set-main-preview`,
-        withoutNil({ frame_number: frameNumber }),
-        { signal }
-      ),
+    setMainPreview,
 
     /**
      * Publish several comments in one request. Without task, every comment
@@ -1031,6 +1284,23 @@ export const taskApi = http => {
       http.post(
         `actions/tasks/${task ? `${optionalIdOf(task)}/` : ''}batch-comment`,
         { comments },
+        { signal }
+      ),
+
+    /**
+     * Comment several tasks of a project in one request. Each comment sets
+     * the status of its task. Entries without object_id, task_status_id or
+     * comment are skipped by the API.
+     * @param {Model} project
+     * @param {{object_id: string, task_status_id: string, comment: string,
+     *   links?: string[]}[]} [comments] object_id is the id of the task.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The created comments.
+     */
+    createMultipleComments: async (project, comments = [], { signal } = {}) =>
+      http.post(
+        `actions/projects/${idOf(project)}/tasks/comment-many`,
+        comments,
         { signal }
       ),
 

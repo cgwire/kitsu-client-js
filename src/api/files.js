@@ -40,6 +40,14 @@ import { idOf, optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
  * @property {AbortSignal} [signal]
  */
 
+/**
+ * @typedef {object} UploadFileOptions
+ * @property {string} [fileName] Name sent with the file: a bare Blob has none.
+ * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it.
+ * @property {AbortSignal} [signal]
+ */
+
 // Same as gazu: spaces never reach the file system.
 const formatPath = (folder, name, sep) =>
   `${folder.replace(/ /g, '_')}${sep}${name.replace(/ /g, '_')}`
@@ -255,6 +263,51 @@ export const filesApi = http => {
       {},
       { signal }
     )
+
+  /**
+   * @param {string} path
+   * @param {Blob} file
+   * @param {UploadFileOptions} [options]
+   * @returns {Promise<any>} The parsed answer of the API.
+   */
+  const uploadFile = (path, file, { fileName, onProgress, signal } = {}) =>
+    http.upload(path, {
+      file: requiredOf('file', file),
+      fileName,
+      onProgress,
+      signal
+    })
+
+  /**
+   * @param {string} kind "persons", "projects" or "organisations".
+   * @param {Model} model
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Response>}
+   */
+  const downloadAvatar = (kind, model, { signal } = {}) =>
+    http.download(`pictures/thumbnails/${kind}/${idOf(model)}.png`, { signal })
+
+  /**
+   * @param {string} kind "persons", "projects" or "organisations".
+   * @param {Model} model
+   * @param {Blob} file
+   * @param {UploadFileOptions} [options]
+   * @returns {Promise<{thumbnail_path: string}>}
+   */
+  const uploadAvatar = (kind, model, file, options) =>
+    uploadFile(`pictures/thumbnails/${kind}/${idOf(model)}`, file, options)
+
+  // Not getPreviewFile: a missing preview must raise NotFoundError before any
+  // download starts, not be null. The extension comes from the API, it is
+  // encoded so it can never reshape the route.
+  const originalExtension = async (previewFile, signal) => {
+    const { extension } = await http.get(
+      `data/preview-files/${idOf(previewFile)}`,
+      {},
+      { signal }
+    )
+    return encodeURIComponent(extension)
+  }
 
   return {
     /**
@@ -804,12 +857,143 @@ export const filesApi = http => {
       ),
 
     /**
+     * Store a file as the content of a working file.
+     * @param {Model} workingFile
+     * @param {Blob} file
+     * @param {UploadFileOptions} [options]
+     * @returns {Promise<Entity>} The working file.
+     */
+    uploadWorkingFile: async (workingFile, file, options) =>
+      uploadFile(`data/working-files/${idOf(workingFile)}/file`, file, options),
+
+    /**
+     * @param {Model} workingFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the stored file.
+     */
+    downloadWorkingFile: async (workingFile, { signal } = {}) =>
+      http.download(`data/working-files/${idOf(workingFile)}/file`, { signal }),
+
+    /**
+     * Download the original file of a preview, movie or not.
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the original file.
+     */
+    downloadPreviewFile: async (previewFile, { signal } = {}) => {
+      const extension = await originalExtension(previewFile, signal)
+      const kind = extension === 'mp4' ? 'movies' : 'pictures'
+      return http.download(
+        `${kind}/originals/preview-files/${idOf(previewFile)}.${extension}`,
+        { signal }
+      )
+    },
+
+    /**
      * @param {Model} attachmentFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The attachment file, null when missing.
      */
     getAttachmentFile: async (attachmentFile, { signal } = {}) =>
       http.fetchOne('attachment-files', idOf(attachmentFile), { signal }),
+
+    /**
+     * @param {Model} attachmentFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the attached file.
+     */
+    downloadAttachmentFile: async (attachmentFile, { signal } = {}) => {
+      // Not getAttachmentFile: a missing attachment must raise NotFoundError,
+      // not be null.
+      const { id, name } = await http.get(
+        `data/attachment-files/${idOf(attachmentFile)}`,
+        {},
+        { signal }
+      )
+      // The name is free text typed by a user: left as is, a "#", a "?" or a
+      // "/" would cut or reshape the route.
+      return http.download(
+        `data/attachment-files/${id}/file/${encodeURIComponent(name)}`,
+        { signal }
+      )
+    },
+
+    /**
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the PNG thumbnail.
+     */
+    downloadPreviewFileThumbnail: async (previewFile, { signal } = {}) =>
+      http.download(
+        `pictures/thumbnails/preview-files/${idOf(previewFile)}.png`,
+        { signal }
+      ),
+
+    /**
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the full size PNG
+     *   picture of the preview.
+     */
+    downloadPreviewFileCover: async (previewFile, { signal } = {}) =>
+      http.download(
+        `pictures/originals/preview-files/${idOf(previewFile)}.png`,
+        { signal }
+      ),
+
+    /**
+     * @param {Model} person
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the PNG avatar.
+     */
+    downloadPersonAvatar: async (person, options) =>
+      downloadAvatar('persons', person, options),
+
+    /**
+     * @param {Model} person
+     * @param {Blob} file Picture to set as avatar.
+     * @param {UploadFileOptions} [options]
+     * @returns {Promise<{thumbnail_path: string}>} Path of the stored
+     *   picture, relative to the host.
+     */
+    uploadPersonAvatar: async (person, file, options) =>
+      uploadAvatar('persons', person, file, options),
+
+    /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the PNG avatar.
+     */
+    downloadProjectAvatar: async (project, options) =>
+      downloadAvatar('projects', project, options),
+
+    /**
+     * @param {Model} project
+     * @param {Blob} file Picture to set as avatar.
+     * @param {UploadFileOptions} [options]
+     * @returns {Promise<{thumbnail_path: string}>} Path of the stored
+     *   picture, relative to the host.
+     */
+    uploadProjectAvatar: async (project, file, options) =>
+      uploadAvatar('projects', project, file, options),
+
+    /**
+     * @param {Model} organisation
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the PNG avatar.
+     */
+    downloadOrganisationAvatar: async (organisation, options) =>
+      downloadAvatar('organisations', organisation, options),
+
+    /**
+     * @param {Model} organisation
+     * @param {Blob} file Picture to set as avatar.
+     * @param {UploadFileOptions} [options]
+     * @returns {Promise<{thumbnail_path: string}>} Path of the stored
+     *   picture, relative to the host.
+     */
+    uploadOrganisationAvatar: async (organisation, file, options) =>
+      uploadAvatar('organisations', organisation, file, options),
 
     /**
      * @param {Model} previewFile
@@ -826,6 +1010,41 @@ export const filesApi = http => {
      */
     getRunningPreviewFiles: async ({ signal } = {}) =>
       http.fetchAll('playlists/preview-files/running', {}, { signal }),
+
+    /**
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the original movie.
+     */
+    downloadPreviewMovie: async (previewFile, { signal } = {}) => {
+      const extension = await originalExtension(previewFile, signal)
+      return http.download(
+        `movies/originals/preview-files/${idOf(previewFile)}.${extension}`,
+        { signal }
+      )
+    },
+
+    /**
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the low definition
+     *   movie, always an MP4.
+     */
+    downloadPreviewLowdefMovie: async (previewFile, { signal } = {}) =>
+      http.download(`movies/low/preview-files/${idOf(previewFile)}.mp4`, {
+        signal
+      }),
+
+    /**
+     * @param {Model} attachmentFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Response>} Raw response holding the PNG thumbnail.
+     */
+    downloadAttachmentThumbnail: async (attachmentFile, { signal } = {}) =>
+      http.download(
+        `pictures/thumbnails/attachment-files/${idOf(attachmentFile)}.png`,
+        { signal }
+      ),
 
     /**
      * @param {Model} previewFile

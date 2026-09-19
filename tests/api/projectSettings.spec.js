@@ -173,6 +173,40 @@ describe('project namespace: settings', () => {
     })
   })
 
+  it('addPreviewBackgroundFile posts the background payload as JSON', async () => {
+    fake.reply(201, { id: PROJECT_ID })
+    const backgroundFile = { preview_background_file_id: BACKGROUND_ID }
+    expect(
+      await kitsu.project.addPreviewBackgroundFile(
+        { id: PROJECT_ID },
+        backgroundFile
+      )
+    ).toEqual({ id: PROJECT_ID })
+    expect(fake.calls[0]).toMatchObject({
+      method: 'POST',
+      path: `/data/projects/${PROJECT_ID}/settings/preview-background-files`
+    })
+    expect(fake.calls[0].body).toEqual({
+      preview_background_file_id: BACKGROUND_ID
+    })
+    expect(backgroundFile).toEqual({
+      preview_background_file_id: BACKGROUND_ID
+    })
+  })
+
+  it('addPreviewBackgroundFile accepts a project id and an abort signal', async () => {
+    fake.reply(201, { id: PROJECT_ID })
+    const controller = new AbortController()
+    await kitsu.project.addPreviewBackgroundFile(
+      PROJECT_ID,
+      { preview_background_file_id: BACKGROUND_ID },
+      { signal: controller.signal }
+    )
+    expect(fake.calls[0].path).toBe(
+      `/data/projects/${PROJECT_ID}/settings/preview-background-files`
+    )
+  })
+
   it('removePreviewBackgroundFile unlinks the background', async () => {
     fake.reply(204)
     await kitsu.project.removePreviewBackgroundFile(

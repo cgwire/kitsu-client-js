@@ -10,7 +10,20 @@ import {
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ * @typedef {{
+ *   fileName?: string,
+ *   onProgress?: (progress: {loaded: number, total: number}) => void,
+ *   signal?: AbortSignal
+ * }} TransferOptions fileName names the uploaded file when it is a plain
+ *   Blob. onProgress needs XMLHttpRequest (browsers, webviews).
  */
+
+// Same defaults as gazu. Zou fills these placeholders itself: they are not
+// JavaScript template literals.
+const otioNamingConvention = episodeId =>
+  episodeId
+    ? '${project_name}_${episode_name}-${sequence_name}-${shot_name}'
+    : '${project_name}_${sequence_name}-${shot_name}'
 
 export const shotApi = http => {
   const fetchOne = (model, entity, signal) =>
@@ -435,6 +448,96 @@ export const shotApi = http => {
         `data/shots/${idOf(shot)}/asset-instances/${idOf(assetInstance)}`,
         undefined,
         { signal }
+      ),
+
+    /**
+     * Import the shots of a CSV file, as exported by exportShotsWithCsv, into
+     * the project.
+     * @param {Model} project
+     * @param {Blob} csvFile The CSV data, as a Blob or a File.
+     * @param {TransferOptions} [options]
+     * @returns {Promise<Entity[]>} The shots created by the import.
+     */
+    importShotsWithCsv: async (
+      project,
+      csvFile,
+      { fileName, onProgress, signal } = {}
+    ) =>
+      http.upload(`import/csv/projects/${idOf(project)}/shots`, {
+        file: requiredOf('csvFile', csvFile),
+        fileName,
+        onProgress,
+        signal
+      }),
+
+    /**
+     * Import shots from an OpenTimelineIO file, or from any format an OTIO
+     * adapter reads (EDL, ...). Zou picks the adapter from the extension of
+     * the file name: a plain Blob has none, so give fileName with it.
+     * @param {Model} project
+     * @param {Blob} otioFile The timeline data, as a Blob or a File.
+     * @param {TransferOptions & {
+     *   episode?: Model,
+     *   namingConvention?: string,
+     *   matchCase?: boolean
+     * }} [options] namingConvention is the template matching the shot names
+     *   of the file, by default
+     *   "${project_name}_${sequence_name}-${shot_name}" (with
+     *   "${episode_name}-" before the sequence when an episode is given).
+     *   matchCase (true by default) matches the shot names case-sensitively.
+     * @returns {Promise<{created_shots: Entity[], updated_shots: Entity[]}>}
+     *   The shots altered by the import.
+     */
+    importOtio: async (
+      project,
+      otioFile,
+      {
+        episode,
+        namingConvention,
+        matchCase = true,
+        fileName,
+        onProgress,
+        signal
+      } = {}
+    ) => {
+      const episodeId = optionalIdOf(episode)
+      const projectPath = `import/otio/projects/${idOf(project)}`
+      return http.upload(
+        episodeId ? `${projectPath}/episodes/${episodeId}` : projectPath,
+        {
+          file: requiredOf('otioFile', otioFile),
+          fields: {
+            naming_convention:
+              namingConvention || otioNamingConvention(episodeId),
+            match_case: matchCase
+          },
+          fileName,
+          onProgress,
+          signal
+        }
       )
+    },
+
+    /**
+     * @param {Model} project
+     * @param {{
+     *   episode?: Model,
+     *   assignedTo?: Model,
+     *   signal?: AbortSignal
+     * }} [options] episode keeps the shots of that episode only, assignedTo
+     *   the shots with at least one task assigned to that person.
+     * @returns {Promise<string>} The shots of the project, as CSV.
+     */
+    exportShotsWithCsv: async (project, { episode, assignedTo, signal } = {}) =>
+      http.request('GET', `export/csv/projects/${idOf(project)}/shots.csv`, {
+        query: {
+          episode_id: optionalIdOf(episode),
+          assigned_to: optionalIdOf(assignedTo)
+        },
+        signal,
+        // A CSV table: the http core refuses a non-JSON body unless told how
+        // to read it.
+        read: response => response.text()
+      })
   }
 }

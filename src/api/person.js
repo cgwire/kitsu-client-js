@@ -609,5 +609,25 @@ export const personApi = http => ({
    * @returns {Promise<null>}
    */
   clearPersonAvatar: async (person, { signal } = {}) =>
-    http.del(`actions/persons/${idOf(person)}/clear-avatar`, null, { signal })
+    http.del(`actions/persons/${idOf(person)}/clear-avatar`, null, { signal }),
+
+  /**
+   * Upload a picture and set it as the avatar of the person.
+   * @param {Model} person
+   * @param {Blob} file The picture, a Blob or a File.
+   * @param {{
+   *   fileName?: string,
+   *   onProgress?: (progress: {loaded: number, total: number}) => void,
+   *   signal?: AbortSignal
+   * }} [options] onProgress needs XMLHttpRequest (browsers, webviews).
+   * @returns {Promise<{thumbnail_path: string}>} Path of the stored picture,
+   *   relative to the host url.
+   */
+  setAvatar: async (person, file, { fileName, onProgress, signal } = {}) =>
+    http.upload(`pictures/thumbnails/persons/${idOf(person)}`, {
+      file: requiredOf('file', file),
+      fileName,
+      onProgress,
+      signal
+    })
 })

@@ -567,6 +567,23 @@ export const projectApi = http => ({
     ),
 
   /**
+   * Links an existing preview background file to the project. This is a JSON
+   * call, not an upload: the file itself is sent when the background is
+   * created.
+   * @param {Model} project
+   * @param {{preview_background_file_id: string}} backgroundFile The payload
+   *   Zou expects, sent as given.
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The project.
+   */
+  addPreviewBackgroundFile: async (project, backgroundFile, { signal } = {}) =>
+    http.create(
+      settingsOf(project, 'preview-background-files'),
+      backgroundFile,
+      { signal }
+    ),
+
+  /**
    * @param {Model} project
    * @param {Model} backgroundFile
    * @param {RequestOptions} [options]
