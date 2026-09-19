@@ -1,5 +1,7 @@
+import { ParameterError } from '../core/errors.js'
 import {
   idOf,
+  idsOf,
   optionalIdOf,
   requiredOf,
   sortedByName,
@@ -103,6 +105,109 @@ export const assetApi = http => {
         .then(assetLists => sortedByName(assetLists.flat())),
 
     allAssetsForProject,
+
+    /**
+     * @param {{
+     *   project?: Model,
+     *   episode?: Model,
+     *   isShared?: boolean,
+     *   signal?: AbortSignal
+     * }} [options] episode keeps the assets of the episode and the ones casted
+     *   in it. isShared keeps the assets shared between projects (true) or the
+     *   other ones (false).
+     * @returns {Promise<Entity[]>} Assets matching the filters, sorted by name.
+     */
+    allAssets: async ({ project, episode, isShared, signal } = {}) =>
+      http
+        .fetchAll(
+          'assets',
+          {
+            project_id: optionalIdOf(project),
+            episode_id: optionalIdOf(episode),
+            is_shared: isShared
+          },
+          { signal }
+        )
+        .then(sortedByName),
+
+    /**
+     * Assets with their tasks, read as a stream (NDJSON) when Zou serves one:
+     * made for full project views.
+     * @param {{project?: Model, episode?: Model, signal?: AbortSignal}} [options]
+     * @returns {Promise<Entity[]>} Assets, each with its tasks, in the order
+     *   given by Zou.
+     */
+    allAssetsWithTasks: async ({ project, episode, signal } = {}) =>
+      http.getNdjson(
+        'data/assets/with-tasks',
+        {
+          project_id: optionalIdOf(project),
+          episode_id: optionalIdOf(episode)
+        },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the shared assets used in that episode.
+     * @returns {Promise<Entity[]>} Assets shared by other projects and used in
+     *   the project, sorted by name.
+     */
+    allSharedAssetsUsedInProject: async (project, { episode, signal } = {}) => {
+      const episodeId = optionalIdOf(episode)
+      const scope = episodeId === null ? '' : `/episodes/${episodeId}`
+      return http
+        .fetchAll(
+          `projects/${idOf(project)}${scope}/assets/shared-used`,
+          {},
+          { signal }
+        )
+        .then(sortedByName)
+    },
+
+    /**
+     * Share assets between projects, or stop sharing them. The scope is the
+     * given assets, narrowed or replaced by a project, or by an asset type of
+     * a project (assets is ignored by Zou in that last case).
+     * @param {{
+     *   assets?: Model[],
+     *   project?: Model,
+     *   assetType?: Model,
+     *   isShared?: boolean,
+     *   signal?: AbortSignal
+     * }} [options] Without a project, assets is required. assetType needs its
+     *   project.
+     * @returns {Promise<Entity[]>} The updated assets.
+     */
+    shareAssets: async ({
+      assets,
+      project,
+      assetType,
+      isShared = true,
+      signal
+    } = {}) => {
+      const projectId = optionalIdOf(project)
+      const assetTypeId = optionalIdOf(assetType)
+      if (projectId === null && assetTypeId !== null) {
+        throw new ParameterError(
+          'Missing parameter: project is required with assetType'
+        )
+      }
+      if (projectId === null) requiredOf('assets', assets)
+      const typeScope =
+        assetTypeId === null ? '' : `asset-types/${assetTypeId}/`
+      const scope =
+        projectId === null ? '' : `projects/${projectId}/${typeScope}`
+      return http.post(
+        `actions/${scope}assets/share`,
+        {
+          ...withoutNil({ asset_ids: assets ? idsOf(assets) : null }),
+          is_shared: isShared
+        },
+        { signal }
+      )
+    },
 
     /**
      * @param {Model} episode
@@ -396,19 +501,22 @@ export const assetApi = http => {
      * @param {Model} project
      * @param {Blob} csvFile
      * @param {{
+     *   update?: boolean,
      *   fileName?: string,
      *   onProgress?: (progress: {loaded: number, total: number}) => void,
      *   signal?: AbortSignal
-     * }} [options] onProgress needs XMLHttpRequest (browsers, webviews).
+     * }} [options] update also updates the assets that already exist.
+     *   onProgress needs XMLHttpRequest (browsers, webviews).
      * @returns {Promise<Entity[]>} The assets created by the import.
      */
     importAssetsWithCsv: async (
       project,
       csvFile,
-      { fileName, onProgress, signal } = {}
+      { update = false, fileName, onProgress, signal } = {}
     ) =>
       http.upload(`import/csv/projects/${idOf(project)}/assets`, {
         file: csvFile,
+        query: { update: update ? true : null },
         fileName,
         onProgress,
         signal

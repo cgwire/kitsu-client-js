@@ -43,6 +43,16 @@ describe('asset namespace: CSV transfers', () => {
     expect(fake.calls[0].body.get('file').name).toBe('assets.csv')
   })
 
+  it('importAssetsWithCsv asks for an update only on demand', async () => {
+    fake.reply(201, []).reply(201, [])
+    await kitsu.asset.importAssetsWithCsv(PROJECT_ID, new Blob([CSV]))
+    await kitsu.asset.importAssetsWithCsv(PROJECT_ID, new Blob([CSV]), {
+      update: true
+    })
+    expect(fake.calls[0].query.has('update')).toBe(false)
+    expect(fake.calls[1].query.get('update')).toBe('true')
+  })
+
   // The core aborts its own request signal as soon as the caller signal is
   // aborted: an aborted request signal proves the option went through.
   it('importAssetsWithCsv forwards the signal', async () => {
