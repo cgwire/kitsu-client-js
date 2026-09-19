@@ -1,4 +1,11 @@
+import { assetApi } from './api/asset.js'
 import { entityApi } from './api/entity.js'
+import { filesApi } from './api/files.js'
+import { personApi } from './api/person.js'
+import { projectApi } from './api/project.js'
+import { shotApi } from './api/shot.js'
+import { taskApi } from './api/task.js'
+import { userApi } from './api/user.js'
 import { createCore } from './core/index.js'
 
 /**
@@ -13,8 +20,16 @@ export const createClient = options => {
   // type declarations expose every namespace function.
   return Object.freeze({
     ...core,
-    entity: entityApi(http)
+    asset: assetApi(http),
+    entity: entityApi(http),
+    files: filesApi(http),
+    person: personApi(http),
+    project: projectApi(http),
+    shot: shotApi(http),
+    task: taskApi(http),
+    user: userApi(http)
   })
 }
 
 export * from './core/errors.js'
+export * from './utils/index.js'

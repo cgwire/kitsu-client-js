@@ -43,3 +43,11 @@ export const sortedByName = entries =>
     if (keyA < keyB) return -1
     return keyA > keyB ? 1 : 0
   })
+
+/**
+ * @param {Date|string|null|undefined} date
+ * @returns {string|null|undefined} "YYYY-MM-DD" for a Date (UTC), the value
+ *   itself otherwise.
+ */
+export const dateOf = date =>
+  date instanceof Date ? date.toISOString().slice(0, 10) : date

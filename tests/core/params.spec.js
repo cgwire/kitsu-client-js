@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/core/errors.js'
-import { idOf, idsOf, sortedByName } from '../../src/core/params.js'
+import { dateOf, idOf, idsOf, sortedByName } from '../../src/core/params.js'
 import { OTHER_ID, SHOT_ID } from '../helpers/ids.js'
 
 describe('idOf', () => {
@@ -38,5 +38,13 @@ describe('sortedByName', () => {
       { name: 'shot' }
     ])
     expect(entries[0]).toEqual({ name: 'shot' })
+  })
+})
+
+describe('dateOf', () => {
+  it('formats a Date as YYYY-MM-DD and passes strings through', () => {
+    expect(dateOf(new Date(Date.UTC(2026, 8, 19, 23, 30)))).toBe('2026-09-19')
+    expect(dateOf('2026-01-02')).toBe('2026-01-02')
+    expect(dateOf(undefined)).toBeUndefined()
   })
 })
