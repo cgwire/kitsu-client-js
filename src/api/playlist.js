@@ -1,6 +1,7 @@
 import { ParameterError } from '../core/errors.js'
 import {
   idOf,
+  idsOf,
   optionalIdOf,
   orNull,
   requiredOf,
@@ -24,6 +25,19 @@ const shareTokenOf = token => {
 }
 
 const entriesOf = playlist => playlist.shots || []
+
+// An entry is an entity, or an (entity, preview file) couple.
+const coupleOf = entry => {
+  const isCouple =
+    entry !== null && typeof entry === 'object' && 'entity' in entry
+  return withoutNil({
+    entity_id: idOf(isCouple ? entry.entity : entry),
+    preview_file_id: isCouple ? optionalIdOf(entry.previewFile) : null
+  })
+}
+
+const sharedPath = (token, suffix = '') =>
+  `shared/playlists/${shareTokenOf(token)}${suffix}`
 
 // Same choice as gazu: the first file of each task type is its latest
 // revision, the most recently created one wins.
@@ -420,6 +434,288 @@ export const playlistApi = http => {
         `data/playlists/${idOf(playlist)}/share/${shareTokenOf(token)}`,
         undefined,
         { signal }
+      ),
+
+    /**
+     * Read the playlist through its project: unlike getPlaylist, the answer
+     * carries the build jobs and the enriched entries.
+     * @param {Model} project
+     * @param {Model} playlist
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} Null when the playlist does not exist.
+     */
+    getPlaylistForProject: async (project, playlist, { signal } = {}) =>
+      orNull(
+        http.get(
+          `data/projects/${idOf(project)}/playlists/${idOf(playlist)}`,
+          {},
+          { signal }
+        )
+      ),
+
+    /**
+     * Add several entities to the playlist in one request.
+     * @param {Model} playlist
+     * @param {Array<Model|{entity: Model, previewFile?: Model|null}>} entities
+     *   Entities, or (entity, preview file) couples. Without a preview file
+     *   the API picks the latest preview of the task type of the playlist.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The updated playlist.
+     */
+    addEntitiesToPlaylist: async (playlist, entities, { signal } = {}) => {
+      if (!Array.isArray(entities) || entities.length === 0) {
+        throw new ParameterError('Missing parameter: entities')
+      }
+      return http.post(
+        `actions/playlists/${idOf(playlist)}/add-entities`,
+        { entities: entities.map(coupleOf) },
+        { signal }
+      )
+    },
+
+    /**
+     * Email a share link of the playlist.
+     * @param {Model} playlist
+     * @param {string} token Token of the share link.
+     * @param {{
+     *   emails?: string[],
+     *   persons?: Model[],
+     *   message?: string|null,
+     *   signal?: AbortSignal
+     * }} [options] emails are free-form addresses, persons are looked up by
+     *   the API. message is added to the email.
+     * @returns {Promise<Record<string, any>>}
+     */
+    sendShareLinkInvitations: async (
+      playlist,
+      token,
+      { emails = [], persons = [], message = null, signal } = {}
+    ) =>
+      http.post(
+        `data/playlists/${idOf(playlist)}/share/${shareTokenOf(token)}/invite`,
+        withoutNil({ emails, person_ids: idsOf(persons), message }),
+        { signal }
+      ),
+
+    /**
+     * Create the guest of a shared playlist, or get a known guest back.
+     * @param {string} token Token of the share link.
+     * @param {{
+     *   firstName?: string|null,
+     *   lastName?: string|null,
+     *   guest?: Model|null,
+     *   signal?: AbortSignal
+     * }} [options] guest is a guest this share link already created: it is
+     *   returned instead of a new one.
+     * @returns {Promise<Entity>} The guest.
+     */
+    newSharedPlaylistGuest: async (
+      token,
+      { firstName = null, lastName = null, guest = null, signal } = {}
+    ) =>
+      http.post(
+        sharedPath(token, '/guest'),
+        withoutNil({
+          first_name: firstName,
+          last_name: lastName,
+          guest_id: optionalIdOf(guest)
+        }),
+        { signal }
+      ),
+
+    /**
+     * @param {string} token Token of the share link.
+     * @param {{password?: string|null, signal?: AbortSignal}} [options]
+     *   password is needed when the share link is protected.
+     * @returns {Promise<Entity|null>} The shared playlist. Null when the
+     *   share link does not exist.
+     */
+    getSharedPlaylist: async (token, { password = null, signal } = {}) =>
+      orNull(http.get(sharedPath(token), { password }, { signal })),
+
+    /**
+     * @param {string} token Token of the share link.
+     * @param {{password?: string|null, signal?: AbortSignal}} [options]
+     *   password is needed when the share link is protected.
+     * @returns {Promise<Record<string, any>|null>} What a player needs to show
+     *   the shared playlist (task types, statuses, ...). Null when the share
+     *   link does not exist.
+     */
+    getSharedPlaylistContext: async (token, { password = null, signal } = {}) =>
+      orNull(http.get(sharedPath(token, '/context'), { password }, { signal })),
+
+    /**
+     * Save the annotations a guest drew on a preview of a shared playlist.
+     * @param {string} token Token of the share link.
+     * @param {Model} guest
+     * @param {Model} previewFile
+     * @param {{
+     *   additions?: Record<string, any>[],
+     *   updates?: Record<string, any>[],
+     *   deletions?: Record<string, any>[],
+     *   signal?: AbortSignal
+     * }} [options]
+     * @returns {Promise<Entity>} The preview file.
+     */
+    updateSharedPlaylistAnnotations: async (
+      token,
+      guest,
+      previewFile,
+      { additions = [], updates = [], deletions = [], signal } = {}
+    ) =>
+      http.put(
+        sharedPath(token, '/annotations'),
+        {
+          guest_id: idOf(guest),
+          preview_file_id: idOf(previewFile),
+          additions,
+          updates,
+          deletions
+        },
+        { signal }
+      ),
+
+    /**
+     * @param {string} token Token of the share link.
+     * @param {{password?: string|null, signal?: AbortSignal}} [options]
+     *   password is needed when the share link is protected.
+     * @returns {Promise<Entity[]>} The comments of the tasks reviewed in the
+     *   shared playlist.
+     */
+    allSharedPlaylistComments: async (
+      token,
+      { password = null, signal } = {}
+    ) => http.get(sharedPath(token, '/comments'), { password }, { signal }),
+
+    /**
+     * Post the comment of a guest on a task of a shared playlist.
+     * @param {string} token Token of the share link.
+     * @param {Model} guest
+     * @param {Model} task
+     * @param {Model} taskStatus A status allowed for clients.
+     * @param {{
+     *   text?: string,
+     *   checklist?: Record<string, any>[]|null,
+     *   password?: string|null,
+     *   signal?: AbortSignal
+     * }} [options] password is needed when the share link is protected.
+     * @returns {Promise<Entity>} The comment.
+     */
+    newSharedPlaylistComment: async (
+      token,
+      guest,
+      task,
+      taskStatus,
+      { text = '', checklist = null, password = null, signal } = {}
+    ) =>
+      http.request('POST', sharedPath(token, '/comments'), {
+        body: withoutNil({
+          guest_id: idOf(guest),
+          task_id: idOf(task),
+          task_status_id: idOf(taskStatus),
+          text,
+          checklist
+        }),
+        query: { password },
+        signal
+      }),
+
+    /**
+     * Edit a comment of the guest. Only the given fields change.
+     * @param {string} token Token of the share link.
+     * @param {Model} comment
+     * @param {Model} guest The author of the comment.
+     * @param {{
+     *   text?: string|null,
+     *   checklist?: Record<string, any>[]|null,
+     *   taskStatus?: Model|null,
+     *   signal?: AbortSignal
+     * }} [options]
+     * @returns {Promise<Entity>} The comment.
+     */
+    updateSharedPlaylistComment: async (
+      token,
+      comment,
+      guest,
+      { text = null, checklist = null, taskStatus = null, signal } = {}
+    ) =>
+      http.put(
+        sharedPath(token, `/comments/${idOf(comment)}`),
+        withoutNil({
+          guest_id: idOf(guest),
+          text,
+          checklist,
+          task_status_id: optionalIdOf(taskStatus)
+        }),
+        { signal }
+      ),
+
+    /**
+     * @param {string} token Token of the share link.
+     * @param {Model} comment
+     * @param {Model} guest The author of the comment.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeSharedPlaylistComment: async (
+      token,
+      comment,
+      guest,
+      { signal } = {}
+    ) =>
+      http.request('DELETE', sharedPath(token, `/comments/${idOf(comment)}`), {
+        query: { guest_id: idOf(guest) },
+        signal
+      }),
+
+    /**
+     * Attach files to a comment of the guest.
+     * @param {string} token Token of the share link.
+     * @param {Model} comment
+     * @param {Model} guest The author of the comment.
+     * @param {Blob|Blob[]} attachments The file, or the files.
+     * @param {{
+     *   onProgress?: (progress: {loaded: number, total: number}) => void,
+     *   signal?: AbortSignal
+     * }} [options]
+     * @returns {Promise<Entity>} The comment with its attachment files.
+     */
+    addSharedPlaylistCommentAttachments: async (
+      token,
+      comment,
+      guest,
+      attachments,
+      { onProgress, signal } = {}
+    ) =>
+      http.upload(sharedPath(token, `/comments/${idOf(comment)}/attachments`), {
+        file: attachments,
+        fields: { guest_id: idOf(guest) },
+        onProgress,
+        signal
+      }),
+
+    /**
+     * @param {string} token Token of the share link.
+     * @param {Model} comment
+     * @param {Model} attachmentFile
+     * @param {Model} guest The author of the comment.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeSharedPlaylistCommentAttachment: async (
+      token,
+      comment,
+      attachmentFile,
+      guest,
+      { signal } = {}
+    ) =>
+      http.request(
+        'DELETE',
+        sharedPath(
+          token,
+          `/comments/${idOf(comment)}/attachments/${idOf(attachmentFile)}`
+        ),
+        { query: { guest_id: idOf(guest) }, signal }
       )
   }
 }
