@@ -37,6 +37,16 @@ describe('shot namespace: transfers', () => {
     expect(fake.calls[0].body.get('file').name).toBe('shots.csv')
   })
 
+  it('importShotsWithCsv asks for an update only on demand', async () => {
+    fake.reply(201, []).reply(201, [])
+    await kitsu.shot.importShotsWithCsv(PROJECT_ID, new Blob(['a;b']))
+    await kitsu.shot.importShotsWithCsv(PROJECT_ID, new Blob(['a;b']), {
+      update: true
+    })
+    expect(fake.calls[0].query.has('update')).toBe(false)
+    expect(fake.calls[1].query.get('update')).toBe('true')
+  })
+
   it('importShotsWithCsv rejects a missing file without any request', async () => {
     await expect(
       kitsu.shot.importShotsWithCsv(PROJECT_ID)

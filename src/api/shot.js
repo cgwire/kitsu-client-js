@@ -11,12 +11,7 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
- * @typedef {{
- *   fileName?: string,
- *   onProgress?: (progress: {loaded: number, total: number}) => void,
- *   signal?: AbortSignal
- * }} TransferOptions fileName names the uploaded file when it is a plain
- *   Blob. onProgress needs XMLHttpRequest (browsers, webviews).
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
 // Same defaults as gazu. Zou fills these placeholders itself: they are not
@@ -456,16 +451,18 @@ export const shotApi = http => {
      * the project.
      * @param {Model} project
      * @param {Blob} csvFile The CSV data, as a Blob or a File.
-     * @param {TransferOptions} [options]
+     * @param {TransferOptions & {update?: boolean}} [options] update also
+     *   updates the shots that already exist.
      * @returns {Promise<Entity[]>} The shots created by the import.
      */
     importShotsWithCsv: async (
       project,
       csvFile,
-      { fileName, onProgress, signal } = {}
+      { update = false, fileName, onProgress, signal } = {}
     ) =>
       http.upload(`import/csv/projects/${idOf(project)}/shots`, {
         file: requiredOf('csvFile', csvFile),
+        query: { update: update ? true : null },
         fileName,
         onProgress,
         signal
@@ -540,6 +537,104 @@ export const shotApi = http => {
         // to read it.
         read: response => response.text()
       }),
+
+    /**
+     * The shots with their tasks, as the shot list of the Kitsu web app loads
+     * them (streamed when the API supports it).
+     * @param {{
+     *   project?: Model,
+     *   episode?: Model,
+     *   signal?: AbortSignal
+     * }} [options]
+     * @returns {Promise<Entity[]>} The shots, each with its tasks.
+     */
+    allShotsWithTasks: async ({ project, episode, signal } = {}) =>
+      http.getNdjson(
+        'data/shots/with-tasks',
+        {
+          project_id: optionalIdOf(project),
+          episode_id: optionalIdOf(episode)
+        },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the sequences of that episode only.
+     * @returns {Promise<Entity[]>} The sequences, each with its tasks.
+     */
+    allSequencesWithTasks: async (project, { episode, signal } = {}) =>
+      http.get(
+        'data/sequences/with-tasks',
+        { project_id: idOf(project), episode_id: optionalIdOf(episode) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The episodes, each with its tasks.
+     */
+    allEpisodesWithTasks: async (project, { signal } = {}) =>
+      http.get(
+        'data/episodes/with-tasks',
+        { project_id: idOf(project) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Object<string, object>>} The task counts per status
+     *   and task type, keyed by episode id ("all" sums the episodes).
+     */
+    getEpisodeStats: async (project, { signal } = {}) =>
+      http.get(`data/projects/${idOf(project)}/episodes/stats`, {}, { signal }),
+
+    /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Object<string, object>>} The retake counts per task
+     *   type, keyed by episode id ("all" sums the episodes).
+     */
+    getEpisodeRetakeStats: async (project, { signal } = {}) =>
+      http.get(
+        `data/projects/${idOf(project)}/episodes/retake-stats`,
+        {},
+        { signal }
+      ),
+
+    /**
+     * @param {Model} shot
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The data history of the shot: one version
+     *   per change of its metadata.
+     */
+    allVersionsForShot: async (shot, { signal } = {}) =>
+      http.get(`data/shots/${idOf(shot)}/versions`, {}, { signal }),
+
+    /**
+     * Set the number of frames of the shots from the length of their latest
+     * preview for the task type.
+     * @param {Model} taskType
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode
+     *   limits the change to the shots of that episode.
+     * @returns {Promise<{id: string, nb_frames: number}[]>} The new number of
+     *   frames of each updated shot.
+     */
+    setNbFramesFromTaskTypePreviews: async (
+      taskType,
+      project,
+      { episode, signal } = {}
+    ) =>
+      http.request(
+        'POST',
+        `actions/projects/${idOf(project)}/task-types/${idOf(taskType)}` +
+          '/set-shot-nb-frames',
+        { query: { episode_id: optionalIdOf(episode) }, signal }
+      ),
 
     /**
      * @param {Model} episode
