@@ -4,6 +4,7 @@ import {
   dayOf,
   idOf,
   idsOf,
+  optionalIdOf,
   orNull,
   requiredOf,
   sortedByName
@@ -30,6 +31,53 @@ const intOf = value => {
  * @returns {string} The integer on two digits, as gazu's zfill(2).
  */
 const twoDigits = value => String(intOf(value)).padStart(2, '0')
+
+/**
+ * @typedef {{project?: Model, studio?: Model, signal?: AbortSignal}}
+ *   TimeSpentOptions project and studio keep the time spent on that project
+ *   or by the people of that studio.
+ * @typedef {{
+ *   project?: Model,
+ *   taskType?: Model,
+ *   countMode?: string,
+ *   signal?: AbortSignal
+ * }} QuotaOptions countMode is weighted (default of the API), weighteddone,
+ *   feedback or done.
+ */
+
+/**
+ * @param {any} http
+ * @param {string} path
+ * @param {TimeSpentOptions} [options]
+ */
+const getTimeSpents = (http, path, { project, studio, signal } = {}) =>
+  http.get(
+    path,
+    { project_id: optionalIdOf(project), studio_id: optionalIdOf(studio) },
+    { signal }
+  )
+
+/**
+ * @param {any} http
+ * @param {string} path
+ * @param {QuotaOptions} [options]
+ */
+const getQuotaShots = (
+  http,
+  path,
+  { project, taskType, countMode, signal } = {}
+) =>
+  orNull(
+    http.get(
+      path,
+      {
+        project_id: optionalIdOf(project),
+        task_type_id: optionalIdOf(taskType),
+        count_mode: countMode
+      },
+      { signal }
+    )
+  )
 
 /**
  * @param {any} http
@@ -185,6 +233,15 @@ export const personApi = http => ({
     http
       .get('auth/authenticated', {}, { signal })
       .then(body => body.organisation),
+
+  /**
+   * @param {Entity} organisation The settings of the studio: name,
+   *   hours_by_day, timesheets_locked, chat tokens, has_avatar, ...
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The updated organisation.
+   */
+  updateOrganisation: async (organisation, { signal } = {}) =>
+    http.update('organisations', idOf(organisation), organisation, { signal }),
 
   /**
    * Create a department, or return the existing one bearing that name.
@@ -405,30 +462,193 @@ export const personApi = http => ({
    * @param {Model} person
    * @param {number} year
    * @param {number} week
-   * @param {RequestOptions} [options]
+   * @param {TimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the week,
    *   null when the person does not exist.
    */
-  getWeekTimeSpents: async (person, year, week, { signal } = {}) =>
+  getWeekTimeSpents: async (person, year, week, options) =>
     orNull(
-      http.get(
+      getTimeSpents(
+        http,
         `data/persons/${idOf(person)}/time-spents/week/${intOf(year)}/${intOf(week)}`,
-        {},
-        { signal }
+        options
       )
     ),
 
   /**
    * @param {Model} person
    * @param {number} year
-   * @param {RequestOptions} [options]
+   * @param {number} month From 1 (January) to 12.
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity[]|null>} Time spents of the person for the
+   *   month, null when the person does not exist.
+   */
+  getMonthTimeSpents: async (person, year, month, options) =>
+    orNull(
+      getTimeSpents(
+        http,
+        `data/persons/${idOf(person)}/time-spents/month/${intOf(year)}/${intOf(month)}`,
+        options
+      )
+    ),
+
+  /**
+   * @param {Model} person
+   * @param {number} year
+   * @param {number} month From 1 (January) to 12.
+   * @param {number} day
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity[]|null>} Time spents of the person for the day,
+   *   null when the person does not exist.
+   */
+  getDayTimeSpents: async (person, year, month, day, options) =>
+    orNull(
+      getTimeSpents(
+        http,
+        `data/persons/${idOf(person)}/time-spents/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
+        options
+      )
+    ),
+
+  /**
+   * @param {Model} person
+   * @param {number} year
+   * @param {TimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the year,
    *   null when the person does not exist.
    */
-  getYearTimeSpents: async (person, year, { signal } = {}) =>
+  getYearTimeSpents: async (person, year, options) =>
+    orNull(
+      getTimeSpents(
+        http,
+        `data/persons/${idOf(person)}/time-spents/year/${intOf(year)}`,
+        options
+      )
+    ),
+
+  /**
+   * @param {number} year
+   * @param {number} month From 1 (January) to 12.
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity>} Time spent by each person on each day of the
+   *   month.
+   */
+  getTimeSpentsDayTable: async (year, month, options) =>
+    getTimeSpents(
+      http,
+      `data/persons/time-spents/day-table/${intOf(year)}/${intOf(month)}`,
+      options
+    ),
+
+  /**
+   * @param {number} year
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity>} Time spent by each person on each week of the
+   *   year.
+   */
+  getTimeSpentsWeekTable: async (year, options) =>
+    getTimeSpents(
+      http,
+      `data/persons/time-spents/week-table/${intOf(year)}`,
+      options
+    ),
+
+  /**
+   * @param {number} year
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity>} Time spent by each person on each month of the
+   *   year.
+   */
+  getTimeSpentsMonthTable: async (year, options) =>
+    getTimeSpents(
+      http,
+      `data/persons/time-spents/month-table/${intOf(year)}`,
+      options
+    ),
+
+  /**
+   * @param {TimeSpentOptions} [options]
+   * @returns {Promise<Entity>} Time spent by each person on each year.
+   */
+  getTimeSpentsYearTable: async options =>
+    getTimeSpents(http, 'data/persons/time-spents/year-table', options),
+
+  /**
+   * @param {Model} person
+   * @param {number} year
+   * @param {number} month From 1 (January) to 12.
+   * @param {QuotaOptions} [options]
+   * @returns {Promise<Entity[]|null>} Shots the person delivered each day of
+   *   the month, null when the person does not exist.
+   */
+  getMonthQuotaShots: async (person, year, month, options) =>
+    getQuotaShots(
+      http,
+      `data/persons/${idOf(person)}/quota-shots/month/${intOf(year)}/${intOf(month)}`,
+      options
+    ),
+
+  /**
+   * @param {Model} person
+   * @param {number} year
+   * @param {number} week
+   * @param {QuotaOptions} [options]
+   * @returns {Promise<Entity[]|null>} Shots the person delivered during the
+   *   week, null when the person does not exist.
+   */
+  getWeekQuotaShots: async (person, year, week, options) =>
+    getQuotaShots(
+      http,
+      `data/persons/${idOf(person)}/quota-shots/week/${intOf(year)}/${intOf(week)}`,
+      options
+    ),
+
+  /**
+   * @param {Model} person
+   * @param {number} year
+   * @param {number} month From 1 (January) to 12.
+   * @param {number} day
+   * @param {QuotaOptions} [options]
+   * @returns {Promise<Entity[]|null>} Shots the person delivered on that day,
+   *   null when the person does not exist.
+   */
+  getDayQuotaShots: async (person, year, month, day, options) =>
+    getQuotaShots(
+      http,
+      `data/persons/${idOf(person)}/quota-shots/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
+      options
+    ),
+
+  /**
+   * The API narrows the day offs to a month only: year and month go together.
+   * @param {{year?: number, month?: number, signal?: AbortSignal}} [options]
+   *   month goes from 1 (January) to 12.
+   * @returns {Promise<Entity[]>} The day offs of everyone, of the whole
+   *   history or of one month.
+   */
+  allDayOffs: async ({ year, month, signal } = {}) => {
+    if (year == null && month == null)
+      return http.fetchAll('day-offs', {}, { signal })
+    if (year == null || month == null)
+      throw new ParameterError('year and month must be given together')
+    return http.get(
+      `data/persons/day-offs/${intOf(year)}/${intOf(month)}`,
+      {},
+      { signal }
+    )
+  },
+
+  /**
+   * @param {Model} person
+   * @param {Date|string} date "YYYY-MM-DD"
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The day off of the person covering that
+   *   day, null when the person does not exist.
+   */
+  getDayOffByDate: async (person, date, { signal } = {}) =>
     orNull(
       http.get(
-        `data/persons/${idOf(person)}/time-spents/year/${intOf(year)}`,
+        `data/persons/${idOf(person)}/day-offs/${dayOf(date)}`,
         {},
         { signal }
       )
@@ -567,6 +787,18 @@ export const personApi = http => ({
     http.get(`actions/persons/${idOf(person)}/invite`, {}, { signal }),
 
   /**
+   * Build a link the person can follow to choose a new password, without
+   * sending any email.
+   * @param {Model} person
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The link, in reset_url.
+   */
+  generateResetPasswordLink: async (person, { signal } = {}) =>
+    http.post(`actions/persons/${idOf(person)}/reset-password-link`, null, {
+      signal
+    }),
+
+  /**
    * @param {Model} person
    * @param {Model} department
    * @param {RequestOptions} [options]
@@ -631,6 +863,51 @@ export const personApi = http => ({
       onProgress,
       signal
     }),
+
+  /**
+   * Import the persons of a CSV file (same columns as the CSV export).
+   * @param {Blob} csvFile
+   * @param {{
+   *   update?: boolean,
+   *   fileName?: string,
+   *   onProgress?: (progress: {loaded: number, total: number}) => void,
+   *   signal?: AbortSignal
+   * }} [options] update also rewrites the persons that already exist.
+   *   onProgress needs XMLHttpRequest (browsers, webviews).
+   * @returns {Promise<Entity[]>} The persons created or updated by the import.
+   */
+  importPersonsWithCsv: async (
+    csvFile,
+    { update = false, fileName, onProgress, signal } = {}
+  ) =>
+    http.upload('import/csv/persons', {
+      file: requiredOf('file', csvFile),
+      query: { update: update ? true : null },
+      fileName,
+      onProgress,
+      signal
+    }),
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The salary of each department, position and
+   *   seniority.
+   */
+  allSalaryScales: async ({ signal } = {}) =>
+    http.fetchAll('salary-scales', {}, { signal }),
+
+  /**
+   * @param {Entity} salaryScale Only its salary is sent.
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The updated salary scale.
+   */
+  updateSalaryScale: async (salaryScale, { signal } = {}) =>
+    http.update(
+      'salary-scales',
+      idOf(salaryScale),
+      { salary: salaryScale.salary },
+      { signal }
+    ),
 
   /**
    * @param {Model} person
