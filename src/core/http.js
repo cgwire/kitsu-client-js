@@ -6,6 +6,7 @@ import {
   TimeoutError,
   errorFromResponse
 } from './errors.js'
+import { readNdjson } from './ndjson.js'
 import { buildUrl } from './query.js'
 
 const isFormData = body =>
@@ -145,12 +146,34 @@ export const createHttp = (config, session) => {
   const del = (path, body, options) =>
     request('DELETE', path, { ...options, body })
 
+  // The body of a raw response is read without deadline: only the first
+  // byte is bounded. Any non-NDJSON answer (older Zou, proxy) is re-issued as
+  // a plain request, which raises the typed error if there is one.
+  const getNdjson = async (path, query = {}, options = {}) => {
+    try {
+      const response = await request('GET', path, {
+        ...options,
+        raw: true,
+        query: { ...query, stream: true, compact: true },
+        headers: { Accept: 'application/x-ndjson' }
+      })
+      const type = response.headers.get('Content-Type') || ''
+      if (type.includes('ndjson')) return await readNdjson(response)
+    } catch (err) {
+      if (err instanceof NotAuthenticatedError || err.name === 'AbortError') {
+        throw err
+      }
+    }
+    return get(path, query, options)
+  }
+
   return {
     host,
     send,
     request,
     withAuthReplay,
     get,
+    getNdjson,
     post,
     put,
     del,
