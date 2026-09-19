@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { NotAllowedError } from '../../src/core/errors.js'
+import { NotAllowedError, ParameterError } from '../../src/core/errors.js'
 import { createClient } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { createFakeFetch } from '../helpers/fakeFetch.js'
@@ -60,9 +60,48 @@ describe('http.upload over fetch', () => {
     expect(form.get('file').name).toBe('frame.png')
     expect(fake.calls[0].headers.Authorization).toBe('Bearer token')
   })
+
+  it('sends the query next to the form', async () => {
+    const { kitsu, fake } = makeClient()
+    fake.reply(201, {})
+    await kitsu.http.upload(PATH, {
+      file: blob,
+      query: { normalize: false, unset: null }
+    })
+    expect(fake.calls[0].query.toString()).toBe('normalize=false')
+    expect(fake.calls[0].body).toBeInstanceOf(FormData)
+  })
+
+  it('rejects a missing file before any request', async () => {
+    const { kitsu, fake } = makeClient()
+    await expect(
+      kitsu.http.upload(PATH, { file: undefined })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.http.upload(PATH, { file: [blob, 'not a blob'] })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(kitsu.http.upload(PATH, { file: [] })).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
 })
 
 describe('http.upload over XHR', () => {
+  it('puts the query in the URL', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu } = makeClient()
+    const pending = kitsu.http.upload(PATH, {
+      file: blob,
+      query: { normalize: false },
+      onProgress: () => {}
+    })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(201, {})
+    await pending
+    expect(xhrs[0].url).toBe(`http://kitsu.test/api/${PATH}?normalize=false`)
+  })
+
   it('reports progress and resolves with the parsed body', async () => {
     const xhrs = installFakeXhr()
     const { kitsu } = makeClient()

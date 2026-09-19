@@ -1,4 +1,4 @@
-import { NetworkError, errorFromResponse } from './errors.js'
+import { NetworkError, ParameterError, errorFromResponse } from './errors.js'
 import { buildUrl } from './query.js'
 
 /**
@@ -9,6 +9,7 @@ import { buildUrl } from './query.js'
  *   arrays are sent as JSON.
  * @property {string} [fileField] Name of the file field, "file" by default.
  * @property {string} [fileName] File name of the first file.
+ * @property {Record<string, any>} [query] Query parameters of the URL.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it.
  * @property {AbortSignal} [signal]
@@ -26,6 +27,11 @@ const buildForm = ({ file, fields = {}, fileField = 'file', fileName }) => {
     }
   })
   const files = Array.isArray(file) ? file : [file]
+  // FormData turns anything else into text: a missing file would be sent as
+  // the string "undefined".
+  if (!files.length || !files.every(entry => entry instanceof Blob)) {
+    throw new ParameterError('Missing parameter: file must be a Blob or a File')
+  }
   files.forEach((entry, index) => {
     const field = index === 0 ? fileField : `${fileField}-${index}`
     if (fileName && index === 0) form.append(field, entry, fileName)
@@ -108,14 +114,14 @@ export const createUpload =
    */
   async (path, options) => {
     const form = buildForm(options)
-    const { onProgress, signal } = options
+    const { query, onProgress, signal } = options
     const useXhr =
       onProgress && typeof globalThis.XMLHttpRequest !== 'undefined'
-    if (!useXhr) return request('POST', path, { body: form, signal })
+    if (!useXhr) return request('POST', path, { body: form, query, signal })
     return withAuthReplay(headers => {
       const tracked = track(signal)
       return xhrUpload({
-        url: buildUrl(host, path),
+        url: buildUrl(host, path, query),
         form,
         headers,
         onProgress,
