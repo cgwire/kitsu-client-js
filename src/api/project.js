@@ -8,6 +8,7 @@ import {
   sortedByName,
   withoutNil
 } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -778,5 +779,13 @@ export const projectApi = http => ({
    * @returns {Promise<null>}
    */
   removeBudgetEntry: async (project, budget, entry, { signal } = {}) =>
-    http.remove(entriesOf(project, budget), idOf(entry), {}, { signal })
+    http.remove(entriesOf(project, budget), idOf(entry), {}, { signal }),
+
+  /**
+   * @param {Model} project
+   * @param {{section?: string}} [options] "assets" by default.
+   * @returns {Promise<string>} URL of the production in the Kitsu web app.
+   */
+  getProjectUrl: async (project, { section = 'assets' } = {}) =>
+    urls.getProjectUrl(urls.webHostOf(http.host), project, section)
 })

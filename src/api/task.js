@@ -9,6 +9,7 @@ import {
   sortedByName,
   withoutNil
 } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -1397,6 +1398,12 @@ export const taskApi = http => {
         `${commentPath('data', task, comment)}/reply/${idOf(reply)}`,
         undefined,
         { signal }
-      )
+      ),
+
+    /**
+     * @param {Entity} task The task object: its project_id is needed.
+     * @returns {Promise<string>} URL of the task page in the Kitsu web app.
+     */
+    getTaskUrl: async task => urls.getTaskUrl(urls.webHostOf(http.host), task)
   }
 }

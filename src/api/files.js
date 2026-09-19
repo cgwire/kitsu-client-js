@@ -1,4 +1,5 @@
 import { idOf, optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -1126,6 +1127,59 @@ export const filesApi = http => {
     getFileStatus: async (fileStatus, { signal } = {}) =>
       http.fetchOne('file-status', idOf(fileStatus), { signal }),
 
-    getFileStatusByName
+    getFileStatusByName,
+
+    /**
+     * @param {Model} previewFile Loaded for its extension, like gazu.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} Path of the original file, relative to the
+     *   API host: pass it to http.download.
+     */
+    getPreviewFileUrl: async (previewFile, { signal } = {}) =>
+      urls.getPreviewFilePath(
+        await http.get(
+          `data/preview-files/${idOf(previewFile)}`,
+          {},
+          { signal }
+        )
+      ),
+
+    /**
+     * @param {Model} previewFile Loaded for its extension, like gazu.
+     * @param {{lowdef?: boolean, signal?: AbortSignal}} [options]
+     * @returns {Promise<string>} Path of the movie, relative to the API host.
+     */
+    getPreviewMovieUrl: async (previewFile, { lowdef = false, signal } = {}) =>
+      urls.getPreviewMoviePath(
+        await http.get(
+          `data/preview-files/${idOf(previewFile)}`,
+          {},
+          { signal }
+        ),
+        { lowdef }
+      ),
+
+    /**
+     * @param {Model} previewFile
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} Path of the low definition movie.
+     */
+    getPreviewLowdefMovieUrl: async (previewFile, { signal } = {}) =>
+      urls.getPreviewMoviePath(
+        await http.get(
+          `data/preview-files/${idOf(previewFile)}`,
+          {},
+          { signal }
+        ),
+        { lowdef: true }
+      ),
+
+    /**
+     * @param {Model} attachmentFile
+     * @returns {Promise<string>} Path of the thumbnail, relative to the API
+     *   host.
+     */
+    getAttachmentThumbnailUrl: async attachmentFile =>
+      urls.getAttachmentThumbnailPath(attachmentFile)
   }
 }

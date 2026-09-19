@@ -8,6 +8,7 @@ import {
   requiredOf,
   sortedByName
 } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -629,5 +630,12 @@ export const personApi = http => ({
       fileName,
       onProgress,
       signal
-    })
+    }),
+
+  /**
+   * @param {Model} person
+   * @returns {Promise<string>} URL of the person page in the Kitsu web app.
+   */
+  getPersonUrl: async person =>
+    urls.getPersonUrl(urls.webHostOf(http.host), person)
 })

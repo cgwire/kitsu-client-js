@@ -5,6 +5,7 @@ import {
   sortedByName,
   withoutNil
 } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -538,6 +539,53 @@ export const shotApi = http => {
         // A CSV table: the http core refuses a non-JSON body unless told how
         // to read it.
         read: response => response.text()
-      })
+      }),
+
+    /**
+     * @param {Model} episode
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the episode shots in the Kitsu web app.
+     */
+    getEpisodeUrl: async (episode, { signal } = {}) =>
+      urls.getEpisodeUrl(
+        urls.webHostOf(http.host),
+        await http.get(`data/episodes/${idOf(episode)}`, {}, { signal })
+      ),
+
+    /**
+     * @param {Model} shot
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the shot page in the Kitsu web app.
+     */
+    getShotUrl: async (shot, { signal } = {}) =>
+      urls.getShotUrl(
+        urls.webHostOf(http.host),
+        await http.get(`data/shots/${idOf(shot)}`, {}, { signal })
+      ),
+
+    /**
+     * @param {Model} sequence
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the sequence page in the Kitsu web app.
+     */
+    getSequenceUrl: async (sequence, { signal } = {}) =>
+      urls.getSequenceUrl(
+        urls.webHostOf(http.host),
+        await http.get(`data/sequences/${idOf(sequence)}`, {}, { signal })
+      ),
+
+    /**
+     * @param {Model} project
+     * @returns {Promise<string>} URL of the episode list in the Kitsu web app.
+     */
+    getAllEpisodesUrl: async project =>
+      urls.getAllEpisodesUrl(urls.webHostOf(http.host), project),
+
+    /**
+     * @param {Model} project
+     * @returns {Promise<string>} URL of the sequence list in the Kitsu web app.
+     */
+    getAllSequencesUrl: async project =>
+      urls.getAllSequencesUrl(urls.webHostOf(http.host), project)
   }
 }

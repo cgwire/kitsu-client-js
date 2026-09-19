@@ -5,6 +5,7 @@ import {
   sortedByName,
   withoutNil
 } from '../core/params.js'
+import * as urls from '../utils/urls.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -459,6 +460,64 @@ export const assetApi = http => {
      * @returns {Promise<Entity|null>} The asset type of the asset.
      */
     getAssetTypeFromAsset: async (asset, { signal } = {}) =>
-      getAssetType(asset.entity_type_id, { signal })
+      getAssetType(asset.entity_type_id, { signal }),
+
+    /**
+     * Loads the asset and its project, like gazu: the URL differs in a TV show.
+     * @param {Model} asset
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the asset page in the Kitsu web app.
+     */
+    getAssetUrl: async (asset, { signal } = {}) => {
+      const loaded = await http.get(
+        `data/assets/${idOf(asset)}`,
+        {},
+        { signal }
+      )
+      const project = await http.get(
+        `data/projects/${idOf(loaded.project_id)}`,
+        {},
+        { signal }
+      )
+      return urls.getAssetUrl(urls.webHostOf(http.host), loaded, project)
+    },
+
+    /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the asset list in the Kitsu web app.
+     */
+    getAllAssetsUrl: async (project, { signal } = {}) =>
+      urls.getAllAssetsUrl(
+        urls.webHostOf(http.host),
+        await http.get(`data/projects/${idOf(project)}`, {}, { signal })
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {Model|Entity} assetType Loaded only when its name is missing.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<string>} URL of the asset list filtered on the type.
+     */
+    getAssetTypeUrl: async (project, assetType, { signal } = {}) => {
+      const loadedProject = await http.get(
+        `data/projects/${idOf(project)}`,
+        {},
+        { signal }
+      )
+      const named =
+        typeof assetType === 'object' && assetType && 'name' in assetType
+          ? assetType
+          : await http.get(
+              `data/asset-types/${idOf(assetType)}`,
+              {},
+              { signal }
+            )
+      return urls.getAssetTypeUrl(
+        urls.webHostOf(http.host),
+        loadedProject,
+        named
+      )
+    }
   }
 }
