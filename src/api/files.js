@@ -541,6 +541,52 @@ export const filesApi = http => {
       http.update('softwares', idOf(software), software, { signal }),
 
     /**
+     * @param {Model} software
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeSoftware: async (software, { signal } = {}) =>
+      http.remove('softwares', idOf(software), {}, { signal }),
+
+    /**
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Record<string, Entity[]>>} The softwares linked to
+     *   each department, keyed by department id.
+     */
+    allDepartmentSoftwares: async ({ signal } = {}) =>
+      http.get('data/departments/software-licenses', {}, { signal }),
+
+    /**
+     * @param {Model} department
+     * @param {Model} software
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The link between the two.
+     */
+    addSoftwareToDepartment: async (department, software, { signal } = {}) =>
+      http.post(
+        `data/departments/${idOf(department)}/software-licenses`,
+        { software_id: idOf(software) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} department
+     * @param {Model} software
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeSoftwareFromDepartment: async (
+      department,
+      software,
+      { signal } = {}
+    ) =>
+      http.del(
+        `data/departments/${idOf(department)}/software-licenses/${idOf(software)}`,
+        undefined,
+        { signal }
+      ),
+
+    /**
      * Build the path of a working file from the project file tree.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
@@ -1107,6 +1153,13 @@ export const filesApi = http => {
         `actions/preview-files/${idOf(previewFile)}/extract-tile`,
         { raw: true, signal }
       ),
+
+    /**
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} All file statuses of the database.
+     */
+    allFileStatuses: async ({ signal } = {}) =>
+      http.fetchAll('file-status', {}, { signal }),
 
     /**
      * Create a file status, or return the one that already has this name.
