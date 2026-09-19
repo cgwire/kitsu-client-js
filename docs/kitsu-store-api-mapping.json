@@ -87,7 +87,7 @@
     "route": "/import/csv/projects/<id>/assets",
     "client": "asset.importAssetsWithCsv",
     "status": "existing",
-    "note": "Kitsu adds ?update=true when updating: the client function has no update option yet (http.upload accepts a query)."
+    "note": "Kitsu adds ?update=true when updating: the client sends it through the update option."
   },
   {
     "module": "assettypes",
@@ -834,7 +834,7 @@
     "route": "/data/entities/<id>/chat/messages",
     "client": "user.newChatMessage",
     "status": "added",
-    "note": "JSON body { message }, or multipart form (file-0, file-1, ... plus message) when attachments are given."
+    "note": "JSON body { message }, or multipart form when attachments are given: Kitsu names the fields file-0, file-1, ..., the client sends file, file-1, ... through http.upload (Zou reads every file of the form, whatever its field name)."
   },
   {
     "module": "entities",
@@ -1257,7 +1257,7 @@
     "route": "/auth/fido",
     "client": "root.unregisterFido",
     "status": "added",
-    "note": "DELETE with the JSON body { device_name }."
+    "note": "DELETE with the JSON body { device_name }. Zou checks a second factor on this route: the client also takes totp, email_otp, fido_authentication_response and recovery_code as options."
   },
   {
     "module": "people",
@@ -1302,7 +1302,7 @@
     "route": "/data/user/tasks-to-check/filter-values",
     "client": "user.getTasksRequiringFeedbackFilterValues",
     "status": "added",
-    "note": "Route present in zou but missing from tests/fixtures/zou_routes.json: refresh the fixture."
+    "note": ""
   },
   {
     "module": "people",
@@ -1443,10 +1443,10 @@
     "module": "people",
     "kitsu": "getDaysOff",
     "method": "GET",
-    "route": "/data/day-offs | /data/persons/day-offs/<id> | /data/persons/day-offs/<id>/<id>",
+    "route": "/data/day-offs | /data/persons/day-offs/<id>/<id>",
     "client": "person.allDayOffs",
     "status": "added",
-    "note": "All the day offs of the studio, narrowed by optional year and month path segments. Zou only declares /data/persons/day-offs/<year>/<month>: the year only variant is not in tests/fixtures/zou_routes.json nor in the zou blueprint, check it before porting."
+    "note": "All the day offs of the studio, narrowed by optional year and month path segments. Zou only serves /data/persons/day-offs/<year>/<month>: the year only variant built by Kitsu does not exist, so person.allDayOffs rejects a year without a month."
   },
   {
     "module": "people",
@@ -2562,7 +2562,7 @@
     "route": "/data/production-schedule-versions",
     "client": "schedule.newScheduleVersion",
     "status": "added",
-    "note": "CRUD create, Kitsu uses a trailing slash. Body: project_id, name, from."
+    "note": "CRUD create, Kitsu uses a trailing slash. Body: project_id, name (Kitsu's `from` is always undefined and Zou has no such column)."
   },
   {
     "module": "schedule",
@@ -2823,7 +2823,7 @@
     "route": "/import/csv/projects/<id>/shots",
     "client": "shot.importShotsWithCsv",
     "status": "existing",
-    "note": "Kitsu posts a ready FormData and adds ?update=true when toUpdate is set: the client takes the file itself and has no update option yet, to add in Task 26."
+    "note": "Kitsu posts a ready FormData and adds ?update=true when toUpdate is set: the client takes the file itself and sends the query through the update option."
   },
   {
     "module": "shots",
@@ -3048,7 +3048,7 @@
     "route": "/data/tasks/open-tasks/burndown",
     "client": "task.getOpenTasksBurndown",
     "status": "added",
-    "note": "Takes the same filters object as the open tasks list. Route missing from tests/fixtures/zou_routes.json: resync the fixture."
+    "note": "Takes the same filters object as the open tasks list."
   },
   {
     "module": "tasks",

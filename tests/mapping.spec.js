@@ -35,8 +35,7 @@ describe('Kitsu store/api mapping', () => {
     expect(silent.map(row => `${row.module}.${row.kitsu}`)).toEqual([])
   })
 
-  // unskipped by Task 26
-  it.skip('points to client functions that exist', () => {
+  it('points to client functions that exist', () => {
     const missing = mapping
       .filter(row => row.status !== 'excluded')
       .flatMap(row =>
