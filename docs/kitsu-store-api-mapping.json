@@ -1,0 +1,3575 @@
+[
+  {
+    "module": "assets",
+    "kitsu": "getAssets",
+    "method": "GET",
+    "route": "/data/assets | /data/assets/with-tasks",
+    "client": "asset.allAssets | asset.allAssetsWithTasks",
+    "status": "added",
+    "note": "Plain route (withTasks false): asset.allAssets, the filtered CRUD list shared with getSharedAssets (query project_id, episode_id). asset.allAssetsForEpisode hits the same route but forces a source_id filter. With-tasks route: asset.allAssetsWithTasks, which needs an NDJSON variant built on http.getNdjson (Kitsu uses pgetNdjson there). Query: project_id, episode_id."
+  },
+  {
+    "module": "assets",
+    "kitsu": "getSharedAssets",
+    "method": "GET",
+    "route": "/data/assets",
+    "client": "asset.allAssets",
+    "status": "added",
+    "note": "Same function as the plain branch of getAssets: a filtered list on the CRUD route. Query: is_shared (true or false) and optional project_id, to expose as options. asset.allAssetsForEpisode hits the same route but forces a source_id filter, so it cannot serve this call."
+  },
+  {
+    "module": "assets",
+    "kitsu": "getUsedSharedAssets",
+    "method": "GET",
+    "route": "/data/projects/<id>/assets/shared-used | /data/projects/<id>/episodes/<id>/assets/shared-used",
+    "client": "asset.allSharedAssetsUsedInProject",
+    "status": "added",
+    "note": "Optional episode switches to the episode route. Kitsu returns [] without a production: keep that guard on the Kitsu side."
+  },
+  {
+    "module": "assets",
+    "kitsu": "getAsset",
+    "method": "GET",
+    "route": "/data/assets/<id>",
+    "client": "asset.getAsset",
+    "status": "existing",
+    "note": "Kitsu adds ?relations=true, the client sends no query and returns null on a 404: a relations option is needed for a strict replacement."
+  },
+  {
+    "module": "assets",
+    "kitsu": "newAsset",
+    "method": "POST",
+    "route": "/data/projects/<id>/asset-types/<id>/assets/new",
+    "client": "asset.newAsset",
+    "status": "existing",
+    "note": "The client first looks the asset up by name (extra GET) and returns the existing one. Body matches: name, description, data, is_shared, episode_id."
+  },
+  {
+    "module": "assets",
+    "kitsu": "updateAsset",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "asset.updateAsset",
+    "status": "existing",
+    "note": "The client sends the object it is given: Kitsu keeps building its own field list (ready_for, is_casting_standby, source_id)."
+  },
+  {
+    "module": "assets",
+    "kitsu": "deleteAsset",
+    "method": "DELETE",
+    "route": "/data/assets/<id>",
+    "client": "asset.removeAsset",
+    "status": "existing",
+    "note": "Kitsu sends ?force=true when the asset is already canceled: use the force option."
+  },
+  {
+    "module": "assets",
+    "kitsu": "restoreAsset",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "asset.updateAsset",
+    "status": "existing",
+    "note": "Same route as updateAsset with the body { canceled: false }: call asset.updateAsset({ id, canceled: false })."
+  },
+  {
+    "module": "assets",
+    "kitsu": "shareAssets",
+    "method": "POST",
+    "route": "/actions/assets/share | /actions/projects/<id>/assets/share | /actions/projects/<id>/asset-types/<id>/assets/share",
+    "client": "asset.shareAssets",
+    "status": "added",
+    "note": "Route depends on the optional project and asset type. Body: asset_ids, is_shared. Kitsu writes a trailing slash on the path."
+  },
+  {
+    "module": "assets",
+    "kitsu": "postCsv",
+    "method": "POST",
+    "route": "/import/csv/projects/<id>/assets",
+    "client": "asset.importAssetsWithCsv",
+    "status": "existing",
+    "note": "Kitsu adds ?update=true when updating: the client function has no update option yet (http.upload accepts a query)."
+  },
+  {
+    "module": "assettypes",
+    "kitsu": "getAssetTypes",
+    "method": "GET",
+    "route": "/data/asset-types",
+    "client": "asset.allAssetTypes",
+    "status": "existing",
+    "note": "The client sorts the result by name."
+  },
+  {
+    "module": "assettypes",
+    "kitsu": "getAssetType",
+    "method": "GET",
+    "route": "/data/entity-types/<id>",
+    "client": "entity.getEntityType",
+    "status": "existing",
+    "note": "asset.getAssetType reads data/asset-types/<id> instead; entity.getEntityType is the exact route. Returns null on a 404."
+  },
+  {
+    "module": "assettypes",
+    "kitsu": "newAssetType",
+    "method": "POST",
+    "route": "/data/entity-types",
+    "client": "asset.newAssetType",
+    "status": "existing",
+    "note": "The client takes only a name and first looks the type up by name (extra GET): short_name, description and task_types need an options argument."
+  },
+  {
+    "module": "assettypes",
+    "kitsu": "updateAssetType",
+    "method": "PUT",
+    "route": "/data/entity-types/<id>",
+    "client": "asset.updateAssetType",
+    "status": "existing",
+    "note": "The client only sends the name: short_name, description, task_types and archived must be added to the body."
+  },
+  {
+    "module": "assettypes",
+    "kitsu": "deleteAssetType",
+    "method": "DELETE",
+    "route": "/data/entity-types/<id>",
+    "client": "asset.removeAssetType",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "getBackgrounds",
+    "method": "GET",
+    "route": "/data/preview-background-files",
+    "client": "project.allPreviewBackgroundFiles",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.getPreviewBackgroundFiles on data/projects/<id>/settings/preview-background-files): the global CRUD route is not covered."
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "getBackground",
+    "method": "GET",
+    "route": "/data/preview-background-files/<id>",
+    "client": "project.getPreviewBackgroundFile",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.getPreviewBackgroundFiles on data/projects/<id>/settings/preview-background-files): the global CRUD route is not covered."
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "newBackground",
+    "method": "POST",
+    "route": "/data/preview-background-files",
+    "client": "project.newPreviewBackgroundFile",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.getPreviewBackgroundFiles on data/projects/<id>/settings/preview-background-files): the global CRUD route is not covered. Kitsu posts with a trailing slash."
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "updateBackground",
+    "method": "PUT",
+    "route": "/data/preview-background-files/<id>",
+    "client": "project.updatePreviewBackgroundFile",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.getPreviewBackgroundFiles on data/projects/<id>/settings/preview-background-files): the global CRUD route is not covered."
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "deleteBackground",
+    "method": "DELETE",
+    "route": "/data/preview-background-files/<id>",
+    "client": "project.deletePreviewBackgroundFile",
+    "status": "added",
+    "note": "project.removePreviewBackgroundFile already exists and unlinks a background from a project (DELETE data/projects/<id>/settings/preview-background-files/<id>), hence delete* for the global CRUD delete."
+  },
+  {
+    "module": "backgrounds",
+    "kitsu": "uploadBackgroundImage",
+    "method": "POST",
+    "route": "/pictures/preview-background-files/<id>",
+    "client": "project.uploadPreviewBackgroundFile",
+    "status": "added",
+    "note": "FormData upload (field file): build on http.upload like task preview uploads."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getProductionEpisodesCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes/casting",
+    "client": "casting.getEpisodesCasting",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getSequenceCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/sequences/<id>/casting | /data/projects/<id>/episodes/<id>/sequences/all/casting",
+    "client": "casting.getSequenceShotsCasting | casting.getEpisodeShotsCasting",
+    "status": "existing",
+    "note": "Kitsu picks one of two routes: the sequence route maps to getSequenceShotsCasting(project, sequence) (casting.getSequenceCasting(sequence) sends the same GET from a sequence object), the episode route with sequences/all maps to getEpisodeShotsCasting(project, episode)."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getAssetTypeCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/asset-types/<id>/casting",
+    "client": "casting.getAssetTypeCasting",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "updateCastings",
+    "method": "PUT",
+    "route": "/data/projects/<id>/entities/casting",
+    "client": "casting.updateCastings",
+    "status": "added",
+    "note": "Bulk update of several entities in one PUT. The client only has the per-entity PUT (updateShotCasting, updateAssetCasting, updateEpisodeCasting on entities/<id>/casting)."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "castAsset",
+    "method": "PUT",
+    "route": "/data/projects/<id>/entities/casting/assets/<id>",
+    "client": "casting.castAsset",
+    "status": "existing",
+    "note": "The client builds the body from (entities, nbOccurences, label): Kitsu passes the raw data object."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "postCastingCsv",
+    "method": "POST",
+    "route": "/import/csv/projects/<id>/casting",
+    "client": "casting.importCastingWithCsv",
+    "status": "added",
+    "note": "FormData upload: build on http.upload like asset.js and shot.js CSV imports (check their names for consistency). Kitsu sends no query string here."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getAssetCastIn",
+    "method": "GET",
+    "route": "/data/assets/<id>/cast-in",
+    "client": "casting.getAssetCastIn",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getEpisodeCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/entities/<id>/casting",
+    "client": "casting.getEpisodeCasting",
+    "status": "existing",
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getShotCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/entities/<id>/casting",
+    "client": "casting.getShotCasting",
+    "status": "existing",
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+  },
+  {
+    "module": "breakdown",
+    "kitsu": "getAssetCasting",
+    "method": "GET",
+    "route": "/data/projects/<id>/entities/<id>/casting",
+    "client": "casting.getAssetCasting",
+    "status": "existing",
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id). The client rejects an asset carrying only production_id."
+  },
+  {
+    "module": "budget",
+    "kitsu": "getProductionBudgets",
+    "method": "GET",
+    "route": "/data/projects/<id>/budgets",
+    "client": "project.getBudgets",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "budget",
+    "kitsu": "getProductionBudget",
+    "method": "GET",
+    "route": "/data/projects/<id>/budgets/<id>",
+    "client": "project.getBudget",
+    "status": "existing",
+    "note": "The client returns null on a 404."
+  },
+  {
+    "module": "budget",
+    "kitsu": "createProductionBudget",
+    "method": "POST",
+    "route": "/data/projects/<id>/budgets",
+    "client": "project.createBudget",
+    "status": "existing",
+    "note": "Client signature is (project, name, options): Kitsu sends name and currency only."
+  },
+  {
+    "module": "budget",
+    "kitsu": "updateProductionBudget",
+    "method": "PUT",
+    "route": "/data/projects/<id>/budgets/<id>",
+    "client": "project.updateBudget",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "budget",
+    "kitsu": "deleteProductionBudget",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/budgets/<id>",
+    "client": "project.removeBudget",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "budget",
+    "kitsu": "getBudgetEntries",
+    "method": "GET",
+    "route": "/data/projects/<id>/budgets/<id>/entries",
+    "client": "project.getBudgetEntries",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "budget",
+    "kitsu": "getBudgetEntry",
+    "method": "GET",
+    "route": "/data/projects/<id>/budgets/<id>/entries/<id>",
+    "client": "project.getBudgetEntry",
+    "status": "existing",
+    "note": "The client returns null on a 404."
+  },
+  {
+    "module": "budget",
+    "kitsu": "createBudgetEntry",
+    "method": "POST",
+    "route": "/data/projects/<id>/budgets/<id>/entries",
+    "client": "project.createBudgetEntry",
+    "status": "existing",
+    "note": "Same method and route, but the client signature (project, budget, name, {date, amount, quantity, unitPrice, description, category}) builds a fixed body that covers none of the fields Kitsu sends (department_id, person_id, position, seniority, start_date, months_duration, daily_salary) and requires a name Kitsu does not send: the client function must accept these fields (or a raw data object like updateBudgetEntry) before Kitsu can switch to it."
+  },
+  {
+    "module": "budget",
+    "kitsu": "updateBudgetEntry",
+    "method": "PUT",
+    "route": "/data/projects/<id>/budgets/<id>/entries/<id>",
+    "client": "project.updateBudgetEntry",
+    "status": "existing",
+    "note": "Kitsu also sends exceptions: the client passes data through."
+  },
+  {
+    "module": "budget",
+    "kitsu": "deleteBudgetEntry",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/budgets/<id>/entries/<id>",
+    "client": "project.removeBudgetEntry",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "budget",
+    "kitsu": "getExpenses",
+    "method": "GET",
+    "route": "/data/projects/<id>/budgets/time-spents",
+    "client": "project.getBudgetsTimeSpents",
+    "status": "added",
+    "note": "No client function reads data/projects/<id>/budgets/time-spents."
+  },
+  {
+    "module": "client",
+    "kitsu": "getConfig",
+    "method": "GET",
+    "route": "/config",
+    "client": "root.getConfig",
+    "status": "added",
+    "note": "No config function in src/core."
+  },
+  {
+    "module": "client",
+    "kitsu": "getModel",
+    "method": "GET",
+    "route": "/data/<model>/<id>",
+    "client": "http.fetchOne",
+    "status": "existing",
+    "note": "Generic CRUD read. The client returns null on a 404 and sends no query: the Kitsu relations=true flag is not supported by fetchOne (use http.get with a query for it)."
+  },
+  {
+    "module": "client",
+    "kitsu": "getEvents",
+    "method": "GET",
+    "route": "/data/events/last",
+    "client": "event.allLastEvents",
+    "status": "added",
+    "note": "New event namespace. Query: after, before, limit, cursor_event_id, project_id, only_files, person_ids, name_prefixes, name_suffixes."
+  },
+  {
+    "module": "client",
+    "kitsu": "getEventNames",
+    "method": "GET",
+    "route": "/data/events/names",
+    "client": "event.allEventNames",
+    "status": "added",
+    "note": "New event namespace."
+  },
+  {
+    "module": "client",
+    "kitsu": "getLoginLogs",
+    "method": "GET",
+    "route": "/data/events/login-logs/last",
+    "client": "event.allLastLoginLogs",
+    "status": "added",
+    "note": "New event namespace. Query: after, before, limit, cursor_login_log_id, person_ids."
+  },
+  {
+    "module": "client",
+    "kitsu": "searchData",
+    "method": "POST",
+    "route": "/data/search",
+    "client": "search.searchEntities",
+    "status": "existing",
+    "note": "Body differs: the client sends query, project_id and entity_types. Kitsu also sends limit, offset and index_names: the function needs these options."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "getConcepts",
+    "method": "GET",
+    "route": "/data/concepts/with-tasks",
+    "client": "concept.allConceptsWithTasks",
+    "status": "added",
+    "note": "Query: project_id. Plain GET (pget, not NDJSON)."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "getConcept",
+    "method": "GET",
+    "route": "/data/concepts/<id>",
+    "client": "concept.getConcept",
+    "status": "existing",
+    "note": "Kitsu adds ?relations=true, the client sends no query and returns null on a 404."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "newConcept",
+    "method": "POST",
+    "route": "/data/projects/<id>/concepts",
+    "client": "concept.newConcept",
+    "status": "existing",
+    "note": "The client first looks the concept up by name (extra GET) and also sends data and entity_concept_links."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "updateConcept",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "concept.updateConcept",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "concepts",
+    "kitsu": "deleteConcept",
+    "method": "DELETE",
+    "route": "/data/concepts/<id>",
+    "client": "concept.removeConcept",
+    "status": "existing",
+    "note": "Kitsu always sends ?force=true: pass { force: true }."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "getEntityLinked",
+    "method": "GET",
+    "route": "/data/entities/<id>/entities-linked/with-tasks",
+    "client": "entity.allEntitiesWithTasksLinkedToEntity",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "customactions",
+    "kitsu": "getCustomActions",
+    "method": "GET",
+    "route": "/data/custom-actions",
+    "client": "customAction.allCustomActions",
+    "status": "added",
+    "note": "New customAction namespace."
+  },
+  {
+    "module": "customactions",
+    "kitsu": "newCustomAction",
+    "method": "POST",
+    "route": "/data/custom-actions",
+    "client": "customAction.newCustomAction",
+    "status": "added",
+    "note": "Body: name, url, entity_type, is_ajax. Kitsu posts with a trailing slash."
+  },
+  {
+    "module": "customactions",
+    "kitsu": "updateCustomAction",
+    "method": "PUT",
+    "route": "/data/custom-actions/<id>",
+    "client": "customAction.updateCustomAction",
+    "status": "added",
+    "note": "Body: name, url, entity_type, is_ajax."
+  },
+  {
+    "module": "customactions",
+    "kitsu": "deleteCustomAction",
+    "method": "DELETE",
+    "route": "/data/custom-actions/<id>",
+    "client": "customAction.removeCustomAction",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "customactions",
+    "kitsu": "postCustomAction",
+    "method": "POST",
+    "route": "?",
+    "client": "",
+    "status": "excluded",
+    "note": "Posts to the arbitrary external URL of the custom action through superagent, not a Zou route."
+  },
+  {
+    "module": "departments",
+    "kitsu": "getDepartments",
+    "method": "GET",
+    "route": "/data/departments",
+    "client": "person.allDepartments",
+    "status": "existing",
+    "note": "Client sorts the result by name."
+  },
+  {
+    "module": "departments",
+    "kitsu": "getDepartment",
+    "method": "GET",
+    "route": "/data/departments/<id>",
+    "client": "person.getDepartment",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "departments",
+    "kitsu": "newDepartment",
+    "method": "POST",
+    "route": "/data/departments",
+    "client": "person.newDepartment",
+    "status": "existing",
+    "note": "Client signature is (name, { color, archived }) and first looks the department up by name (extra GET /data/departments?name=) before the POST."
+  },
+  {
+    "module": "departments",
+    "kitsu": "editDepartment",
+    "method": "PUT",
+    "route": "/data/departments/<id>",
+    "client": "person.updateDepartment",
+    "status": "existing",
+    "note": "Client sends the whole department object; Kitsu sends only name, color, archived."
+  },
+  {
+    "module": "departments",
+    "kitsu": "deleteDepartment",
+    "method": "DELETE",
+    "route": "/data/departments/<id>",
+    "client": "person.removeDepartment",
+    "status": "existing",
+    "note": "Client adds an optional force query flag; Kitsu sends none."
+  },
+  {
+    "module": "departments",
+    "kitsu": "loadLinkedHardwareItems",
+    "method": "GET",
+    "route": "/data/departments/hardware-items",
+    "client": "hardware.allDepartmentHardwareItems",
+    "status": "added",
+    "note": "Hardware items linked to every department, keyed by department."
+  },
+  {
+    "module": "departments",
+    "kitsu": "loadLinkedSoftwareLicenses",
+    "method": "GET",
+    "route": "/data/departments/software-licenses",
+    "client": "files.allDepartmentSoftwares",
+    "status": "added",
+    "note": "Software licenses linked to every department, keyed by department."
+  },
+  {
+    "module": "departments",
+    "kitsu": "linkHardwareItem",
+    "method": "POST",
+    "route": "/data/departments/<id>/hardware-items",
+    "client": "hardware.addHardwareItemToDepartment",
+    "status": "added",
+    "note": "Body: { hardware_item_id }."
+  },
+  {
+    "module": "departments",
+    "kitsu": "linkSoftwareLicense",
+    "method": "POST",
+    "route": "/data/departments/<id>/software-licenses",
+    "client": "files.addSoftwareToDepartment",
+    "status": "added",
+    "note": "Body: { software_id }."
+  },
+  {
+    "module": "departments",
+    "kitsu": "unlinkHardwareItem",
+    "method": "DELETE",
+    "route": "/data/departments/<id>/hardware-items/<id>",
+    "client": "hardware.removeHardwareItemFromDepartment",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "departments",
+    "kitsu": "unlinkSoftwareLicense",
+    "method": "DELETE",
+    "route": "/data/departments/<id>/software-licenses/<id>",
+    "client": "files.removeSoftwareFromDepartment",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEdit",
+    "method": "GET",
+    "route": "/data/edits/<id>",
+    "client": "edit.getEdit",
+    "status": "existing",
+    "note": "Returns null on a 404."
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEdits",
+    "method": "GET",
+    "route": "/data/edits/with-tasks",
+    "client": "edit.allEditsWithTasks",
+    "status": "added",
+    "note": "Query: project_id and optional episode_id. Plain GET (pget, not NDJSON)."
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEpisode",
+    "method": "GET",
+    "route": "/data/episodes/<id>",
+    "client": "shot.getEpisode",
+    "status": "existing",
+    "note": "Duplicate of shots.getEpisode. Returns null on a 404."
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEpisodes",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes",
+    "client": "shot.allEpisodesForProject",
+    "status": "existing",
+    "note": "Duplicate of shots.getEpisodes. The client sorts the result by name."
+  },
+  {
+    "module": "edits",
+    "kitsu": "newEdit",
+    "method": "POST",
+    "route": "/data/projects/<id>/edits",
+    "client": "edit.newEdit",
+    "status": "existing",
+    "note": "The client first looks the edit up by name (extra GET). Body differs slightly: the client sends the episode as parent_id, Kitsu sends episode_id."
+  },
+  {
+    "module": "edits",
+    "kitsu": "updateEdit",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "edit.updateEdit",
+    "status": "existing",
+    "note": "The client sends the object it is given: Kitsu keeps building its own field list (name, description, data, parent_id)."
+  },
+  {
+    "module": "edits",
+    "kitsu": "deleteEdit",
+    "method": "DELETE",
+    "route": "/data/edits/<id>",
+    "client": "edit.removeEdit",
+    "status": "existing",
+    "note": "Kitsu sends ?force=true when the edit is already canceled: use the force option."
+  },
+  {
+    "module": "edits",
+    "kitsu": "restoreEdit",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "edit.updateEdit",
+    "status": "existing",
+    "note": "Same route as updateEdit with the body { canceled: false }: call edit.updateEdit({ id, canceled: false })."
+  },
+  {
+    "module": "edits",
+    "kitsu": "postCsv",
+    "method": "POST",
+    "route": "/import/csv/projects/<id>/edits",
+    "client": "edit.importEditsWithCsv",
+    "status": "added",
+    "note": "Multipart upload (http.upload) with an optional update=true query, like asset.importAssetsWithCsv."
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEpisodeStats",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes/stats",
+    "client": "shot.getEpisodeStats",
+    "status": "excluded",
+    "note": "Duplicate of shots.getEpisodeStats (same route, copy pasted in the edits module): covered by the shots row."
+  },
+  {
+    "module": "edits",
+    "kitsu": "getEpisodeRetakeStats",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes/retake-stats",
+    "client": "shot.getEpisodeRetakeStats",
+    "status": "excluded",
+    "note": "Duplicate of shots.getEpisodeRetakeStats (same route, copy pasted in the edits module): covered by the shots row."
+  },
+  {
+    "module": "edits",
+    "kitsu": "loadEditHistory",
+    "method": "GET",
+    "route": "/data/edits/<id>/versions",
+    "client": "edit.allVersionsForEdit",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "getEntityNews",
+    "method": "GET",
+    "route": "/data/entities/<id>/news",
+    "client": "entity.allNewsForEntity",
+    "status": "added",
+    "note": "The route belongs to the entity, so it stays in entity and not in the news namespace."
+  },
+  {
+    "module": "entities",
+    "kitsu": "deleteEntities",
+    "method": "POST",
+    "route": "/actions/projects/<id>/delete-entities",
+    "client": "entity.removeEntities",
+    "status": "existing",
+    "note": "Same optional force=true query."
+  },
+  {
+    "module": "entities",
+    "kitsu": "getEntityPreviewFiles",
+    "method": "GET",
+    "route": "/data/entities/<id>/preview-files",
+    "client": "entity.allPreviewFilesForEntity",
+    "status": "added",
+    "note": "playlist reads data/playlists/entities/<id>/preview-files, which is another route."
+  },
+  {
+    "module": "entities",
+    "kitsu": "getEntityTimeLogs",
+    "method": "GET",
+    "route": "/data/entities/<id>/time-spents",
+    "client": "entity.allTimeSpentsForEntity",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "getEntityChats",
+    "method": "GET",
+    "route": "/data/user/chats",
+    "client": "user.allChats",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "getChat",
+    "method": "GET",
+    "route": "/data/entities/<id>/chat",
+    "client": "user.getChat",
+    "status": "added",
+    "note": "Kept next to allChats, joinChat and leaveChat in user; the chat is keyed by entity id."
+  },
+  {
+    "module": "entities",
+    "kitsu": "getChatMessages",
+    "method": "GET",
+    "route": "/data/entities/<id>/chat/messages",
+    "client": "user.allChatMessages",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "getChatMessage",
+    "method": "GET",
+    "route": "/data/entities/<id>/chat/messages/<id>",
+    "client": "user.getChatMessage",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "joinChat",
+    "method": "POST",
+    "route": "/actions/user/chats/<id>/join",
+    "client": "user.joinChat",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "leaveChat",
+    "method": "DELETE",
+    "route": "/actions/user/chats/<id>/join",
+    "client": "user.leaveChat",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "entities",
+    "kitsu": "sendMessage",
+    "method": "POST",
+    "route": "/data/entities/<id>/chat/messages",
+    "client": "user.newChatMessage",
+    "status": "added",
+    "note": "JSON body { message }, or multipart form (file-0, file-1, ... plus message) when attachments are given."
+  },
+  {
+    "module": "entities",
+    "kitsu": "deleteMessage",
+    "method": "DELETE",
+    "route": "/data/entities/<id>/chat/messages/<id>",
+    "client": "user.removeChatMessage",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "files",
+    "kitsu": "getFileStatuses",
+    "method": "GET",
+    "route": "/data/file-status",
+    "client": "files.allFileStatuses",
+    "status": "added",
+    "note": "Only files.getFileStatusByName (same route filtered by name, first match) and getFileStatus exist: no listing function."
+  },
+  {
+    "module": "files",
+    "kitsu": "getOutputTypes",
+    "method": "GET",
+    "route": "/data/output-types",
+    "client": "files.allOutputTypes",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "files",
+    "kitsu": "getEntityOutputFiles",
+    "method": "GET",
+    "route": "/data/entities/<id>/output-files",
+    "client": "files.allOutputFilesForEntity",
+    "status": "existing",
+    "note": "The client accepts optional output file filters as query, Kitsu sends none."
+  },
+  {
+    "module": "files",
+    "kitsu": "getPreviewFileText",
+    "method": "GET",
+    "route": "/pictures/originals/preview-files/<id>.<extension>",
+    "client": "files.downloadPreviewFile",
+    "status": "existing",
+    "note": "The client first reads data/preview-files/<id> to get the extension (movies/ for mp4) and returns a raw Response: call .text() on it. The Kitsu urlPrefix argument (alternate base path) has no equivalent."
+  },
+  {
+    "module": "files",
+    "kitsu": "getAttachmentFileBlob",
+    "method": "GET",
+    "route": "/data/attachment-files/<id>/file/<file_name>",
+    "client": "files.downloadAttachmentFile",
+    "status": "existing",
+    "note": "The client first reads data/attachment-files/<id> to get the name, encodes it, and returns a raw Response: call .blob() on it."
+  },
+  {
+    "module": "hardware",
+    "kitsu": "getHardwareItems",
+    "method": "GET",
+    "route": "/data/hardware-items",
+    "client": "hardware.allHardwareItems",
+    "status": "added",
+    "note": "New hardware namespace."
+  },
+  {
+    "module": "hardware",
+    "kitsu": "getHardwareItem",
+    "method": "GET",
+    "route": "/data/hardware-items/<id>",
+    "client": "hardware.getHardwareItem",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "hardware",
+    "kitsu": "newHardwareItem",
+    "method": "POST",
+    "route": "/data/hardware-items",
+    "client": "hardware.newHardwareItem",
+    "status": "added",
+    "note": "Body: name, short_name, monthly_cost, inventory_amount."
+  },
+  {
+    "module": "hardware",
+    "kitsu": "updateHardwareItem",
+    "method": "PUT",
+    "route": "/data/hardware-items/<id>",
+    "client": "hardware.updateHardwareItem",
+    "status": "added",
+    "note": "Body: name, short_name, monthly_cost, inventory_amount, archived."
+  },
+  {
+    "module": "hardware",
+    "kitsu": "deleteHardwareItem",
+    "method": "DELETE",
+    "route": "/data/hardware-items/<id>",
+    "client": "hardware.removeHardwareItem",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "news",
+    "kitsu": "getLastNews",
+    "method": "GET",
+    "route": "/data/projects/news | /data/projects/<id>/news",
+    "client": "news.allNews",
+    "status": "added",
+    "note": "New news namespace. One function: with a project it reads the project route, without it the studio wide route. The remaining Kitsu params go as query filters. Kitsu resolves an empty result locally when neither isStudio nor productionId is set."
+  },
+  {
+    "module": "news",
+    "kitsu": "getNews",
+    "method": "GET",
+    "route": "/data/projects/<id>/news/<id>",
+    "client": "news.getNews",
+    "status": "added",
+    "note": "Arguments: project, news."
+  },
+  {
+    "module": "notifications",
+    "kitsu": "getNotifications",
+    "method": "GET",
+    "route": "/data/user/notifications",
+    "client": "user.allNotifications",
+    "status": "existing",
+    "note": "The client sends no query, Kitsu passes filter and paging params (after, before, limit, read, watching, type, task_type_id, task_status_id): the function needs a filters option."
+  },
+  {
+    "module": "notifications",
+    "kitsu": "getNotification",
+    "method": "GET",
+    "route": "/data/user/notifications/<id>",
+    "client": "user.getNotification",
+    "status": "existing",
+    "note": "The client returns null on a 404."
+  },
+  {
+    "module": "notifications",
+    "kitsu": "updateNotificationReadStatus",
+    "method": "PUT",
+    "route": "/data/user/notifications/<id>",
+    "client": "user.updateNotification",
+    "status": "existing",
+    "note": "The client sends the whole notification dict, Kitsu only { read }: pass { id, read }."
+  },
+  {
+    "module": "notifications",
+    "kitsu": "markAllNotificationsAsRead",
+    "method": "POST",
+    "route": "/actions/user/notifications/mark-all-as-read",
+    "client": "user.markAllNotificationsAsRead",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getOrganisations",
+    "method": "GET",
+    "route": "/data/organisations",
+    "client": "person.allOrganisations",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "updateOrganisation",
+    "method": "PUT",
+    "route": "/data/organisations/<id>",
+    "client": "person.updateOrganisation",
+    "status": "added",
+    "note": "Body: the organisation settings (name, hours_by_day, timesheets_locked, chat tokens, has_avatar, ...)."
+  },
+  {
+    "module": "people",
+    "kitsu": "postOrganisationLogo",
+    "method": "POST",
+    "route": "/pictures/thumbnails/organisations/<id>",
+    "client": "files.uploadOrganisationAvatar",
+    "status": "existing",
+    "note": "Kitsu posts a ready FormData, the client takes the Blob."
+  },
+  {
+    "module": "people",
+    "kitsu": "deleteOrganisationLogo",
+    "method": "PUT",
+    "route": "/data/organisations/<id>",
+    "client": "person.updateOrganisation",
+    "status": "excluded",
+    "note": "Duplicate of updateOrganisation: same route with the body { has_avatar: false }. Use person.updateOrganisation."
+  },
+  {
+    "module": "people",
+    "kitsu": "getPeople",
+    "method": "GET",
+    "route": "/data/persons",
+    "client": "person.allPersons",
+    "status": "existing",
+    "note": "Kitsu sends relations=true and is_guest=false, the client sends no query: allPersons needs relations and isGuest options."
+  },
+  {
+    "module": "people",
+    "kitsu": "getGuests",
+    "method": "GET",
+    "route": "/data/persons",
+    "client": "person.allPersons",
+    "status": "existing",
+    "note": "Same route as getPeople with is_guest=true and relations=true: allPersons needs relations and isGuest options."
+  },
+  {
+    "module": "people",
+    "kitsu": "getPerson",
+    "method": "GET",
+    "route": "/data/persons/<id>",
+    "client": "http.fetchOne",
+    "status": "existing",
+    "note": "http.fetchOne('persons', id) sends this exact route. person.getPerson reads the same person through GET /data/persons?id=<id> and returns null on a 404."
+  },
+  {
+    "module": "people",
+    "kitsu": "createPerson",
+    "method": "POST",
+    "route": "/data/persons",
+    "client": "person.newPerson",
+    "status": "existing",
+    "note": "Kitsu also sends position, seniority, daily_salary, studio_id, country, is_bot and expiration_date, which newPerson does not accept yet (person.newBot covers is_bot and expiration_date). newPerson first looks the person up by email, Kitsu does not."
+  },
+  {
+    "module": "people",
+    "kitsu": "invitePerson",
+    "method": "GET",
+    "route": "/actions/persons/<id>/invite",
+    "client": "person.invitePerson",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getResetPasswordLink",
+    "method": "POST",
+    "route": "/actions/persons/<id>/reset-password-link",
+    "client": "person.generateResetPasswordLink",
+    "status": "added",
+    "note": "POST without body."
+  },
+  {
+    "module": "people",
+    "kitsu": "generateToken",
+    "method": "PUT",
+    "route": "/data/persons/<id>",
+    "client": "person.updateBot",
+    "status": "excluded",
+    "note": "Duplicate of updatePerson: same route with the body { expiration_date }, which makes Zou issue a new bot token. Use person.updateBot."
+  },
+  {
+    "module": "people",
+    "kitsu": "setPersonActive",
+    "method": "PUT",
+    "route": "/data/persons/<id>",
+    "client": "person.updatePerson",
+    "status": "excluded",
+    "note": "Duplicate of updatePerson: same route with the body { active }. Use person.updatePerson."
+  },
+  {
+    "module": "people",
+    "kitsu": "updatePerson",
+    "method": "PUT",
+    "route": "/data/persons/<id>",
+    "client": "person.updatePerson",
+    "status": "existing",
+    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives."
+  },
+  {
+    "module": "people",
+    "kitsu": "deletePerson",
+    "method": "DELETE",
+    "route": "/data/persons/<id>",
+    "client": "person.removePerson",
+    "status": "existing",
+    "note": "Kitsu always sends force=true: call removePerson with { force: true }."
+  },
+  {
+    "module": "people",
+    "kitsu": "changePasswordPerson",
+    "method": "POST",
+    "route": "/actions/persons/<id>/change-password",
+    "client": "person.changePasswordForPerson",
+    "status": "existing",
+    "note": "Kitsu sends password and password_2 from the form, the client sends the same password in both fields."
+  },
+  {
+    "module": "people",
+    "kitsu": "disableTwoFactorAuthenticationPerson",
+    "method": "DELETE",
+    "route": "/actions/persons/<id>/disable-two-factor-authentication",
+    "client": "person.disableTwoFactorAuthentication",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "postCsv",
+    "method": "POST",
+    "route": "/import/csv/persons",
+    "client": "person.importPersonsWithCsv",
+    "status": "added",
+    "note": "File upload (http.upload) with the optional query update=true. Named after asset.importAssetsWithCsv."
+  },
+  {
+    "module": "people",
+    "kitsu": "postAvatar",
+    "method": "POST",
+    "route": "/pictures/thumbnails/persons/<id>",
+    "client": "person.setAvatar",
+    "status": "existing",
+    "note": "files.uploadPersonAvatar sends the same request. Kitsu posts a ready FormData, the client takes the Blob."
+  },
+  {
+    "module": "people",
+    "kitsu": "changePassword",
+    "method": "POST",
+    "route": "/auth/change-password",
+    "client": "root.changePassword",
+    "status": "added",
+    "note": "Body: old_password, password, password_2."
+  },
+  {
+    "module": "people",
+    "kitsu": "preEnableTOTP",
+    "method": "PUT",
+    "route": "/auth/totp",
+    "client": "root.preEnableTotp",
+    "status": "added",
+    "note": "Empty body."
+  },
+  {
+    "module": "people",
+    "kitsu": "enableTOTP",
+    "method": "POST",
+    "route": "/auth/totp",
+    "client": "root.enableTotp",
+    "status": "added",
+    "note": "Body { totp }. Kitsu returns body.otp_recovery_codes."
+  },
+  {
+    "module": "people",
+    "kitsu": "disableTOTP",
+    "method": "DELETE",
+    "route": "/auth/totp",
+    "client": "root.disableTotp",
+    "status": "added",
+    "note": "DELETE with a JSON body (the two factor payload: totp, email_otp, recovery_code or fido_authentication_response)."
+  },
+  {
+    "module": "people",
+    "kitsu": "sendEmailOTP",
+    "method": "GET",
+    "route": "/auth/email-otp",
+    "client": "root.sendEmailOtp",
+    "status": "added",
+    "note": "Query: email. Called before login: no authentication needed."
+  },
+  {
+    "module": "people",
+    "kitsu": "preEnableEmailOTP",
+    "method": "PUT",
+    "route": "/auth/email-otp",
+    "client": "root.preEnableEmailOtp",
+    "status": "added",
+    "note": "Empty body."
+  },
+  {
+    "module": "people",
+    "kitsu": "enableEmailOTP",
+    "method": "POST",
+    "route": "/auth/email-otp",
+    "client": "root.enableEmailOtp",
+    "status": "added",
+    "note": "Body { email_otp }. Kitsu returns body.otp_recovery_codes."
+  },
+  {
+    "module": "people",
+    "kitsu": "disableEmailOTP",
+    "method": "DELETE",
+    "route": "/auth/email-otp",
+    "client": "root.disableEmailOtp",
+    "status": "added",
+    "note": "DELETE with a JSON body (the two factor payload)."
+  },
+  {
+    "module": "people",
+    "kitsu": "preRegisterFIDO",
+    "method": "PUT",
+    "route": "/auth/fido",
+    "client": "root.preRegisterFido",
+    "status": "added",
+    "note": "Empty body."
+  },
+  {
+    "module": "people",
+    "kitsu": "registerFIDO",
+    "method": "POST",
+    "route": "/auth/fido",
+    "client": "root.registerFido",
+    "status": "added",
+    "note": "Body { registration_response, device_name }. Kitsu returns body.otp_recovery_codes."
+  },
+  {
+    "module": "people",
+    "kitsu": "getFIDOChallenge",
+    "method": "GET",
+    "route": "/auth/fido",
+    "client": "root.getFidoChallenge",
+    "status": "added",
+    "note": "Query: email. Called before login: no authentication needed."
+  },
+  {
+    "module": "people",
+    "kitsu": "unregisterFIDO",
+    "method": "DELETE",
+    "route": "/auth/fido",
+    "client": "root.unregisterFido",
+    "status": "added",
+    "note": "DELETE with the JSON body { device_name }."
+  },
+  {
+    "module": "people",
+    "kitsu": "newRecoveryCodes",
+    "method": "PUT",
+    "route": "/auth/recovery-codes",
+    "client": "root.newRecoveryCodes",
+    "status": "added",
+    "note": "Body: the two factor payload. Kitsu returns body.otp_recovery_codes."
+  },
+  {
+    "module": "people",
+    "kitsu": "loadTodos",
+    "method": "GET",
+    "route": "/data/user/tasks",
+    "client": "user.allTasksToDo",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "loadDone",
+    "method": "GET",
+    "route": "/data/user/done-tasks",
+    "client": "user.allDoneTasks",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "loadTasksToCheck",
+    "method": "GET",
+    "route": "/data/user/tasks-to-check",
+    "client": "user.allTasksRequiringFeedback",
+    "status": "existing",
+    "note": "Kitsu passes free query parameters (filters, pagination) through buildQueryString, the client sends none: allTasksRequiringFeedback needs a query option."
+  },
+  {
+    "module": "people",
+    "kitsu": "loadTasksToCheckFilterValues",
+    "method": "GET",
+    "route": "/data/user/tasks-to-check/filter-values",
+    "client": "user.getTasksRequiringFeedbackFilterValues",
+    "status": "added",
+    "note": "Route present in zou but missing from tests/fixtures/zou_routes.json: refresh the fixture."
+  },
+  {
+    "module": "people",
+    "kitsu": "loadTimeSpents",
+    "method": "GET",
+    "route": "/data/user/time-spents/<id>",
+    "client": "user.getTimeSpentsByDate",
+    "status": "existing",
+    "note": "The path parameter is a date (YYYY-MM-DD)."
+  },
+  {
+    "module": "people",
+    "kitsu": "getPersonTasks",
+    "method": "GET",
+    "route": "/data/persons/<id>/tasks",
+    "client": "task.allTasksForPerson",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getPersonDoneTasks",
+    "method": "GET",
+    "route": "/data/persons/<id>/done-tasks",
+    "client": "task.allDoneTasksForPerson",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getUserSearchFilterGroups",
+    "method": "GET",
+    "route": "/data/user/filter-groups",
+    "client": "user.allFilterGroups",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "createFilterGroup",
+    "method": "POST",
+    "route": "/data/user/filter-groups",
+    "client": "user.newFilterGroup",
+    "status": "existing",
+    "note": "Kitsu also sends list_type, color, is_shared and department_id; the client only sends name and project_id: newFilterGroup needs these options."
+  },
+  {
+    "module": "people",
+    "kitsu": "updateFilterGroup",
+    "method": "PUT",
+    "route": "/data/user/filter-groups/<id>",
+    "client": "user.updateFilterGroup",
+    "status": "existing",
+    "note": "Kitsu whitelists name, color, is_shared, project_id, department_id."
+  },
+  {
+    "module": "people",
+    "kitsu": "removeFilterGroup",
+    "method": "DELETE",
+    "route": "/data/user/filter-groups/<id>",
+    "client": "user.removeFilterGroup",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getUserSearchFilters",
+    "method": "GET",
+    "route": "/data/user/filters",
+    "client": "user.allFilters",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "updateFilter",
+    "method": "PUT",
+    "route": "/data/user/filters/<id>",
+    "client": "user.updateFilter",
+    "status": "existing",
+    "note": "Kitsu whitelists name, search_query, search_filter_group_id, is_shared, project_id, department_id."
+  },
+  {
+    "module": "people",
+    "kitsu": "createFilter",
+    "method": "POST",
+    "route": "/data/user/filters",
+    "client": "user.newFilter",
+    "status": "existing",
+    "note": "Same body (list_type, name, query, entity_type, project_id); argument order differs."
+  },
+  {
+    "module": "people",
+    "kitsu": "removeFilter",
+    "method": "DELETE",
+    "route": "/data/user/filters/<id>",
+    "client": "user.removeFilter",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getTimeSpents",
+    "method": "GET",
+    "route": "/data/persons/<id>/time-spents/<id>",
+    "client": "person.getTimeSpentsByDate",
+    "status": "existing",
+    "note": "The second path parameter is a date (YYYY-MM-DD)."
+  },
+  {
+    "module": "people",
+    "kitsu": "getTimeSpentsByPeriod",
+    "method": "GET",
+    "route": "/data/persons/<id>/time-spents",
+    "client": "person.getTimeSpentsRange",
+    "status": "existing",
+    "note": "Kitsu writes the path with a trailing slash; same start_date and end_date query."
+  },
+  {
+    "module": "people",
+    "kitsu": "getProjectTimeSpentsByTaskType",
+    "method": "GET",
+    "route": "/data/projects/<id>/task-types/<id>/time-spents",
+    "client": "project.getTaskTypeTimeSpents",
+    "status": "added",
+    "note": "Query: start_date, end_date."
+  },
+  {
+    "module": "people",
+    "kitsu": "setTimeSpent",
+    "method": "POST | DELETE",
+    "route": "/actions/tasks/<id>/time-spents/<id>/persons/<id>",
+    "client": "task.setTimeSpent | task.clearTimeSpent",
+    "status": "added",
+    "note": "One Kitsu function, two verbs on the same route. POST (hours > 0, body { duration: hours * 60 }) is covered by the existing task.setTimeSpent. DELETE (hours <= 0) has no client function: task.removeTimeSpent targets /data/time-spents/<id>. Add task.clearTimeSpent(task, person, date)."
+  },
+  {
+    "module": "people",
+    "kitsu": "getDaysOff",
+    "method": "GET",
+    "route": "/data/day-offs | /data/persons/day-offs/<id> | /data/persons/day-offs/<id>/<id>",
+    "client": "person.allDayOffs",
+    "status": "added",
+    "note": "All the day offs of the studio, narrowed by optional year and month path segments. Zou only declares /data/persons/day-offs/<year>/<month>: the year only variant is not in tests/fixtures/zou_routes.json nor in the zou blueprint, check it before porting."
+  },
+  {
+    "module": "people",
+    "kitsu": "getProjectDaysOff",
+    "method": "GET",
+    "route": "/data/projects/<id>/day-offs",
+    "client": "project.allDayOffsForProject",
+    "status": "added",
+    "note": "Query: start_date, end_date."
+  },
+  {
+    "module": "people",
+    "kitsu": "getDayOff",
+    "method": "GET",
+    "route": "/data/persons/<id>/day-offs/<id>",
+    "client": "person.getDayOffByDate",
+    "status": "added",
+    "note": "The second path parameter is a date. person.getDayOff reads /data/day-offs/<id> and user.getDayOff reads /data/user/day-offs/<date>: neither matches."
+  },
+  {
+    "module": "people",
+    "kitsu": "createDayOff",
+    "method": "POST",
+    "route": "/data/day-offs",
+    "client": "person.newDayOff",
+    "status": "existing",
+    "note": "Same body: person_id, date, end_date, description."
+  },
+  {
+    "module": "people",
+    "kitsu": "updateDayOff",
+    "method": "PUT",
+    "route": "/data/day-offs/<id>",
+    "client": "person.updateDayOff",
+    "status": "existing",
+    "note": "Kitsu rebuilds the body (person_id, date, end_date, description), the client sends the day off object."
+  },
+  {
+    "module": "people",
+    "kitsu": "deleteDayOff",
+    "method": "DELETE",
+    "route": "/data/day-offs/<id>",
+    "client": "person.removeDayOff",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getAggregatedPersonDaysOff",
+    "method": "GET",
+    "route": "/data/persons/<id>/day-offs/year/<id> | /data/persons/<id>/day-offs/month/<id>/<id> | /data/persons/<id>/day-offs/week/<id>/<id>",
+    "client": "person.getYearDayOffs",
+    "status": "existing",
+    "note": "Dispatcher on detailLevel: year is person.getYearDayOffs, month is person.getMonthDayOffs, week is person.getWeekDayOffs. All three exist."
+  },
+  {
+    "module": "people",
+    "kitsu": "getDayTable",
+    "method": "GET",
+    "route": "/data/persons/time-spents/day-table/<id>/<id>",
+    "client": "person.getTimeSpentsDayTable",
+    "status": "added",
+    "note": "Path: year and month. Query: project_id, studio_id."
+  },
+  {
+    "module": "people",
+    "kitsu": "getWeekTable",
+    "method": "GET",
+    "route": "/data/persons/time-spents/week-table/<id>",
+    "client": "person.getTimeSpentsWeekTable",
+    "status": "added",
+    "note": "Path: year. Query: project_id, studio_id. The month argument of Kitsu is unused."
+  },
+  {
+    "module": "people",
+    "kitsu": "getMonthTable",
+    "method": "GET",
+    "route": "/data/persons/time-spents/month-table/<id>",
+    "client": "person.getTimeSpentsMonthTable",
+    "status": "added",
+    "note": "Path: year. Query: project_id, studio_id. The month argument of Kitsu is unused."
+  },
+  {
+    "module": "people",
+    "kitsu": "getYearTable",
+    "method": "GET",
+    "route": "/data/persons/time-spents/year-table",
+    "client": "person.getTimeSpentsYearTable",
+    "status": "added",
+    "note": "Query: project_id, studio_id. The year and month arguments of Kitsu are unused."
+  },
+  {
+    "module": "people",
+    "kitsu": "getAggregatedPersonTimeSpents",
+    "method": "GET",
+    "route": "/data/persons/<id>/time-spents/year/<id> | /data/persons/<id>/time-spents/month/<id>/<id> | /data/persons/<id>/time-spents/week/<id>/<id> | /data/persons/<id>/time-spents/day/<id>/<id>/<id>",
+    "client": "person.getYearTimeSpents | person.getMonthTimeSpents | person.getWeekTimeSpents | person.getDayTimeSpents",
+    "status": "added",
+    "note": "Dispatcher on detailLevel, one client function per route. Year and week exist (person.getYearTimeSpents, person.getWeekTimeSpents) but send no query. To add: person.getMonthTimeSpents (the existing person.getAllMonthTimeSpents reads month/all, another route) and person.getDayTimeSpents. All four need the project and studio options (project_id, studio_id)."
+  },
+  {
+    "module": "people",
+    "kitsu": "getPersonQuotaShots",
+    "method": "GET",
+    "route": "/data/persons/<id>/quota-shots/month/<id>/<id> | /data/persons/<id>/quota-shots/week/<id>/<id> | /data/persons/<id>/quota-shots/day/<id>/<id>/<id> | /data/persons/<id>/quota-shots/year/<id>",
+    "client": "person.getMonthQuotaShots | person.getWeekQuotaShots | person.getDayQuotaShots",
+    "status": "added",
+    "note": "Dispatcher on detailLevel, one client function per route: add person.getMonthQuotaShots, person.getWeekQuotaShots and person.getDayQuotaShots. Query: project_id, task_type_id, count_mode. The last route (year) has no client function: Zou declares no quota-shots/year route, skip that branch. Kitsu builds a malformed query string (double ampersand) here: go through the query argument."
+  },
+  {
+    "module": "people",
+    "kitsu": "getContext",
+    "method": "GET",
+    "route": "/data/user/context",
+    "client": "user.getContext",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "clearAvatar",
+    "method": "DELETE",
+    "route": "/actions/user/clear-avatar",
+    "client": "user.clearAvatar",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "clearPersonAvatar",
+    "method": "DELETE",
+    "route": "/actions/persons/<id>/clear-avatar",
+    "client": "person.clearPersonAvatar",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "getSalaryScales",
+    "method": "GET",
+    "route": "/data/salary-scales",
+    "client": "person.allSalaryScales",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "people",
+    "kitsu": "updateSalaryScale",
+    "method": "PUT",
+    "route": "/data/salary-scales/<id>",
+    "client": "person.updateSalaryScale",
+    "status": "added",
+    "note": "Body { salary }."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getPlaylists",
+    "method": "GET",
+    "route": "/data/projects/<id>/playlists | /data/projects/<id>/episodes/<id>/playlists",
+    "client": "playlist.allPlaylistsForProject",
+    "status": "existing",
+    "note": "Episode branch is covered by playlist.allPlaylistsForEpisode. Query differs: Kitsu sends sort_by, page, task_type_id and for_entity; the client only sends page on the project route and nothing on the episode route (which also reads the episode first when given an id). Extend both with sortBy, page, taskType and forEntity options. Client sorts the result by name, which overrides the server sort_by."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getPlaylist",
+    "method": "GET",
+    "route": "/data/projects/<id>/playlists/<id>",
+    "client": "playlist.getPlaylistForProject",
+    "status": "added",
+    "note": "playlist.getPlaylist reads /data/playlists/<id> (plain CRUD); the project route returns the playlist with its build jobs and enriched entries."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getEntityPreviewFiles",
+    "method": "GET",
+    "route": "/data/playlists/entities/<id>/preview-files",
+    "client": "playlist.getEntityPreviewFiles",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "playlists",
+    "kitsu": "addEntitiesToPlaylist",
+    "method": "POST",
+    "route": "/actions/playlists/<id>/add-entities",
+    "client": "playlist.addEntitiesToPlaylist",
+    "status": "added",
+    "note": "Client only has addEntityToPlaylist on the singular add-entity route. Body: { entities: [{ entity_id, preview_file_id? }] }."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getPreviewFile",
+    "method": "GET",
+    "route": "/data/preview-files/<id>",
+    "client": "files.getPreviewFile",
+    "status": "existing",
+    "note": "Client returns null on a 404."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getRunningPreviewFiles",
+    "method": "GET",
+    "route": "/data/playlists/preview-files/running",
+    "client": "files.getRunningPreviewFiles",
+    "status": "existing",
+    "note": "Query differs: Kitsu sends limit and cursor_preview_file_id, the client sends none (add limit and cursor options)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "markPreviewFileAsBroken",
+    "method": "PUT",
+    "route": "/data/preview-files/<id>",
+    "client": "files.updatePreview",
+    "status": "existing",
+    "note": "Call with data { status: 'broken' }."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "updatePreviewFileValidationStatus",
+    "method": "PUT",
+    "route": "/data/preview-files/<id>",
+    "client": "files.updatePreview",
+    "status": "existing",
+    "note": "Call with data { validation_status }. Same route as markPreviewFileAsBroken."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "newPlaylist",
+    "method": "POST",
+    "route": "/data/playlists",
+    "client": "playlist.newPlaylist",
+    "status": "existing",
+    "note": "Kitsu posts to /data/playlists/ with a trailing slash. Client first looks the playlist up by name (extra GET /data/playlists) and returns it when found, like gazu. Body differs: the client does not send task_type_id (add a taskType option)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "updatePlaylist",
+    "method": "PUT",
+    "route": "/data/playlists/<id>",
+    "client": "playlist.updatePlaylist",
+    "status": "existing",
+    "note": "Client sends the whole playlist object as body; Kitsu sends a whitelist (name, for_client, shots as entity_id and preview_file_id pairs, for_entity, task_type_id)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "deletePlaylist",
+    "method": "DELETE",
+    "route": "/data/playlists/<id>",
+    "client": "playlist.deletePlaylist",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "playlists",
+    "kitsu": "deleteBuildJob",
+    "method": "DELETE",
+    "route": "/data/playlists/<id>/jobs/<id>",
+    "client": "playlist.removeBuildJob",
+    "status": "existing",
+    "note": "Client takes (playlist, buildJob); Kitsu reads job.playlist_id."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "runPlaylistBuild",
+    "method": "GET",
+    "route": "/data/playlists/<id>/build/mp4",
+    "client": "playlist.buildPlaylistMovie",
+    "status": "existing",
+    "note": "Query differs: Kitsu sends full=true optionally, the client has no such option (add a full flag)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "loadTempPlaylist",
+    "method": "POST",
+    "route": "/data/projects/<id>/playlists/temp",
+    "client": "playlist.generateTempPlaylist",
+    "status": "existing",
+    "note": "Call with data { task_ids }. Query differs: Kitsu sends sort=true optionally, the client has no query (add a sort flag, through http.request)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "loadTempPlaylistFromEntities",
+    "method": "POST",
+    "route": "/data/projects/<id>/playlists/temp",
+    "client": "playlist.generateTempPlaylist",
+    "status": "existing",
+    "note": "Call with data { entity_ids }. Same route as loadTempPlaylist, same missing sort flag."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "notifyClients",
+    "method": "POST",
+    "route": "/data/playlists/<id>/notify-clients",
+    "client": "playlist.notifyClientsPlaylistReady",
+    "status": "existing",
+    "note": "Body differs: Kitsu sends studio_id and department_id, the client sends an empty body (add studio and department options)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "getShareLinks",
+    "method": "GET",
+    "route": "/data/playlists/<id>/share",
+    "client": "playlist.allShareLinksForPlaylist",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "playlists",
+    "kitsu": "createShareLink",
+    "method": "POST",
+    "route": "/data/playlists/<id>/share",
+    "client": "playlist.newShareLink",
+    "status": "existing",
+    "note": "Client builds the body from expirationDate, canComment and password options; Kitsu passes a free data object."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "revokeShareLink",
+    "method": "DELETE",
+    "route": "/data/playlists/<id>/share/<id>",
+    "client": "playlist.removeShareLink",
+    "status": "existing",
+    "note": "Second path parameter is the share token, not a UUID."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "sendShareInvitations",
+    "method": "POST",
+    "route": "/data/playlists/<id>/share/<id>/invite",
+    "client": "playlist.sendShareLinkInvitations",
+    "status": "added",
+    "note": "Second path parameter is the share token: validate it with shareTokenOf."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "postSharedPlaylistGuest",
+    "method": "POST",
+    "route": "/shared/playlists/<id>/guest",
+    "client": "playlist.newSharedPlaylistGuest",
+    "status": "added",
+    "note": "Guest route, no authentication: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "loadSharedPlaylist",
+    "method": "GET",
+    "route": "/shared/playlists/<id>",
+    "client": "playlist.getSharedPlaylist",
+    "status": "added",
+    "note": "Guest route: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "loadSharedPlaylistContext",
+    "method": "GET",
+    "route": "/shared/playlists/<id>/context",
+    "client": "playlist.getSharedPlaylistContext",
+    "status": "added",
+    "note": "Guest route: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "saveSharedPlaylistAnnotations",
+    "method": "PUT",
+    "route": "/shared/playlists/<id>/annotations",
+    "client": "playlist.updateSharedPlaylistAnnotations",
+    "status": "added",
+    "note": "Guest route: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "loadSharedPlaylistComments",
+    "method": "GET",
+    "route": "/shared/playlists/<id>/comments",
+    "client": "playlist.allSharedPlaylistComments",
+    "status": "added",
+    "note": "Guest route: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "postSharedPlaylistComment",
+    "method": "POST",
+    "route": "/shared/playlists/<id>/comments",
+    "client": "playlist.newSharedPlaylistComment",
+    "status": "added",
+    "note": "Guest route: the path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "editSharedPlaylistComment",
+    "method": "PUT",
+    "route": "/shared/playlists/<id>/comments/<id>",
+    "client": "playlist.updateSharedPlaylistComment",
+    "status": "added",
+    "note": "Guest route: the first path parameter is the share token."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "deleteSharedPlaylistComment",
+    "method": "DELETE",
+    "route": "/shared/playlists/<id>/comments/<id>",
+    "client": "playlist.removeSharedPlaylistComment",
+    "status": "added",
+    "note": "Guest route. Query: guest_id, on a DELETE (use http.request)."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "postSharedPlaylistCommentAttachments",
+    "method": "POST",
+    "route": "/shared/playlists/<id>/comments/<id>/attachments",
+    "client": "playlist.addSharedPlaylistCommentAttachments",
+    "status": "added",
+    "note": "Guest route. Kitsu posts a FormData through ppost (multipart): build it on the upload helper."
+  },
+  {
+    "module": "playlists",
+    "kitsu": "deleteSharedPlaylistCommentAttachment",
+    "method": "DELETE",
+    "route": "/shared/playlists/<id>/comments/<id>/attachments/<id>",
+    "client": "playlist.removeSharedPlaylistCommentAttachment",
+    "status": "added",
+    "note": "Guest route. Query: guest_id, on a DELETE (use http.request)."
+  },
+  {
+    "module": "productions",
+    "kitsu": "getProductions",
+    "method": "GET",
+    "route": "/data/projects/all",
+    "client": "project.allProjectsWithAccess",
+    "status": "added",
+    "note": "project.allProjects calls GET /data/projects (CRUD route, no /all); /data/projects/all returns the projects the logged-in user can access"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getProduction",
+    "method": "GET",
+    "route": "/data/projects/<id>",
+    "client": "project.getProject",
+    "status": "existing",
+    "note": "Kitsu goes through client.getModel without relations"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getOpenProductions",
+    "method": "GET",
+    "route": "/data/projects/open",
+    "client": "project.allOpenProjects",
+    "status": "existing",
+    "note": "The client sorts the result by name"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getProductionStatus",
+    "method": "GET",
+    "route": "/data/project-status",
+    "client": "project.allProjectStatus",
+    "status": "existing",
+    "note": "The client sorts the result by name"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getProductionStats",
+    "method": "GET",
+    "route": "/data/tasks/open-tasks/stats",
+    "client": "task.getOpenTasksStats",
+    "status": "existing",
+    "note": "The client returns null on a 404"
+  },
+  {
+    "module": "productions",
+    "kitsu": "newProduction",
+    "method": "POST",
+    "route": "/data/projects",
+    "client": "project.newProject",
+    "status": "existing",
+    "note": "Kitsu posts a free-form production object to /data/projects/ (trailing slash); the client first looks the name up with GET /data/projects?name= and returns the existing project, and only sends name, production_type, production_style, team, asset_types, task_statuses, task_types and project_template_id: other fields (dates, fps, ratio, resolution) need a following updateProject"
+  },
+  {
+    "module": "productions",
+    "kitsu": "updateProduction",
+    "method": "PUT",
+    "route": "/data/projects/<id>",
+    "client": "project.updateProject",
+    "status": "existing",
+    "note": "Kitsu coerces six boolean fields from strings before sending; the client sends the project as given with its link fields turned into ids"
+  },
+  {
+    "module": "productions",
+    "kitsu": "postAvatar",
+    "method": "POST",
+    "route": "/pictures/thumbnails/projects/<id>",
+    "client": "files.uploadProjectAvatar",
+    "status": "existing",
+    "note": "Kitsu sends a ready FormData; the client takes the file and builds the multipart body"
+  },
+  {
+    "module": "productions",
+    "kitsu": "deleteProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>",
+    "client": "project.removeProject",
+    "status": "existing",
+    "note": "Kitsu always sends force=true: call the client with { force: true }"
+  },
+  {
+    "module": "productions",
+    "kitsu": "addPersonToTeam",
+    "method": "POST",
+    "route": "/data/projects/<id>/team",
+    "client": "project.addPersonToTeam",
+    "status": "existing",
+    "note": "The client also accepts an optional role"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getTeam",
+    "method": "GET",
+    "route": "/data/projects/<id>/team",
+    "client": "project.getTeam",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "updateTeamMemberRole",
+    "method": "PUT",
+    "route": "/data/projects/<id>/team/<id>",
+    "client": "project.updateTeamMemberRole",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "removePersonFromTeam",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/team/<id>",
+    "client": "project.removePersonFromTeam",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "addAssetTypeToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/asset-types",
+    "client": "project.addAssetType",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "removeAssetTypeFromProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/settings/asset-types/<id>",
+    "client": "project.removeAssetType",
+    "status": "added",
+    "note": "The client has addAssetType, removeTaskType and removeTaskStatus but no removeAssetType"
+  },
+  {
+    "module": "productions",
+    "kitsu": "addBackgroundToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/preview-background-files",
+    "client": "project.addPreviewBackgroundFile",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "removeBackgroundFromProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/settings/preview-background-files/<id>",
+    "client": "project.removePreviewBackgroundFile",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "setDefaultBackgroundToProduction",
+    "method": "PUT",
+    "route": "/data/projects/<id>",
+    "client": "project.updateProject",
+    "status": "excluded",
+    "note": "Duplicate of updateProduction: a project update sending only default_preview_background_file_id, covered by project.updateProject({ id, default_preview_background_file_id })"
+  },
+  {
+    "module": "productions",
+    "kitsu": "addTaskTypeToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/task-types",
+    "client": "project.addTaskType",
+    "status": "existing",
+    "note": "The client also accepts optional bitrate compression fields"
+  },
+  {
+    "module": "productions",
+    "kitsu": "addSettingsToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/batch",
+    "client": "project.addSettings",
+    "status": "added",
+    "note": "Batch link of task types (with priority), task statuses and asset types, with replace_task_types"
+  },
+  {
+    "module": "productions",
+    "kitsu": "removeTaskTypeFromProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/settings/task-types/<id>",
+    "client": "project.removeTaskType",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "addTaskStatusToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/task-status",
+    "client": "project.addTaskStatus",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "removeTaskStatusFromProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/settings/task-status/<id>",
+    "client": "project.removeTaskStatus",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "addStatusAutomationToProduction",
+    "method": "POST",
+    "route": "/data/projects/<id>/settings/status-automations",
+    "client": "project.addStatusAutomation",
+    "status": "existing",
+    "note": "Same body: the client takes the { status_automation_id } payload and sends it as given"
+  },
+  {
+    "module": "productions",
+    "kitsu": "removeStatusAutomationFromProduction",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/settings/status-automations/<id>",
+    "client": "project.removeStatusAutomation",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "addMetadataDescriptor",
+    "method": "POST",
+    "route": "/data/projects/<id>/metadata-descriptors",
+    "client": "project.addMetadataDescriptor",
+    "status": "existing",
+    "note": "Same body: Kitsu maps descriptor.values to choices; the client takes name, entityType and options (dataType, choices, forClient, departments, taskTypeId)"
+  },
+  {
+    "module": "productions",
+    "kitsu": "getMetadataDescriptor",
+    "method": "GET",
+    "route": "/data/projects/<id>/metadata-descriptors/<id>",
+    "client": "project.getMetadataDescriptor",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "updateMetadataDescriptor",
+    "method": "PUT",
+    "route": "/data/projects/<id>/metadata-descriptors/<id>",
+    "client": "project.updateMetadataDescriptor",
+    "status": "existing",
+    "note": "Kitsu maps descriptor.values to choices; the client sends the descriptor with departments as ids"
+  },
+  {
+    "module": "productions",
+    "kitsu": "deleteMetadataDescriptor",
+    "method": "DELETE",
+    "route": "/data/projects/<id>/metadata-descriptors/<id>",
+    "client": "project.removeMetadataDescriptor",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "reorderMetadataDescriptors",
+    "method": "POST",
+    "route": "/data/projects/<id>/metadata-descriptors/reorder",
+    "client": "project.reorderMetadataDescriptors",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "addMetadataDescriptorToAllProjects",
+    "method": "POST",
+    "route": "/data/metadata-descriptors/all-projects",
+    "client": "project.addMetadataDescriptorToAllProjects",
+    "status": "added",
+    "note": ""
+  },
+  {
+    "module": "productions",
+    "kitsu": "updateMetadataDescriptorOnAllProjects",
+    "method": "PUT",
+    "route": "/data/metadata-descriptors/all-projects/<id>",
+    "client": "project.updateMetadataDescriptorOnAllProjects",
+    "status": "added",
+    "note": "The path parameter is the descriptor field name, not a UUID"
+  },
+  {
+    "module": "productions",
+    "kitsu": "deleteMetadataDescriptorOnAllProjects",
+    "method": "DELETE",
+    "route": "/data/metadata-descriptors/all-projects/<id>",
+    "client": "project.removeMetadataDescriptorOnAllProjects",
+    "status": "added",
+    "note": "The path parameter is the descriptor field name; entity_type goes in the query"
+  },
+  {
+    "module": "productions",
+    "kitsu": "reorderMetadataDescriptorsOnAllProjects",
+    "method": "POST",
+    "route": "/actions/metadata-descriptors/all-projects/reorder",
+    "client": "project.reorderMetadataDescriptorsOnAllProjects",
+    "status": "added",
+    "note": "Body: entity_type and field_order (field names)"
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getProjectTemplates",
+    "method": "GET",
+    "route": "/data/project-templates",
+    "client": "projectTemplate.allProjectTemplates",
+    "status": "existing",
+    "note": "Client sorts the result by name."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getProjectTemplate",
+    "method": "GET",
+    "route": "/data/project-templates/<id>",
+    "client": "projectTemplate.getProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "newProjectTemplate",
+    "method": "POST",
+    "route": "/data/project-templates",
+    "client": "projectTemplate.newProjectTemplate",
+    "status": "existing",
+    "note": "Client body only carries name, description, fps, ratio, resolution, production_type, production_style: Kitsu also sends max_retakes, homepage and the is_* flags (extend the options)."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "editProjectTemplate",
+    "method": "PUT",
+    "route": "/data/project-templates/<id>",
+    "client": "projectTemplate.updateProjectTemplate",
+    "status": "existing",
+    "note": "Client sends the whole template object as body, Kitsu sends a whitelist of fields."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "deleteProjectTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>",
+    "client": "projectTemplate.removeProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "newProjectTemplateFromProject",
+    "method": "POST",
+    "route": "/data/project-templates/from-project/<id>",
+    "client": "projectTemplate.newProjectTemplateFromProject",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "applyTemplateToProject",
+    "method": "POST",
+    "route": "/data/projects/<id>/apply-template/<id>",
+    "client": "projectTemplate.applyProjectTemplate",
+    "status": "existing",
+    "note": "Route lives under data/projects but the function is in the projectTemplate namespace."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getTemplateTaskTypes",
+    "method": "GET",
+    "route": "/data/project-templates/<id>/task-types",
+    "client": "projectTemplate.allTaskTypesForProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "addTaskTypeToTemplate",
+    "method": "POST",
+    "route": "/data/project-templates/<id>/task-types",
+    "client": "projectTemplate.addTaskTypeToProjectTemplate",
+    "status": "existing",
+    "note": "Client also accepts optional bitrate compression fields."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "removeTaskTypeFromTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>/task-types/<id>",
+    "client": "projectTemplate.removeTaskTypeFromProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "reorderTemplateTaskTypes",
+    "method": "POST",
+    "route": "/actions/project-templates/<id>/task-types/reorder",
+    "client": "projectTemplate.reorderTaskTypesForProjectTemplate",
+    "status": "added",
+    "note": "No client function posts to this action route. Body: { task_type_ids }."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getTemplateTaskStatuses",
+    "method": "GET",
+    "route": "/data/project-templates/<id>/task-statuses",
+    "client": "projectTemplate.allTaskStatusesForProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "addTaskStatusToTemplate",
+    "method": "POST",
+    "route": "/data/project-templates/<id>/task-statuses",
+    "client": "projectTemplate.addTaskStatusToProjectTemplate",
+    "status": "existing",
+    "note": "Client options cover priority and rolesForBoard."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "removeTaskStatusFromTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>/task-statuses/<id>",
+    "client": "projectTemplate.removeTaskStatusFromProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "reorderTemplateTaskStatuses",
+    "method": "POST",
+    "route": "/actions/project-templates/<id>/task-statuses/reorder",
+    "client": "projectTemplate.reorderTaskStatusesForProjectTemplate",
+    "status": "added",
+    "note": "No client function posts to this action route. Body: { task_status_ids }."
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getTemplateAssetTypes",
+    "method": "GET",
+    "route": "/data/project-templates/<id>/asset-types",
+    "client": "projectTemplate.allAssetTypesForProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "addAssetTypeToTemplate",
+    "method": "POST",
+    "route": "/data/project-templates/<id>/asset-types",
+    "client": "projectTemplate.addAssetTypeToProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "removeAssetTypeFromTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>/asset-types/<id>",
+    "client": "projectTemplate.removeAssetTypeFromProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getTemplateStatusAutomations",
+    "method": "GET",
+    "route": "/data/project-templates/<id>/status-automations",
+    "client": "projectTemplate.allStatusAutomationsForProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "addStatusAutomationToTemplate",
+    "method": "POST",
+    "route": "/data/project-templates/<id>/status-automations",
+    "client": "projectTemplate.addStatusAutomationToProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "removeStatusAutomationFromTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>/status-automations/<id>",
+    "client": "projectTemplate.removeStatusAutomationFromProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "getTemplateBackgrounds",
+    "method": "GET",
+    "route": "/data/project-templates/<id>/preview-background-files",
+    "client": "projectTemplate.allPreviewBackgroundFilesForProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "addBackgroundToTemplate",
+    "method": "POST",
+    "route": "/data/project-templates/<id>/preview-background-files",
+    "client": "projectTemplate.addPreviewBackgroundFileToProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "removeBackgroundFromTemplate",
+    "method": "DELETE",
+    "route": "/data/project-templates/<id>/preview-background-files/<id>",
+    "client": "projectTemplate.removePreviewBackgroundFileFromProjectTemplate",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "setTemplateDefaultBackground",
+    "method": "PUT",
+    "route": "/data/project-templates/<id>/default-preview-background-file",
+    "client": "projectTemplate.setProjectTemplateDefaultPreviewBackgroundFile",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "projecttemplates",
+    "kitsu": "setTemplateMetadataDescriptors",
+    "method": "PUT",
+    "route": "/data/project-templates/<id>/metadata-descriptors",
+    "client": "projectTemplate.setProjectTemplateMetadataDescriptors",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getMilestones",
+    "method": "GET",
+    "route": "/data/projects/<id>/milestones",
+    "client": "project.getMilestones",
+    "status": "existing",
+    "note": "Same route, no query on either side. Could be re-exported from the new schedule namespace."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createMilestone",
+    "method": "POST",
+    "route": "/data/milestones",
+    "client": "schedule.newMilestone",
+    "status": "added",
+    "note": "CRUD create. Body: date (YYYY-MM-DD), name, task_type_id, project_id."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "updateMilestone",
+    "method": "PUT",
+    "route": "/data/milestones/<id>",
+    "client": "schedule.updateMilestone",
+    "status": "added",
+    "note": "CRUD update. Body: date, name, task_type_id."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "deleteMilestone",
+    "method": "DELETE",
+    "route": "/data/milestones/<id>",
+    "client": "schedule.removeMilestone",
+    "status": "added",
+    "note": "CRUD delete."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/task-types",
+    "client": "schedule.allTaskTypeScheduleItems",
+    "status": "added",
+    "note": "Schedule items of the project at the task type level."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getAllScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items",
+    "client": "schedule.allScheduleItems",
+    "status": "added",
+    "note": "Kitsu calls the route with a trailing slash."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createScheduleItem",
+    "method": "POST",
+    "route": "/data/schedule-items",
+    "client": "schedule.newScheduleItem",
+    "status": "added",
+    "note": "CRUD create, Kitsu uses a trailing slash. Body: start_date, end_date, project_id, task_type_id, optional man_days. The default end date (start + 1 day) is Kitsu UI logic."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "deleteScheduleItem",
+    "method": "DELETE",
+    "route": "/data/schedule-items/<id>",
+    "client": "schedule.removeScheduleItem",
+    "status": "added",
+    "note": "CRUD delete."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getAssetTypeScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/<id>/asset-types",
+    "client": "schedule.allEntityScheduleItems",
+    "status": "excluded",
+    "note": "Pure composition: calls getEntityScheduleItems with entity \"asset-types\". Covered by that row."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getSequenceScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/<id>/sequences",
+    "client": "schedule.allEntityScheduleItems",
+    "status": "excluded",
+    "note": "Pure composition: calls getEntityScheduleItems with entity \"sequences\". Covered by that row."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getEditScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/<id>/edits",
+    "client": "schedule.allEntityScheduleItems",
+    "status": "excluded",
+    "note": "Pure composition: calls getEntityScheduleItems with entity \"edits\". Covered by that row."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getEpisodeScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/<id>/episodes",
+    "client": "schedule.allEntityScheduleItems",
+    "status": "excluded",
+    "note": "Pure composition: calls getEntityScheduleItems with entity \"episodes\". Covered by that row."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getEntityScheduleItems",
+    "method": "GET",
+    "route": "/data/projects/<id>/schedule-items/<id>/asset-types | /data/projects/<id>/schedule-items/<id>/sequences | /data/projects/<id>/schedule-items/<id>/edits | /data/projects/<id>/schedule-items/<id>/episodes",
+    "client": "schedule.allEntityScheduleItems",
+    "status": "added",
+    "note": "Zou declares four literal routes, the last segment is the entity kind (asset-types, sequences, edits, episodes) passed as an argument. Optional query episode_id. Path: projects/<project_id>/schedule-items/<task_type_id>/<kind>."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "updateScheduleItem",
+    "method": "PUT",
+    "route": "/data/schedule-items/<id>",
+    "client": "schedule.updateScheduleItem",
+    "status": "added",
+    "note": "CRUD update. Body: start_date, end_date, optional man_days."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getScheduleVersions",
+    "method": "GET",
+    "route": "/data/production-schedule-versions",
+    "client": "schedule.allScheduleVersions",
+    "status": "added",
+    "note": "CRUD list filtered with query project_id."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getScheduleVersion",
+    "method": "GET",
+    "route": "/data/production-schedule-versions/<id>",
+    "client": "schedule.getScheduleVersion",
+    "status": "added",
+    "note": "CRUD get."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createScheduleVersion",
+    "method": "POST",
+    "route": "/data/production-schedule-versions",
+    "client": "schedule.newScheduleVersion",
+    "status": "added",
+    "note": "CRUD create, Kitsu uses a trailing slash. Body: project_id, name, from."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "updateScheduleVersion",
+    "method": "PUT",
+    "route": "/data/production-schedule-versions/<id>",
+    "client": "schedule.updateScheduleVersion",
+    "status": "added",
+    "note": "CRUD update. Body: name, canceled, locked."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "deleteScheduleVersion",
+    "method": "DELETE",
+    "route": "/data/production-schedule-versions/<id>",
+    "client": "schedule.removeScheduleVersion",
+    "status": "added",
+    "note": "CRUD delete."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createTasksFromProduction",
+    "method": "POST",
+    "route": "/actions/production-schedule-versions/<id>/set-task-links-from-production",
+    "client": "schedule.setTaskLinksFromProduction",
+    "status": "added",
+    "note": "Action, no body."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createTasksFromScheduleVersion",
+    "method": "POST",
+    "route": "/actions/production-schedule-versions/<id>/set-task-links-from-production-schedule-version",
+    "client": "schedule.setTaskLinksFromScheduleVersion",
+    "status": "added",
+    "note": "Action. Body: production_schedule_version_id (the source version)."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getTasksFromScheduleVersion",
+    "method": "GET",
+    "route": "/data/production-schedule-versions/<id>/task-links",
+    "client": "schedule.allScheduleVersionTaskLinks",
+    "status": "added",
+    "note": "Query: relations=true always, optional task_type_id."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "getTaskFromScheduleVersion",
+    "method": "GET",
+    "route": "/data/production-schedule-version-task-links/<id>",
+    "client": "schedule.getScheduleVersionTaskLink",
+    "status": "added",
+    "note": "CRUD get."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "createTaskFromScheduleVersion",
+    "method": "POST",
+    "route": "/data/production-schedule-version-task-links",
+    "client": "schedule.newScheduleVersionTaskLink",
+    "status": "added",
+    "note": "CRUD create. Body: task_id, production_schedule_version_id, start_date, due_date, estimation, assignees."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "updateTaskFromScheduleVersion",
+    "method": "PUT",
+    "route": "/data/production-schedule-version-task-links/<id>",
+    "client": "schedule.updateScheduleVersionTaskLink",
+    "status": "added",
+    "note": "CRUD update. Body: start_date, due_date, estimation, assignees."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "deleteTaskFromScheduleVersion",
+    "method": "DELETE",
+    "route": "/data/production-schedule-version-task-links/<id>",
+    "client": "schedule.removeScheduleVersionTaskLink",
+    "status": "added",
+    "note": "CRUD delete."
+  },
+  {
+    "module": "schedule",
+    "kitsu": "applyScheduleVersionToProduction",
+    "method": "POST",
+    "route": "/actions/production-schedule-versions/<id>/apply-to-production",
+    "client": "schedule.applyScheduleVersionToProduction",
+    "status": "added",
+    "note": "Action, no body."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getShot",
+    "method": "GET",
+    "route": "/data/shots/<id>",
+    "client": "shot.getShot",
+    "status": "existing",
+    "note": "Through client.getModel. The client returns null on a 404 instead of rejecting."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getShots",
+    "method": "GET",
+    "route": "/data/shots/with-tasks",
+    "client": "shot.allShotsWithTasks",
+    "status": "added",
+    "note": "pgetNdjson: build on http.getNdjson. Query: project_id, episode_id (both optional)."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getSequence",
+    "method": "GET",
+    "route": "/data/sequences/<id>",
+    "client": "shot.getSequence",
+    "status": "existing",
+    "note": "Through client.getModel. The client returns null on a 404 instead of rejecting."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getSequences",
+    "method": "GET",
+    "route": "/data/projects/<id>/sequences | /data/episodes/<id>/sequences",
+    "client": "shot.allSequencesForProject | shot.allSequencesForEpisode",
+    "status": "existing",
+    "note": "Project route: shot.allSequencesForProject. Episode route (used when an episode is given): shot.allSequencesForEpisode. Both sort the result by name."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getSequencesWithTasks",
+    "method": "GET",
+    "route": "/data/sequences/with-tasks",
+    "client": "shot.allSequencesWithTasks",
+    "status": "added",
+    "note": "Plain GET. Query: project_id, episode_id (optional)."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getEpisode",
+    "method": "GET",
+    "route": "/data/episodes/<id>",
+    "client": "shot.getEpisode",
+    "status": "existing",
+    "note": "Through client.getModel. The client returns null on a 404 instead of rejecting."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getEpisodes",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes",
+    "client": "shot.allEpisodesForProject",
+    "status": "existing",
+    "note": "The client sorts the result by name."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getEpisodesWithTasks",
+    "method": "GET",
+    "route": "/data/episodes/with-tasks",
+    "client": "shot.allEpisodesWithTasks",
+    "status": "added",
+    "note": "Plain GET. Query: project_id."
+  },
+  {
+    "module": "shots",
+    "kitsu": "newShot",
+    "method": "POST",
+    "route": "/data/projects/<id>/shots",
+    "client": "shot.newShot",
+    "status": "existing",
+    "note": "Same route. The client first looks the shot up by name in the sequence (GET data/shots/all) and returns it when it exists. Kitsu body: name, description, sequence_id."
+  },
+  {
+    "module": "shots",
+    "kitsu": "newSequence",
+    "method": "POST",
+    "route": "/data/projects/<id>/sequences",
+    "client": "shot.newSequence",
+    "status": "existing",
+    "note": "Same route. The client first looks the sequence up by name and only sends name and episode_id: Kitsu also sends description and data, to accept as options in Task 26."
+  },
+  {
+    "module": "shots",
+    "kitsu": "newEpisode",
+    "method": "POST",
+    "route": "/data/projects/<id>/episodes",
+    "client": "shot.newEpisode",
+    "status": "existing",
+    "note": "Same route. The client first looks the episode up by name and only sends name: Kitsu also sends description, status and data, to accept as options in Task 26."
+  },
+  {
+    "module": "shots",
+    "kitsu": "updateShot",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "shot.updateShot",
+    "status": "existing",
+    "note": "The client sends the entity as given: Kitsu builds the body itself (name, parent_id from sequence_id, description, data with frame_in, frame_out, fps, resolution, max_retakes, nb_frames, is_casting_standby). That shaping stays on the Kitsu side."
+  },
+  {
+    "module": "shots",
+    "kitsu": "updateSequence",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "shot.updateSequence",
+    "status": "existing",
+    "note": "Kitsu body: name, description, data."
+  },
+  {
+    "module": "shots",
+    "kitsu": "updateEpisode",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "shot.updateEpisode",
+    "status": "existing",
+    "note": "Kitsu body: name, description, status, data, is_casting_standby."
+  },
+  {
+    "module": "shots",
+    "kitsu": "deleteShot",
+    "method": "DELETE",
+    "route": "/data/shots/<id>",
+    "client": "shot.removeShot",
+    "status": "existing",
+    "note": "Kitsu adds force=true when the shot is already canceled: pass { force: shot.canceled }."
+  },
+  {
+    "module": "shots",
+    "kitsu": "deleteSequence",
+    "method": "DELETE",
+    "route": "/data/sequences/<id>",
+    "client": "shot.removeSequence",
+    "status": "existing",
+    "note": "Kitsu always sends force=true: pass { force: true }."
+  },
+  {
+    "module": "shots",
+    "kitsu": "deleteEpisode",
+    "method": "DELETE",
+    "route": "/data/episodes/<id>",
+    "client": "shot.removeEpisode",
+    "status": "existing",
+    "note": "Kitsu always sends force=true: pass { force: true }."
+  },
+  {
+    "module": "shots",
+    "kitsu": "restoreShot",
+    "method": "PUT",
+    "route": "/data/entities/<id>",
+    "client": "shot.updateShot",
+    "status": "existing",
+    "note": "Kitsu sends { canceled: false } to the entity route: shot.updateShot({ id, canceled: false }) is the same request. shot.restoreShot does the same through PUT data/shots/<id> (gazu route) and can be used instead."
+  },
+  {
+    "module": "shots",
+    "kitsu": "postCsv",
+    "method": "POST",
+    "route": "/import/csv/projects/<id>/shots",
+    "client": "shot.importShotsWithCsv",
+    "status": "existing",
+    "note": "Kitsu posts a ready FormData and adds ?update=true when toUpdate is set: the client takes the file itself and has no update option yet, to add in Task 26."
+  },
+  {
+    "module": "shots",
+    "kitsu": "postEdl",
+    "method": "POST",
+    "route": "/import/otio/projects/<id> | /import/otio/projects/<id>/episodes/<id>",
+    "client": "shot.importOtio",
+    "status": "existing",
+    "note": "Same multipart fields (file, naming_convention, match_case); the episode route is used when an episode is given, as in Kitsu."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getEpisodeStats",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes/stats",
+    "client": "shot.getEpisodeStats",
+    "status": "added",
+    "note": "Takes the project."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getEpisodeRetakeStats",
+    "method": "GET",
+    "route": "/data/projects/<id>/episodes/retake-stats",
+    "client": "shot.getEpisodeRetakeStats",
+    "status": "added",
+    "note": "Takes the project."
+  },
+  {
+    "module": "shots",
+    "kitsu": "loadShotHistory",
+    "method": "GET",
+    "route": "/data/shots/<id>/versions",
+    "client": "shot.allVersionsForShot",
+    "status": "added",
+    "note": "Data history of the shot (list). Named like edit.allVersionsForEdit."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getQuotas",
+    "method": "GET",
+    "route": "/data/projects/<id>/quotas/persons/<id> | /data/projects/<id>/quotas/<id>",
+    "client": "project.getProjectPersonQuotas | project.getProjectQuotas",
+    "status": "existing",
+    "note": "Person route (used when a person is given): project.getProjectPersonQuotas. Task type route: project.getProjectQuotas. Kitsu sends the detail and count_mode query parameters, which neither client function accepts yet: to add as options in Task 26."
+  },
+  {
+    "module": "shots",
+    "kitsu": "getPeopleQuotas",
+    "method": "GET",
+    "route": "/data/projects/<id>/quotas/person/<id>",
+    "client": "",
+    "status": "excluded",
+    "note": "Dead code: no caller in Kitsu, and the route (quotas/person, singular) does not exist in Zou. The person quotas are covered by getQuotas (project.getProjectPersonQuotas)."
+  },
+  {
+    "module": "shots",
+    "kitsu": "setNbFramesFromTaskTypePreviews",
+    "method": "POST",
+    "route": "/actions/projects/<id>/task-types/<id>/set-shot-nb-frames",
+    "client": "shot.setNbFramesFromTaskTypePreviews",
+    "status": "added",
+    "note": "POST without body, optional episode_id query: use http.request (http.post takes no query)."
+  },
+  {
+    "module": "software",
+    "kitsu": "getSoftwareLicenses",
+    "method": "GET",
+    "route": "/data/softwares",
+    "client": "files.allSoftwares",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "software",
+    "kitsu": "getSoftwareLicense",
+    "method": "GET",
+    "route": "/data/softwares/<id>",
+    "client": "files.getSoftware",
+    "status": "existing",
+    "note": "The client returns null on a 404."
+  },
+  {
+    "module": "software",
+    "kitsu": "newSoftwareLicense",
+    "method": "POST",
+    "route": "/data/softwares",
+    "client": "files.newSoftware",
+    "status": "existing",
+    "note": "Body differs: the client looks the name up first (GET data/softwares?name=) and only sends name, short_name, file_extension, secondary_extensions. Kitsu also sends version, monthly_cost and inventory_amount: the function needs these options."
+  },
+  {
+    "module": "software",
+    "kitsu": "updateSoftwareLicense",
+    "method": "PUT",
+    "route": "/data/softwares/<id>",
+    "client": "files.updateSoftware",
+    "status": "existing",
+    "note": "The client sends the whole software dict, Kitsu a field subset with archived as a boolean."
+  },
+  {
+    "module": "software",
+    "kitsu": "deleteSoftwareLicense",
+    "method": "DELETE",
+    "route": "/data/softwares/<id>",
+    "client": "files.removeSoftware",
+    "status": "added",
+    "note": "No software removal in the client yet."
+  },
+  {
+    "module": "statusautomation",
+    "kitsu": "getStatusAutomations",
+    "method": "GET",
+    "route": "/data/status-automations",
+    "client": "project.allGlobalStatusAutomations",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered. project.allStatusAutomations is already taken by the project-scoped list, hence the distinct name."
+  },
+  {
+    "module": "statusautomation",
+    "kitsu": "getStatusAutomation",
+    "method": "GET",
+    "route": "/data/status-automations/<id>",
+    "client": "project.getStatusAutomation",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered."
+  },
+  {
+    "module": "statusautomation",
+    "kitsu": "newStatusAutomation",
+    "method": "POST",
+    "route": "/data/status-automations",
+    "client": "project.newStatusAutomation",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered. Kitsu posts with a trailing slash."
+  },
+  {
+    "module": "statusautomation",
+    "kitsu": "updateStatusAutomation",
+    "method": "PUT",
+    "route": "/data/status-automations/<id>",
+    "client": "project.updateStatusAutomation",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered."
+  },
+  {
+    "module": "statusautomation",
+    "kitsu": "deleteStatusAutomation",
+    "method": "DELETE",
+    "route": "/data/status-automations/<id>",
+    "client": "project.deleteStatusAutomation",
+    "status": "added",
+    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered. project.removeStatusAutomation already exists and unlinks an automation from a project, hence delete* here."
+  },
+  {
+    "module": "studios",
+    "kitsu": "getStudios",
+    "method": "GET",
+    "route": "/data/studios",
+    "client": "studio.allStudios",
+    "status": "existing",
+    "note": "Client sorts the result by name."
+  },
+  {
+    "module": "studios",
+    "kitsu": "newStudio",
+    "method": "POST",
+    "route": "/data/studios",
+    "client": "studio.newStudio",
+    "status": "added",
+    "note": "The studio namespace has no creation function yet. Body: { name, color, archived }."
+  },
+  {
+    "module": "studios",
+    "kitsu": "editStudio",
+    "method": "PUT",
+    "route": "/data/studios/<id>",
+    "client": "studio.updateStudio",
+    "status": "existing",
+    "note": "Client sends the whole studio object; Kitsu sends only name, color, archived."
+  },
+  {
+    "module": "studios",
+    "kitsu": "deleteStudio",
+    "method": "DELETE",
+    "route": "/data/studios/<id>",
+    "client": "studio.removeStudio",
+    "status": "existing",
+    "note": "Client adds an optional force query flag; Kitsu sends none."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTask",
+    "method": "GET",
+    "route": "/data/tasks/<id>/full",
+    "client": "task.getTask",
+    "status": "existing",
+    "note": "Client returns null on a 404."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTasks",
+    "method": "GET",
+    "route": "/data/tasks",
+    "client": "task.allTasks",
+    "status": "added",
+    "note": "Generic filtered list (free filters object passed as query). Existing functions on GET /data/tasks (allTasksForTaskStatus, allTasksForTaskType, getTaskByEntity) only send fixed filters."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getOpenTasks",
+    "method": "GET",
+    "route": "/data/tasks/open-tasks",
+    "client": "task.allOpenTasks",
+    "status": "existing",
+    "note": "Query differs: Kitsu sends a free filters object (project, status, person, page, limit...), the client sends no query. allOpenTasks needs a filters option before the Kitsu switch."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getOpenTasksBurndown",
+    "method": "GET",
+    "route": "/data/tasks/open-tasks/burndown",
+    "client": "task.getOpenTasksBurndown",
+    "status": "added",
+    "note": "Takes the same filters object as the open tasks list. Route missing from tests/fixtures/zou_routes.json: resync the fixture."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "updateTask",
+    "method": "PUT",
+    "route": "/data/tasks/<id>",
+    "client": "task.updateTask",
+    "status": "existing",
+    "note": "Client takes the whole task object (id plus changed fields) and normalizes assignees to ids."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTaskSubscribed",
+    "method": "GET",
+    "route": "/data/user/tasks/<id>/subscribed",
+    "client": "user.checkTaskSubscription",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "subscribeToTask",
+    "method": "POST",
+    "route": "/actions/user/tasks/<id>/subscribe",
+    "client": "user.subscribeToTask",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "unsubscribeFromTask",
+    "method": "DELETE",
+    "route": "/actions/user/tasks/<id>/unsubscribe",
+    "client": "user.unsubscribeFromTask",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "subscribeToTasks",
+    "method": "POST",
+    "route": "/actions/user/tasks/subscribe",
+    "client": "user.subscribeToTasks",
+    "status": "added",
+    "note": "Body: { task_ids }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "unsubscribeFromTasks",
+    "method": "POST",
+    "route": "/actions/user/tasks/unsubscribe",
+    "client": "user.unsubscribeFromTasks",
+    "status": "added",
+    "note": "POST, not DELETE. Body: { task_ids }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTaskComments",
+    "method": "GET",
+    "route": "/data/tasks/<id>/comments",
+    "client": "task.allCommentsForTask",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTaskPreviews",
+    "method": "GET",
+    "route": "/data/tasks/<id>/previews",
+    "client": "task.allPreviewsForTask",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "commentTask",
+    "method": "POST",
+    "route": "/actions/tasks/<id>/comment",
+    "client": "task.addComment",
+    "status": "existing",
+    "note": "JSON body, or multipart when attachments are given, like Kitsu."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "updateCommentForClient",
+    "method": "PUT",
+    "route": "/data/comments/<id>",
+    "client": "task.updateComment",
+    "status": "existing",
+    "note": "Partial update: pass { id, for_client }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "addAttachmentToComment",
+    "method": "POST",
+    "route": "/actions/tasks/<id>/comments/<id>/add-attachment",
+    "client": "task.addAttachmentFilesToComment",
+    "status": "existing",
+    "note": "Multipart upload. Kitsu also sets an optional reply_id form field that the client cannot send yet: addAttachmentFilesToComment needs a reply option."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deleteAttachment",
+    "method": "DELETE",
+    "route": "/data/tasks/<id>/comments/<id>/attachments/<id>",
+    "client": "task.deleteCommentAttachment",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "commentTasks",
+    "method": "POST",
+    "route": "/actions/projects/<id>/tasks/comment-many",
+    "client": "task.createMultipleComments",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getTaskComment",
+    "method": "GET",
+    "route": "/data/comments/<id>",
+    "client": "task.getComment",
+    "status": "existing",
+    "note": "Query differs: Kitsu sends relations=true, the client sends no query. Client returns null on a 404."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "editTaskComment",
+    "method": "PUT",
+    "route": "/data/comments/<id>",
+    "client": "task.updateComment",
+    "status": "existing",
+    "note": "Kitsu sends only text, task_status_id, checklist and links."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deleteTaskComment",
+    "method": "DELETE",
+    "route": "/data/tasks/<id>/comments/<id>",
+    "client": "task.removeTaskComment",
+    "status": "added",
+    "note": "Task scoped deletion route. task.removeComment uses DELETE /data/comments/<id>, a different route."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "moveCommentToTask",
+    "method": "POST",
+    "route": "/actions/tasks/<id>/comments/<id>/move",
+    "client": "task.moveCommentToTask",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "createTasks",
+    "method": "POST",
+    "route": "/actions/projects/<id>/task-types/<id>/create-tasks/<id> | /actions/projects/<id>/task-types/<id>/<id>/create-tasks",
+    "client": "task.createTasks",
+    "status": "added",
+    "note": "Path parameter of the first route is the entity type (episode, sequence), the second route holds the plural collection (assets, shots, edits, concepts). Body: the list of entity ids. Give the function an optional entity sent as the id query parameter to cover createTask."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "createTask",
+    "method": "POST",
+    "route": "/actions/projects/<id>/task-types/<id>/create-tasks/<id> | /actions/projects/<id>/task-types/<id>/<id>/create-tasks",
+    "client": "task.createTasks",
+    "status": "excluded",
+    "note": "Duplicate of createTasks: same routes with an empty body and, for assets, shots, edits and concepts, the id query parameter of a single entity. Covered by the entity option of task.createTasks."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "createEntityTasks",
+    "method": "POST",
+    "route": "/data/entities/<id>/tasks",
+    "client": "task.createEntityTasks",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deleteTask",
+    "method": "DELETE",
+    "route": "/data/tasks/<id>",
+    "client": "task.removeTask",
+    "status": "existing",
+    "note": "Both send force=true."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deleteAllTasks",
+    "method": "POST | DELETE",
+    "route": "/actions/projects/<id>/delete-tasks | /actions/projects/<id>/task-types/<id>/delete-tasks",
+    "client": "task.removeTasksBatch",
+    "status": "existing",
+    "note": "Two calls behind one Kitsu function: POST delete-tasks with a list of task ids is task.removeTasksBatch, DELETE task-types/<id>/delete-tasks (no ids given) is task.removeTasksForType. Both exist."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "addPreview",
+    "method": "POST",
+    "route": "/actions/tasks/<id>/comments/<id>/add-preview",
+    "client": "task.createPreview",
+    "status": "existing",
+    "note": "task.addPreview of the client is the composite (create then upload), not this route alone."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "addExtraPreview",
+    "method": "POST",
+    "route": "/actions/tasks/<id>/comments/<id>/preview-files/<id>",
+    "client": "task.createExtraPreview",
+    "status": "existing",
+    "note": "task.addExtraPreview of the client is the composite (create then upload), not this route alone."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deletePreview",
+    "method": "DELETE",
+    "route": "/actions/tasks/<id>/comments/<id>/preview-files/<id>",
+    "client": "task.removePreviewFromComment",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "setPreview",
+    "method": "PUT",
+    "route": "/actions/preview-files/<id>/set-main-preview",
+    "client": "task.setMainPreview",
+    "status": "existing",
+    "note": "Body: optional frame_number. The entityId argument of Kitsu is unused."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "setLastTaskPreviewAsEntityThumbnail",
+    "method": "PUT",
+    "route": "/actions/tasks/<id>/set-main-preview",
+    "client": "task.setTaskMainPreview",
+    "status": "added",
+    "note": "Uses the last preview of the task as the entity thumbnail. Empty body."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "setTasksMainPreview",
+    "method": "PUT",
+    "route": "/actions/tasks/set-main-preview",
+    "client": "task.setTasksMainPreview",
+    "status": "added",
+    "note": "Batch variant. Body: { task_ids }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "uploadPreview",
+    "method": "POST",
+    "route": "/pictures/preview-files/<id>",
+    "client": "task.uploadPreviewFile",
+    "status": "existing",
+    "note": "Kitsu uses ppostFile (upload with progress): the client goes through http.upload with onProgress. The client may add normalize=false to the query."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "updatePreviewAnnotation",
+    "method": "PUT",
+    "route": "/actions/preview-files/<id>/update-annotations",
+    "client": "files.updatePreviewAnnotations",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getPreviewFile",
+    "method": "GET",
+    "route": "/data/preview-files/<id>",
+    "client": "files.getPreviewFile",
+    "status": "existing",
+    "note": "Client returns null on a 404."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "assignTasks",
+    "method": "PUT",
+    "route": "/actions/persons/<id>/assign",
+    "client": "task.assignTasksToPerson",
+    "status": "existing",
+    "note": "Argument order differs: client takes (tasks, person)."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "unassignTasks",
+    "method": "PUT",
+    "route": "/actions/tasks/clear-assignation",
+    "client": "task.clearAssignations",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "setTasksPriority",
+    "method": "PUT",
+    "route": "/actions/tasks/set-priority",
+    "client": "task.setTasksPriority",
+    "status": "added",
+    "note": "Body: { task_ids, priority }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "unassignPersonFromTasks",
+    "method": "PUT",
+    "route": "/actions/tasks/clear-assignation",
+    "client": "task.clearAssignations",
+    "status": "existing",
+    "note": "Same route with person_id in the body: the person option of clearAssignations."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "pinComment",
+    "method": "PUT",
+    "route": "/data/comments/<id>",
+    "client": "task.updateComment",
+    "status": "existing",
+    "note": "Partial update: pass { id, pinned }."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "ackComment",
+    "method": "POST",
+    "route": "/data/tasks/<id>/comments/<id>/ack",
+    "client": "task.acknowledgeComment",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "replyToComment",
+    "method": "POST",
+    "route": "/data/tasks/<id>/comments/<id>/reply",
+    "client": "task.replyToComment",
+    "status": "existing",
+    "note": "Body differs: Kitsu switches to multipart with file-N fields when the reply has attachments, the client only sends JSON ({ text, person_id }). Attachments on a reply need an extension of the client function."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "deleteReply",
+    "method": "DELETE",
+    "route": "/data/tasks/<id>/comments/<id>/reply/<id>",
+    "client": "task.deleteCommentReply",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasks",
+    "kitsu": "updateRevisionPreviewPosition",
+    "method": "PUT",
+    "route": "/actions/preview-files/<id>/update-position",
+    "client": "files.updatePreviewPosition",
+    "status": "existing",
+    "note": "Kitsu sends position + 1 (1-based): the caller does the shift."
+  },
+  {
+    "module": "tasks",
+    "kitsu": "getPersonsTasksDates",
+    "method": "GET",
+    "route": "/data/persons/task-dates",
+    "client": "task.getPersonsTasksDates",
+    "status": "existing",
+    "note": "Client returns null on a 404."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "getTaskStatuses",
+    "method": "GET",
+    "route": "/data/task-status",
+    "client": "task.allTaskStatuses",
+    "status": "existing",
+    "note": "Client sorts the result by name."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "getTaskStatus",
+    "method": "GET",
+    "route": "/data/task-status/<id>",
+    "client": "task.getTaskStatus",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "newTaskStatus",
+    "method": "POST",
+    "route": "/data/task-status",
+    "client": "task.newTaskStatus",
+    "status": "existing",
+    "note": "Kitsu posts to the route with a trailing slash. Client signature (name, shortName, color) only sends name, short_name and color: Kitsu also sends description, the is_* flags, for_concept, archived and priority, so the client function needs an extra data option for the switch."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "updateTaskStatus",
+    "method": "PUT",
+    "route": "/data/task-status/<id>",
+    "client": "task.updateTaskStatus",
+    "status": "existing",
+    "note": "Client sends the object as given; the Kitsu sanitizing of the boolean strings stays on the Kitsu side."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "updateTaskStatusPriority",
+    "method": "PUT",
+    "route": "/data/task-status/<id>",
+    "client": "task.updateTaskStatus",
+    "status": "excluded",
+    "note": "Duplicate of taskstatus.updateTaskStatus: same PUT with only { priority } in the body. Covered by task.updateTaskStatus."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "updateTaskStatusLink",
+    "method": "POST",
+    "route": "/data/task-status-links",
+    "client": "project.updateTaskStatusLink",
+    "status": "added",
+    "note": "Generic CRUD POST on task-status-links with { project_id, task_status_id, priority, roles_for_board }. project.addTaskStatus uses another route (/data/projects/<id>/settings/task-status) and cannot set priority or roles_for_board."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "reorderTaskStatusLinks",
+    "method": "POST",
+    "route": "/actions/projects/<id>/task-status-links/reorder",
+    "client": "project.reorderTaskStatusLinks",
+    "status": "added",
+    "note": "Body: { task_status_ids }. Named after project.reorderMetadataDescriptors."
+  },
+  {
+    "module": "taskstatus",
+    "kitsu": "deleteTaskStatus",
+    "method": "DELETE",
+    "route": "/data/task-status/<id>",
+    "client": "task.removeTaskStatus",
+    "status": "existing",
+    "note": "Client always sends force=true; Kitsu sends no query."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "getTaskTypes",
+    "method": "GET",
+    "route": "/data/task-types",
+    "client": "task.allTaskTypes",
+    "status": "existing",
+    "note": "Client sorts the result by name, Kitsu relies on the priority order: sort again on the Kitsu side."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "newTaskType",
+    "method": "POST",
+    "route": "/data/task-types",
+    "client": "task.newTaskType",
+    "status": "existing",
+    "note": "Kitsu posts to the route with a trailing slash. Client signature (name, { color, forEntity }) first looks the type up by name (extra GET) and only sends name, color, for_entity: Kitsu also sends short_name, description, priority, allow_timelog and department_id, so the client function needs an extra data option for the switch."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "updateTaskType",
+    "method": "PUT",
+    "route": "/data/task-types/<id>",
+    "client": "task.updateTaskType",
+    "status": "existing",
+    "note": "Client sends the object as given; the conditional priority, allow_timelog and archived fields stay on the Kitsu side."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "updateTaskTypeLink",
+    "method": "POST",
+    "route": "/data/task-type-links",
+    "client": "project.updateTaskTypeLink",
+    "status": "added",
+    "note": "Generic CRUD POST on task-type-links with { project_id, task_type_id, priority }. project.addTaskType sends the same data to another route (/data/projects/<id>/settings/task-types)."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "reorderTaskTypeLinks",
+    "method": "POST",
+    "route": "/actions/projects/<id>/task-type-links/reorder",
+    "client": "project.reorderTaskTypeLinks",
+    "status": "added",
+    "note": "Body: { task_type_ids }. Named after project.reorderMetadataDescriptors."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "reorderTaskTypes",
+    "method": "POST",
+    "route": "/actions/task-types/reorder",
+    "client": "task.reorderTaskTypes",
+    "status": "added",
+    "note": "Body: { task_type_ids }. Global priority order of the task types."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "deleteTaskType",
+    "method": "DELETE",
+    "route": "/data/task-types/<id>",
+    "client": "task.removeTaskType",
+    "status": "existing",
+    "note": "Optional force=true query on both sides."
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "getTaskType",
+    "method": "GET",
+    "route": "/data/task-types/<id>",
+    "client": "task.getTaskType",
+    "status": "existing",
+    "note": ""
+  },
+  {
+    "module": "tasktypes",
+    "kitsu": "postTaskTypeEstimations",
+    "method": "POST",
+    "route": "/import/csv/projects/<id>/task-types/<id>/estimations | /import/csv/projects/<id>/episodes/<id>/task-types/<id>/estimations",
+    "client": "task.importTaskTypeEstimationsWithCsv",
+    "status": "added",
+    "note": "Multipart CSV upload (http.upload, like asset.importAssetsWithCsv). The second route applies when an episode is given."
+  }
+]
