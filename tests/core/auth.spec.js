@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createCore } from '../../src/core/index.js'
-import { AuthFailedError, MissingOtpError } from '../../src/core/errors.js'
+import {
+  AuthFailedError,
+  KitsuError,
+  MissingOtpError
+} from '../../src/core/errors.js'
 import { createFakeFetch } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
 
@@ -59,6 +63,19 @@ describe('logIn', () => {
     await expect(kitsu.logIn('a@b.c', 'bad')).rejects.toBeInstanceOf(
       AuthFailedError
     )
+  })
+
+  it('does not report a page answered with a 200 as wrong credentials', async () => {
+    const page = async () =>
+      new Response('<html></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      })
+    const kitsu = createCore({ host: HOST, fetch: page })
+    const err = await kitsu.logIn('a@b.c', 'secret').catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).not.toBeInstanceOf(AuthFailedError)
+    expect(kitsu.getTokens()).toBeNull()
   })
 })
 

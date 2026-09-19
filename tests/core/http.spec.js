@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  KitsuError,
   NetworkError,
   NotFoundError,
   ServerError,
@@ -11,6 +12,7 @@ import { createFakeFetch } from '../helpers/fakeFetch.js'
 import { HOST, TASK_ID } from '../helpers/ids.js'
 
 const stubSession = {
+  generation: () => 0,
   headers: () => ({}),
   canRefresh: () => false,
   onUnauthorized: () => {}
@@ -83,6 +85,25 @@ describe('http errors', () => {
     })
   })
 
+  it('refuses a successful answer that is not JSON, such as the page of a wrong host', async () => {
+    const html = '<!DOCTYPE html><html></html>'
+    const page = async () =>
+      new Response(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      })
+    const err = await makeHttp(page)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: 'data/tasks',
+      method: 'GET',
+      body: html
+    })
+  })
+
   it('wraps a network failure', async () => {
     const failing = async () => {
       throw new TypeError('fetch failed')
@@ -107,6 +128,13 @@ describe('gazu helpers', () => {
     const http = makeHttp(fake)
     expect(await http.fetchFirst('tasks')).toEqual({ id: 1 })
     expect(await http.fetchFirst('tasks')).toBeNull()
+  })
+
+  it('fetchFirst returns null on 404 and rethrows anything else', async () => {
+    const fake = createFakeFetch().reply(404, {}).reply(500, {})
+    const http = makeHttp(fake)
+    expect(await http.fetchFirst('tasks')).toBeNull()
+    await expect(http.fetchFirst('tasks')).rejects.toBeInstanceOf(ServerError)
   })
 
   it('fetchOne returns null on 404 and rethrows anything else', async () => {
@@ -145,6 +173,28 @@ describe('timeouts and cancellation', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
 
+  // A body that never ends and fails when the request is aborted, as the
+  // body of a real fetch does.
+  const stalledBody = signal =>
+    new ReadableStream({
+      start: stream =>
+        signal.addEventListener('abort', () =>
+          stream.error(new DOMException('Aborted', 'AbortError'))
+        )
+    })
+
+  const stalledDownload = async (url, init) =>
+    new Response(stalledBody(init.signal), { status: 200 })
+
+  const settledWithin = (promise, delay) => {
+    const timer = new Promise(resolve =>
+      setTimeout(() => resolve('pending'), delay)
+    )
+    const raced = Promise.race([promise, timer])
+    vi.advanceTimersByTimeAsync(delay)
+    return raced
+  }
+
   const hangingFetch = (url, init) =>
     new Promise((resolve, reject) => {
       init.signal.addEventListener('abort', () =>
@@ -167,6 +217,82 @@ describe('timeouts and cancellation', () => {
       .catch(e => e)
     controller.abort()
     expect((await pending).name).toBe('AbortError')
+  })
+
+  it('reports a caller abort as AbortError whatever the injected fetch rejects with', async () => {
+    const cancelling = (url, init) =>
+      new Promise((resolve, reject) => {
+        init.signal.addEventListener('abort', () =>
+          reject(new Error('Request cancelled'))
+        )
+      })
+    const controller = new AbortController()
+    const pending = makeHttp(cancelling)
+      .get('data/tasks', {}, { signal: controller.signal })
+      .catch(e => e)
+    controller.abort()
+    const err = await pending
+    expect(err.name).toBe('AbortError')
+    expect(err).not.toBeInstanceOf(NetworkError)
+  })
+
+  it('reports an abort landing while an error body is read as AbortError', async () => {
+    const stalledError = async (url, init) =>
+      new Response(stalledBody(init.signal), { status: 500 })
+    const controller = new AbortController()
+    const pending = makeHttp(stalledError)
+      .get('data/tasks', {}, { signal: controller.signal })
+      .catch(e => e)
+    await vi.advanceTimersByTimeAsync(10)
+    controller.abort()
+    expect((await pending).name).toBe('AbortError')
+  })
+
+  it('leaves no timer nor listener behind when the body cannot be encoded', async () => {
+    const circular = {}
+    circular.self = circular
+    const controller = new AbortController()
+    const removed = vi.spyOn(controller.signal, 'removeEventListener')
+    const added = vi.spyOn(controller.signal, 'addEventListener')
+    const fake = createFakeFetch()
+
+    await expect(
+      makeHttp(fake).post('data/tasks', circular, { signal: controller.signal })
+    ).rejects.toBeInstanceOf(TypeError)
+
+    expect(fake.calls).toHaveLength(0)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(added.mock.calls.length).toBe(removed.mock.calls.length)
+  })
+
+  it('keeps a raw response abortable by the caller after the headers', async () => {
+    const controller = new AbortController()
+    const response = await makeHttp(stalledDownload).request(
+      'GET',
+      'data/tasks',
+      { raw: true, signal: controller.signal }
+    )
+    const reading = response.text().catch(e => e)
+    controller.abort()
+    expect((await settledWithin(reading, 50)).name).toBe('AbortError')
+  })
+
+  it('keeps a raw response abortable by abortAll after the headers', async () => {
+    const http = makeHttp(stalledDownload)
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    const reading = response.text().catch(e => e)
+    http.abortAll()
+    expect((await settledWithin(reading, 50)).name).toBe('AbortError')
+  })
+
+  it('leaves a raw body unbounded once the headers arrived', async () => {
+    const response = await makeHttp(stalledDownload).request(
+      'GET',
+      'data/tasks',
+      { raw: true }
+    )
+    const reading = response.text().catch(e => e)
+    expect(await settledWithin(reading, TIMEOUT.deadline + 1)).toBe('pending')
   })
 
   it('abortAll cancels every in-flight request', async () => {

@@ -40,18 +40,37 @@ export const readNdjson = async response => {
         : row
     )
   }
+  // Decoding failures get one type, so callers tell a malformed stream
+  // from a transport failure.
+  const decodeLine = line => {
+    try {
+      handleLine(line)
+    } catch (err) {
+      // The cause option of Error is ES2022: set by hand for the floor.
+      throw Object.assign(
+        new SyntaxError(`Malformed NDJSON line: ${err.message}`),
+        { cause: err }
+      )
+    }
+  }
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  // A stream reader has no functional equivalent: this loop is the idiom.
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop()
-    lines.forEach(handleLine)
+  try {
+    // A stream reader has no functional equivalent: this loop is the idiom.
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+      lines.forEach(decodeLine)
+    }
+    decodeLine((buffer + decoder.decode()).trim())
+  } catch (err) {
+    // An abandoned stream holds its connection until garbage collection.
+    await reader.cancel().catch(() => {})
+    throw err
   }
-  handleLine((buffer + decoder.decode()).trim())
   return entities
 }

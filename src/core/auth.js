@@ -1,7 +1,10 @@
 import { KitsuError, NotAuthenticatedError, loginErrorFrom } from './errors.js'
 
 /**
- * @typedef {{signal?: AbortSignal}} RequestOptions
+ * @typedef {import('./params.js').Entity} Entity
+ * @typedef {import('./params.js').RequestOptions} RequestOptions
+ * @typedef {{user: Entity, access_token?: string, refresh_token?: string,
+ *   [field: string]: any}} LoginBody
  */
 
 /**
@@ -20,7 +23,7 @@ export const authApi = (http, session) => ({
    * @param {string} email
    * @param {string} password
    * @param {LogInOptions} [options]
-   * @returns {Promise<object>} The login body of Zou (user, tokens, ...).
+   * @returns {Promise<LoginBody>} The login body of Zou (user, tokens, ...).
    * @throws {import('./errors.js').AuthFailedError} or one of its subclasses.
    */
   logIn: async (
@@ -39,7 +42,9 @@ export const authApi = (http, session) => ({
     const body = await http
       .post('auth/login', payload, { skipAuth: true, signal })
       .catch(err => {
-        throw err instanceof KitsuError && err.status
+        // Only an error status is a refused login: a page answered with a
+        // 200 (wrong host) is not wrong credentials.
+        throw err instanceof KitsuError && err.status >= 400
           ? loginErrorFrom(err)
           : err
       })
@@ -55,7 +60,7 @@ export const authApi = (http, session) => ({
   /**
    * Log out. Tokens are cleared even when the request fails.
    * @param {RequestOptions} [options]
-   * @returns {Promise<object>}
+   * @returns {Promise<Record<string, any>>}
    */
   logOut: ({ signal } = {}) =>
     http
@@ -75,7 +80,7 @@ export const authApi = (http, session) => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<object>} The person matching the current session.
+   * @returns {Promise<Entity>} The person matching the current session.
    */
   getCurrentUser: ({ signal } = {}) =>
     http.get('auth/authenticated', {}, { signal }).then(body => body.user),

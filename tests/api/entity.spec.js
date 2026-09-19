@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { ENTITY_ID, OTHER_ID, PROJECT_ID } from '../helpers/ids.js'
 
@@ -35,6 +36,34 @@ describe('entity namespace', () => {
     })
     expect(await kitsu.entity.getEntity(ENTITY_ID)).toBeNull()
     expect(fake.calls[0].path).toBe(`/data/entities/${ENTITY_ID}`)
+  })
+
+  // The contract every namespace inherits: a wrong argument is a rejection
+  // (never a synchronous throw), and nothing leaves the client.
+  it('rejects a wrong or missing entity before any request', async () => {
+    const guarded = Promise.all(
+      ['not-a-uuid', undefined, null].map(entity =>
+        kitsu.entity.getEntity(entity).catch(err => err)
+      )
+    )
+    ;(await guarded).forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    await expect(kitsu.entity.removeEntity(undefined)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    await expect(
+      kitsu.entity.removeEntities(PROJECT_ID, [ENTITY_ID, undefined])
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('first-match lookups reject a blank name instead of returning any row', async () => {
+    await expect(kitsu.entity.getEntityByName('')).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    await expect(
+      kitsu.entity.getEntityTypeByName(undefined)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getEntityByName filters by name and returns the first match', async () => {

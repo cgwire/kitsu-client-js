@@ -2,11 +2,11 @@ import {
   KitsuError,
   NetworkError,
   NotAuthenticatedError,
-  NotFoundError,
   TimeoutError,
   errorFromResponse
 } from './errors.js'
 import { readNdjson } from './ndjson.js'
+import { orNull } from './params.js'
 import { buildUrl } from './query.js'
 
 const isFormData = body =>
@@ -21,33 +21,48 @@ const encodeBody = body => {
   }
 }
 
-const parseBody = async response => {
-  if (response.status === 204) return null
+// A JSON body can be a string too, hence the explicit flag.
+const readBody = async response => {
   const type = response.headers.get('Content-Type') || ''
-  const text = await response.text()
-  if (!text) return null
-  return type.includes('json') ? JSON.parse(text) : text
+  const text = response.status === 204 ? '' : await response.text()
+  if (!text) return { data: null, isJson: true }
+  return type.includes('json')
+    ? { data: JSON.parse(text), isJson: true }
+    : { data: text, isJson: false }
 }
 
-const orNull = promise =>
-  promise.catch(err => {
-    if (err instanceof NotFoundError) return null
-    throw err
-  })
+const NOT_STREAMED = Symbol('not streamed')
+
+const isAuthFailure = err =>
+  err instanceof NotAuthenticatedError ||
+  (err instanceof KitsuError && err.status >= 400 && err.status < 500)
 
 export const createHttp = (config, session) => {
   const { host, fetch: fetchImpl, timeout, credentials } = config
   const inflight = new Set()
 
+  // One network attempt. options.raw returns the Response untouched;
+  // options.read(response) reads a successful body that is not JSON (NDJSON,
+  // CSV) inside the attempt, so the deadline and the abort wiring cover it.
   // Not AbortSignal.timeout/any: both are above the browser floor.
   const send = async (method, path, options = {}) => {
-    const { query, body, headers = {}, signal, raw = false } = options
+    const { query, body, headers = {}, signal, raw = false, read } = options
+    // Whatever can throw comes before anything is armed.
+    const url = buildUrl(host, path, query)
+    const encoded = encodeBody(body)
+    const info = { path, method }
     const controller = new AbortController()
     const abortFromCaller = () => controller.abort()
     let timedOut = false
     const expire = () => {
       timedOut = true
       controller.abort()
+    }
+    const arm = delay =>
+      Number.isFinite(delay) ? setTimeout(expire, delay) : null
+    const release = () => {
+      inflight.delete(controller)
+      if (signal) signal.removeEventListener('abort', abortFromCaller)
     }
     inflight.add(controller)
     if (signal) {
@@ -57,71 +72,96 @@ export const createHttp = (config, session) => {
     // Transfers (FormData uploads, raw downloads) are unbounded past the
     // first byte: multi-GB movies are legitimate.
     const bounded = !raw && !isFormData(body)
-    const responseTimer = isFormData(body)
-      ? null
-      : setTimeout(expire, timeout.response)
-    const deadlineTimer = bounded ? setTimeout(expire, timeout.deadline) : null
-    const encoded = encodeBody(body)
-    const info = { path, method }
+    const responseTimer = isFormData(body) ? null : arm(timeout.response)
+    const deadlineTimer = bounded ? arm(timeout.deadline) : null
+    let streaming = false
 
     try {
-      const response = await fetchImpl(buildUrl(host, path, query), {
+      const response = await fetchImpl(url, {
         method,
         body: encoded.body,
         headers: { Accept: 'application/json', ...encoded.headers, ...headers },
         signal: controller.signal,
-        ...(credentials ? { credentials } : {})
+        credentials
       })
       clearTimeout(responseTimer)
       if (!response.ok) {
-        const errorBody = await parseBody(response).catch(() => '')
-        throw errorFromResponse(response.status, {
-          ...info,
-          body: errorBody || ''
-        })
+        const { data } = await readBody(response).catch(() => ({ data: '' }))
+        throw errorFromResponse(response.status, { ...info, body: data || '' })
       }
-      return raw ? response : await parseBody(response)
+      if (raw) {
+        // The body is still to be read by the caller: the abort wiring
+        // stays until an abort (caller signal, abortAll) releases it.
+        streaming = true
+        controller.signal.addEventListener('abort', release, { once: true })
+        return response
+      }
+      if (read) return await read(response)
+      const { data, isJson } = await readBody(response)
+      // A page served with a 2xx (host without "/api", SSO portal) must not
+      // reach the caller as if it were data.
+      if (!isJson) {
+        throw new KitsuError(
+          `${method} ${path} answered ${response.status} without JSON`,
+          { ...info, status: response.status, body: data }
+        )
+      }
+      return data
     } catch (err) {
       if (timedOut) throw new TimeoutError(`${method} ${path} timed out`, info)
-      const passThrough =
-        err.name === 'AbortError' ||
-        err instanceof KitsuError ||
-        err instanceof SyntaxError
-      if (passThrough) throw err
+      // Decided from the controller, not from the shape of the rejection:
+      // injected fetches (Tauri) do not all reject with an AbortError.
+      if (controller.signal.aborted) {
+        throw err.name === 'AbortError'
+          ? err
+          : new DOMException('The operation was aborted', 'AbortError')
+      }
+      if (err instanceof KitsuError || err instanceof SyntaxError) throw err
       throw new NetworkError(`${method} ${path} failed: ${err.message}`, info)
     } finally {
       clearTimeout(responseTimer)
       clearTimeout(deadlineTimer)
-      inflight.delete(controller)
-      if (signal) signal.removeEventListener('abort', abortFromCaller)
+      if (!streaming) release()
     }
   }
 
   const withAuthReplay = async attempt => {
+    const generation = session.generation()
     const used = session.headers()
+    // logIn, logOut or setToken happened since the request left: its 401
+    // belongs to the former session, so it is neither replayed under another
+    // identity nor reported as a lost session.
+    const replaced = () => session.generation() !== generation
     try {
       return await attempt(used)
     } catch (err) {
-      if (!(err instanceof NotAuthenticatedError)) throw err
+      if (!(err instanceof NotAuthenticatedError) || replaced()) throw err
       // A late 401 can land after another request already renewed the
       // token: replay with it instead of refreshing again.
       const renewedMeanwhile =
         session.headers().Authorization !== used.Authorization
-      const refreshed =
-        renewedMeanwhile ||
-        (session.canRefresh() &&
-          (await session.refresh(send).then(
-            () => true,
-            () => false
-          )))
-      if (!refreshed) {
-        session.onUnauthorized()
-        throw err
+      if (!renewedMeanwhile) {
+        const refreshError = session.canRefresh()
+          ? await session.refresh(send).then(
+              () => null,
+              failure => failure
+            )
+          : err
+        if (replaced()) throw err
+        // Only an answer of the API tells the session is lost: a network
+        // failure, a timeout or close() says nothing about the refresh token.
+        if (refreshError && !isAuthFailure(refreshError)) throw refreshError
+        if (refreshError) {
+          session.onUnauthorized()
+          throw err
+        }
       }
       try {
         return await attempt(session.headers())
       } catch (replayErr) {
-        if (replayErr instanceof NotAuthenticatedError) session.onUnauthorized()
+        if (replayErr instanceof NotAuthenticatedError && !replaced()) {
+          session.onUnauthorized()
+        }
         throw replayErr
       }
     }
@@ -146,23 +186,34 @@ export const createHttp = (config, session) => {
   const del = (path, body, options) =>
     request('DELETE', path, { ...options, body })
 
-  // The body of a raw response is read without deadline: only the first
-  // byte is bounded. Any non-NDJSON answer (older Zou, proxy) is re-issued as
-  // a plain request, which raises the typed error if there is one.
+  const readStream = async response => {
+    const type = response.headers.get('Content-Type') || ''
+    if (type.includes('ndjson')) return readNdjson(response)
+    // An unread body holds its connection: release it before asking again.
+    if (response.body) await response.body.cancel()
+    return NOT_STREAMED
+  }
+
+  // The stream is read inside send, so the deadline, the caller signal and
+  // abortAll cover it up to the last line. An answer of the API that is not
+  // a stream (older Zou, proxy) is asked again as a plain request, which
+  // raises the typed error if there is one; a transport failure is not.
   const getNdjson = async (path, query = {}, options = {}) => {
     try {
-      const response = await request('GET', path, {
+      const entities = await request('GET', path, {
         ...options,
-        raw: true,
+        read: readStream,
         query: { ...query, stream: true, compact: true },
         headers: { Accept: 'application/x-ndjson' }
       })
-      const type = response.headers.get('Content-Type') || ''
-      if (type.includes('ndjson')) return await readNdjson(response)
+      if (entities !== NOT_STREAMED) return entities
     } catch (err) {
-      if (err instanceof NotAuthenticatedError || err.name === 'AbortError') {
-        throw err
-      }
+      const answered =
+        err instanceof SyntaxError ||
+        (err instanceof KitsuError &&
+          err.status &&
+          !(err instanceof NotAuthenticatedError))
+      if (!answered) throw err
     }
     return get(path, query, options)
   }
@@ -179,7 +230,7 @@ export const createHttp = (config, session) => {
     del,
     fetchAll: (path, query, options) => get(`data/${path}`, query, options),
     fetchFirst: (path, query, options) =>
-      get(`data/${path}`, query, options).then(entries =>
+      orNull(get(`data/${path}`, query, options)).then(entries =>
         Array.isArray(entries) && entries.length > 0 ? entries[0] : null
       ),
     fetchOne: (model, id, options) =>

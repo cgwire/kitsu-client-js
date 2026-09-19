@@ -3,6 +3,24 @@ import { createHttp } from './http.js'
 import { createSession } from './session.js'
 
 const DEFAULT_TIMEOUT = { response: 60000, deadline: 300000 }
+// Above it setTimeout overflows and fires at once.
+const MAX_TIMER = 2147483647
+
+const timerOf = (key, value) => {
+  if (value === undefined || value === null) return DEFAULT_TIMEOUT[key]
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+    throw new TypeError(
+      `createClient: timeout.${key} must be a number of milliseconds`
+    )
+  }
+  return value === 0 || value > MAX_TIMER ? Infinity : value
+}
+
+const resolveTimeout = (timeout = {}) =>
+  Object.freeze({
+    response: timerOf('response', timeout.response),
+    deadline: timerOf('deadline', timeout.deadline)
+  })
 
 /**
  * @typedef {object} ClientOptions
@@ -18,7 +36,10 @@ const DEFAULT_TIMEOUT = { response: 60000, deadline: 300000 }
  *   unauthorized after the refresh attempt.
  * @property {string} [eventHost] Defaults to the host without "/api".
  * @property {Function} [io] The socket.io-client "io" function.
- * @property {{response?: number, deadline?: number}} [timeout] Milliseconds.
+ * @property {{response?: number|null, deadline?: number|null}} [timeout]
+ *   Milliseconds to the first byte (60 000) and for the whole call
+ *   (300 000). A key left out, undefined or null keeps its default; 0 or
+ *   Infinity disables that timer; anything else throws a TypeError.
  */
 
 /**
@@ -35,8 +56,11 @@ export const createCore = options => {
     host: options.host,
     // Wrapped: calling a detached window.fetch throws "Illegal invocation".
     fetch: options.fetch || ((input, init) => globalThis.fetch(input, init)),
-    timeout: Object.freeze({ ...DEFAULT_TIMEOUT, ...options.timeout }),
-    credentials: auth === 'cookie' ? 'same-origin' : undefined
+    timeout: resolveTimeout(options.timeout || undefined),
+    // Bearer mode never sends cookies: Zou reads the session cookie before
+    // the Authorization header, so a bearer client living in a Kitsu page
+    // would act as the logged-in user.
+    credentials: auth === 'cookie' ? 'same-origin' : 'omit'
   })
   const session = createSession({
     auth,
