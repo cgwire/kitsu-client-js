@@ -39,6 +39,9 @@ import * as urls from '../utils/urls.js'
 
 const HEX_COLOR = /^#[0-9a-fA-F]*$/
 
+const COLLECTION_ROUTES = ['assets', 'shots', 'edits', 'concepts']
+const ENTITY_TYPE_ROUTES = ['episodes', 'sequences']
+
 /**
  * FormData names a bare Blob "blob", and Zou reads the preview type from the
  * extension of the file name: it would refuse the upload, after the comment
@@ -104,6 +107,25 @@ export const taskApi = http => {
 
   const timeSpentPath = (task, person, date) =>
     `actions/tasks/${idOf(task)}/time-spents/${dayOf(date)}/persons/${idOf(person)}`
+
+  /**
+   * The type lands in the path: only the collections Zou serves go through.
+   * @param {Model} project
+   * @param {Model} taskType
+   * @param {string} type
+   * @returns {string}
+   */
+  const createTasksPath = (project, taskType, type) => {
+    const prefix = `actions/projects/${idOf(project)}/task-types/${idOf(taskType)}`
+    if (ENTITY_TYPE_ROUTES.includes(type)) {
+      return `${prefix}/create-tasks/${type.slice(0, -1)}`
+    }
+    if (COLLECTION_ROUTES.includes(type))
+      return `${prefix}/${type}/create-tasks`
+    throw new ParameterError(
+      `Wrong format: type must be one of ${[...COLLECTION_ROUTES, ...ENTITY_TYPE_ROUTES].join(', ')}`
+    )
+  }
 
   /**
    * @param {Model} entity
@@ -1399,6 +1421,150 @@ export const taskApi = http => {
         undefined,
         { signal }
       ),
+
+    /**
+     * Delete the time logged by the person on the task at this date.
+     * @param {Model} task
+     * @param {Model} person
+     * @param {Date|string} date A Date or "YYYY-MM-DD".
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The deleted time spent entry.
+     */
+    clearTimeSpent: async (task, person, date, { signal } = {}) =>
+      http.del(timeSpentPath(task, person, date), undefined, { signal }),
+
+    /**
+     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
+     *   filters holds the query as Zou reads it (project_id, task_status_id,
+     *   page, limit, relations...).
+     * @returns {Promise<Entity[]>} The tasks matching the filters.
+     */
+    allTasks: async ({ filters = {}, signal } = {}) =>
+      http.fetchAll('tasks', filters, { signal }),
+
+    /**
+     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
+     *   filters are the ones of the open tasks list: project_id,
+     *   task_type_id, task_status_id, person_id (ids joined by commas, or
+     *   "unassigned"), studio_id, department_id, start_date, due_date,
+     *   priority.
+     * @returns {Promise<Entity[]>} Burndown of the open tasks matching the
+     *   filters.
+     */
+    getOpenTasksBurndown: async ({ filters = {}, signal } = {}) =>
+      http.get('data/tasks/open-tasks/burndown', filters, { signal }),
+
+    /**
+     * Delete the comment through its task: the task status and the last
+     * comment date follow.
+     * @param {Model} task
+     * @param {Model} comment
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeTaskComment: async (task, comment, { signal } = {}) =>
+      http.del(commentPath('data', task, comment), undefined, { signal }),
+
+    /**
+     * Create the tasks of a task type for entities of the project.
+     * @param {Model} project
+     * @param {Model} taskType
+     * @param {string} type Collection of the entities: "assets", "shots",
+     *   "edits", "concepts", "episodes" or "sequences".
+     * @param {{entities?: Model[], entity?: Model,
+     *   signal?: AbortSignal}} [options] entities or a single entity to
+     *   target. Without them every entity of the collection gets a task.
+     * @returns {Promise<Entity[]>} The created tasks.
+     */
+    createTasks: async (
+      project,
+      taskType,
+      type,
+      { entities = [], entity, signal } = {}
+    ) => {
+      const path = createTasksPath(project, taskType, type)
+      const id = optionalIdOf(entity)
+      // Zou reads the id parameter on the collection routes only.
+      const inQuery = id !== null && COLLECTION_ROUTES.includes(type)
+      const ids = id === null || inQuery ? idsOf(entities) : [id]
+      return http.request('POST', path, {
+        body: inQuery ? {} : ids,
+        query: { id: inQuery ? id : null },
+        signal
+      })
+    },
+
+    /**
+     * Use the last preview of the task as the thumbnail of its entity.
+     * @param {Model} task
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The updated entity.
+     */
+    setTaskMainPreview: async (task, { signal } = {}) =>
+      http.put(`actions/tasks/${idOf(task)}/set-main-preview`, {}, { signal }),
+
+    /**
+     * Same as setTaskMainPreview for several tasks. Tasks without a preview
+     * are skipped.
+     * @param {Model[]} tasks
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The updated entities.
+     */
+    setTasksMainPreview: async (tasks, { signal } = {}) =>
+      http.put(
+        'actions/tasks/set-main-preview',
+        { task_ids: idsOf(tasks) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model[]} tasks
+     * @param {number} priority 0 (normal) to 3 (emergency).
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The updated tasks.
+     */
+    setTasksPriority: async (tasks, priority, { signal } = {}) =>
+      http.put(
+        'actions/tasks/set-priority',
+        { task_ids: idsOf(tasks), priority: requiredOf('priority', priority) },
+        { signal }
+      ),
+
+    /**
+     * Set the global priority order of the task types.
+     * @param {Model[]} taskTypes In the wanted order.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The updated task types.
+     */
+    reorderTaskTypes: async (taskTypes, { signal } = {}) =>
+      http.post(
+        'actions/task-types/reorder',
+        { task_type_ids: idsOf(taskTypes) },
+        { signal }
+      ),
+
+    /**
+     * Import the estimations of the tasks of a task type from a CSV file.
+     * @param {Model} project
+     * @param {Model} taskType
+     * @param {Blob} csvFile
+     * @param {TransferOptions & {episode?: Model}} [options] episode is
+     *   needed on a TV show: entity names are looked up inside it.
+     * @returns {Promise<Entity[]>} The updated tasks.
+     */
+    importTaskTypeEstimationsWithCsv: async (
+      project,
+      taskType,
+      csvFile,
+      { episode, fileName, onProgress, signal } = {}
+    ) => {
+      const episodeId = optionalIdOf(episode)
+      const episodePath = episodeId === null ? '' : `episodes/${episodeId}/`
+      return http.upload(
+        `import/csv/projects/${idOf(project)}/${episodePath}task-types/${idOf(taskType)}/estimations`,
+        { file: csvFile, fileName, onProgress, signal }
+      )
+    },
 
     /**
      * @param {Entity} task The task object: its project_id is needed.
