@@ -1,6 +1,7 @@
 import {
   KitsuError,
   NetworkError,
+  NotAuthenticatedError,
   NotFoundError,
   TimeoutError,
   errorFromResponse
@@ -95,14 +96,45 @@ export const createHttp = (config, session) => {
     }
   }
 
-  const request = (method, path, options = {}) =>
-    send(method, path, {
-      ...options,
-      headers: {
-        ...(options.skipAuth ? {} : session.headers()),
-        ...options.headers
+  const withAuthReplay = async attempt => {
+    const used = session.headers()
+    try {
+      return await attempt(used)
+    } catch (err) {
+      if (!(err instanceof NotAuthenticatedError)) throw err
+      // A late 401 can land after another request already renewed the
+      // token: replay with it instead of refreshing again.
+      const renewedMeanwhile =
+        session.headers().Authorization !== used.Authorization
+      const refreshed =
+        renewedMeanwhile ||
+        (session.canRefresh() &&
+          (await session.refresh(send).then(
+            () => true,
+            () => false
+          )))
+      if (!refreshed) {
+        session.onUnauthorized()
+        throw err
       }
-    })
+      try {
+        return await attempt(session.headers())
+      } catch (replayErr) {
+        if (replayErr instanceof NotAuthenticatedError) session.onUnauthorized()
+        throw replayErr
+      }
+    }
+  }
+
+  const request = (method, path, options = {}) =>
+    options.skipAuth
+      ? send(method, path, options)
+      : withAuthReplay(headers =>
+          send(method, path, {
+            ...options,
+            headers: { ...headers, ...options.headers }
+          })
+        )
 
   const get = (path, query, options) =>
     request('GET', path, { ...options, query })
@@ -117,6 +149,7 @@ export const createHttp = (config, session) => {
     host,
     send,
     request,
+    withAuthReplay,
     get,
     post,
     put,
