@@ -1,87 +1,67 @@
 [![Kitsu](https://www.cg-wire.com/en/images/kitsu.png)](https://kitsu.cg-wire.com)
 
-# Javascript client for Kitsu
+# JavaScript client for Kitsu
 
-This is a library to ease your life while connecting your javascript code to
-Kitsu, the collaboration platform for animation studios.
+`@cgwire/kitsu-client` is the JavaScript counterpart of
+[gazu](https://github.com/cgwire/gazu): a client for the API of
+[Kitsu](https://kitsu.cg-wire.com), the collaboration platform for animation
+and VFX studios. It targets plugin and app authors: browsers, webviews
+(Tauri, Electron) and Node 22 or later.
 
-[![Build
-badge](https://app.travis-ci.com/cgwire/kitsu.svg?branch=master)](https://app.travis-ci.com/cgwire/kitsu-client-js)
+- No runtime dependency, ESM only, tree-shakeable.
+- Same function names as gazu, in camelCase: `all*`, `get*`, `new*`,
+  `update*`, `remove*`.
+- Every client is isolated: its own session, requests and event socket.
+- Typed: declarations are generated from the JSDoc of the sources.
 
 [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.com/invite/VbCxtKN)
 
-
-## Documentation 
-
-
-### Install
-
-Installation can be done via npm:
+## Install
 
 ```bash
-npm i kitsu-client-js
+npm i @cgwire/kitsu-client
+# only if you listen to real-time events:
+npm i socket.io-client
 ```
 
-### Usage
+## Quick start
 
-There is no specification avaialable at the moment. We invite you to browse the
-code for checking if a function exists. You can propose yours too and submit it
-via a pull request.
+With a bot token, the recommended mode for integrations:
 
+```js
+import { createClient } from '@cgwire/kitsu-client'
 
-```javascript
-import kitsuClient from 'kitsu-client-js'
+const kitsu = createClient({ host: 'https://kitsu.mystudio.com/api' })
+kitsu.setToken(process.env.KITSU_TOKEN)
 
-const client = kitsuClient.createClient('http://localhost:8080/api')
-
-client.login('admin@example.com', 'password')
-  .then(client.getOpenProductions)
-  .then(productions => {
-    console.log(productions)
-  })
+const projects = await kitsu.project.allOpenProjects()
+const shots = await kitsu.shot.allShotsForProject(projects[0])
+const tasks = await kitsu.task.allTasksForShot(shots[0])
 ```
+
+User credentials, two-factor authentication and cookie mode are covered in
+[Authentication and sessions](./docs/authentication.md).
+
+## Documentation
+
+| Topic                                                                         | Page                                                    |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Bot tokens, `logIn`, two-factor authentication, cookie mode, isolated clients | [Authentication and sessions](./docs/authentication.md) |
+| Naming, arguments, returned values, error classes, timeouts                   | [Conventions and errors](./docs/conventions.md)         |
+| Paths from the file tree, publishing previews, downloads, Tauri               | [Working files, uploads and downloads](./docs/files.md) |
+| `kitsu.events.on('task:update', ...)`, reconnection                           | [Real-time events](./docs/events.md)                    |
+| Sorting, frames, previews, URLs, composing only what you use                  | [Utilities and smaller bundles](./docs/utilities.md)    |
+| Checks, route contract gate, coverage of the Kitsu web app                    | [Development](./docs/development.md)                    |
 
 ## Contributing
 
-As any open source project, we enjoy any contribution! You will find below 
-how you can help the Kitsu project to get better.
-
-### Bug reports 
-
-All bugs must be submitted directly in 
-[the issue page](https://github.com/cgwire/kitsu-client-js/issues) of this repository.
-
-### Feature requests
-
-Feature requests must be posted on our [Canny page](https://cgwire.canny.io/).
-
-### Translations
-
-If you want to contribute to translations, open an issue or pull request
-directly on the [Kitsu repository](https://github.com/cgwire/kitsu).
-
-### Code
-
-All contributions are welcomed as long as they respect the [C4
-contract](https://rfc.zeromq.org/spec:42/C4).
-
-The Kitsu code is written with Javascript (ES6) and is based on the 
-[VueJS](https://vuejs.org/v2/guide/) framework extended with 
-the [Vuex](https://vuex.vuejs.org) plugin.
-
-To install the development environment, follow [the dedicated guide](https://kitsu.cg-wire.com/development-environment/).
+Bug reports go to the
+[issue page](https://github.com/cgwire/kitsu-client-js/issues) of this
+repository, feature requests to our [Canny page](https://cgwire.canny.io/).
+Pull requests follow the [C4 contract](https://rfc.zeromq.org/spec/42/).
 
 ## About authors
 
-Kitsu is written by CGWire, a company based in France. We help teams of animation
-studios to collaborate better. We provide tools to more than 50 studios spread
-all around the world.
-
-On the technical side, we apply software craftmanship principles as much as
-possible. We love coding and consider that strong quality and good developer
-experience matter a lot.
-
-
-Visit [cg-wire.com](https://cg-wire.com) for more information.
-
-[![CGWire Logo](https://zou.cg-wire.com/cgwire.png)](https://cg-wire.com)
+Kitsu is written by CGWire, a company based in France. We help animation and
+VFX studios to collaborate better through efficient tooling. Visit
+[cg-wire.com](https://cg-wire.com) for more information.
