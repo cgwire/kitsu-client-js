@@ -37,6 +37,11 @@ const budgetsOf = project => `projects/${idOf(project)}/budgets`
 const entriesOf = (project, budget) =>
   `${budgetsOf(project)}/${idOf(budget)}/entries`
 
+// A field name is caller input, unlike an id: encoding keeps it inside its
+// path segment.
+const fieldSegmentOf = fieldName =>
+  encodeURIComponent(requiredOf('fieldName', fieldName))
+
 const saveProject = (http, project, options) =>
   http.update('projects', idOf(project), withLinkIds(project), options)
 
@@ -780,6 +785,469 @@ export const projectApi = http => ({
    */
   removeBudgetEntry: async (project, budget, entry, { signal } = {}) =>
     http.remove(entriesOf(project, budget), idOf(entry), {}, { signal }),
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The projects the logged-in user can access,
+   *   sorted by name.
+   */
+  allProjectsWithAccess: async ({ signal } = {}) =>
+    http.fetchAll('projects/all', {}, { signal }).then(sortedByName),
+
+  /**
+   * @param {Model} project
+   * @param {Model} assetType
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
+   */
+  removeAssetType: async (project, assetType, { signal } = {}) =>
+    http.remove(
+      settingsOf(project, 'asset-types'),
+      idOf(assetType),
+      {},
+      { signal }
+    ),
+
+  /**
+   * Link task types, task statuses and asset types to the project in one
+   * call.
+   * @param {Model} project
+   * @param {{
+   *   taskTypes?: {taskType: Model, priority?: number|null}[],
+   *   taskStatuses?: Model[],
+   *   assetTypes?: Model[],
+   *   replaceTaskTypes?: boolean,
+   *   signal?: AbortSignal
+   * }} [options] replaceTaskTypes unlinks the task types that are not in
+   *   the list.
+   * @returns {Promise<Entity>} The project.
+   */
+  addSettings: async (
+    project,
+    {
+      taskTypes = [],
+      taskStatuses = [],
+      assetTypes = [],
+      replaceTaskTypes = false,
+      signal
+    } = {}
+  ) =>
+    http.create(
+      settingsOf(project, 'batch'),
+      {
+        task_types: taskTypes.map(({ taskType, priority = null }) => ({
+          task_type_id: idOf(taskType),
+          priority
+        })),
+        task_status_ids: idsOf(taskStatuses),
+        asset_type_ids: idsOf(assetTypes),
+        replace_task_types: replaceTaskTypes
+      },
+      { signal }
+    ),
+
+  /**
+   * Create or update the link between a project and a task status. Zou
+   * overwrites both fields of an existing link, and falls back to priority 1
+   * and no board role for a missing one: both are required here.
+   * @param {Model} project
+   * @param {Model} taskStatus
+   * @param {number} priority
+   * @param {string[]} rolesForBoard Roles seeing the status as a board column.
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The task status link.
+   */
+  updateTaskStatusLink: async (
+    project,
+    taskStatus,
+    priority,
+    rolesForBoard,
+    { signal } = {}
+  ) =>
+    http.create(
+      'task-status-links',
+      {
+        project_id: idOf(project),
+        task_status_id: idOf(taskStatus),
+        priority: requiredOf('priority', priority),
+        roles_for_board: requiredOf('rolesForBoard', rolesForBoard)
+      },
+      { signal }
+    ),
+
+  /**
+   * Set the priority of the task status links of the project from the order
+   * of the given list.
+   * @param {Model} project
+   * @param {Model[]} taskStatuses
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The reordered task status links.
+   */
+  reorderTaskStatusLinks: async (project, taskStatuses, { signal } = {}) =>
+    http.post(
+      `actions/projects/${idOf(project)}/task-status-links/reorder`,
+      { task_status_ids: idsOf(taskStatuses) },
+      { signal }
+    ),
+
+  /**
+   * Create or update the link between a project and a task type. Zou resets
+   * an existing link to priority 1 when it is missing: it is required here.
+   * @param {Model} project
+   * @param {Model} taskType
+   * @param {number} priority
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The task type link.
+   */
+  updateTaskTypeLink: async (project, taskType, priority, { signal } = {}) =>
+    http.create(
+      'task-type-links',
+      {
+        project_id: idOf(project),
+        task_type_id: idOf(taskType),
+        priority: requiredOf('priority', priority)
+      },
+      { signal }
+    ),
+
+  /**
+   * Set the priority of the task type links of the project from the order of
+   * the given list.
+   * @param {Model} project
+   * @param {Model[]} taskTypes
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The reordered task type links.
+   */
+  reorderTaskTypeLinks: async (project, taskTypes, { signal } = {}) =>
+    http.post(
+      `actions/projects/${idOf(project)}/task-type-links/reorder`,
+      { task_type_ids: idsOf(taskTypes) },
+      { signal }
+    ),
+
+  /**
+   * Create the descriptor on every open project.
+   * @param {string} name
+   * @param {string} entityType Asset, Shot, Edit, Episode or Sequence.
+   * @param {{
+   *   dataType?: string,
+   *   choices?: string[],
+   *   forClient?: boolean,
+   *   departments?: Model[],
+   *   signal?: AbortSignal
+   * }} [options] choices stays empty for free values.
+   * @returns {Promise<Entity[]>} The created metadata descriptors.
+   */
+  addMetadataDescriptorToAllProjects: async (
+    name,
+    entityType,
+    {
+      dataType = 'string',
+      choices = [],
+      forClient = false,
+      departments = [],
+      signal
+    } = {}
+  ) =>
+    http.create(
+      'metadata-descriptors/all-projects',
+      {
+        name: requiredOf('name', name),
+        data_type: dataType,
+        choices,
+        for_client: forClient,
+        entity_type: requiredOf('entityType', entityType),
+        departments: idsOf(departments)
+      },
+      { signal }
+    ),
+
+  /**
+   * Update the descriptors sharing a field name on every open project.
+   * @param {string} fieldName
+   * @param {{entity_type: string, [field: string]: any}} data The full
+   *   descriptor, not a partial change: entity_type selects the descriptors
+   *   and Zou resets data_type to "string", choices and departments to empty
+   *   and for_client to false when they are absent. Only name is kept when
+   *   omitted.
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The updated metadata descriptors.
+   */
+  updateMetadataDescriptorOnAllProjects: async (
+    fieldName,
+    data,
+    { signal } = {}
+  ) =>
+    http.update(
+      'metadata-descriptors/all-projects',
+      fieldSegmentOf(fieldName),
+      {
+        ...data,
+        entity_type: requiredOf('entity_type', data.entity_type),
+        ...(Array.isArray(data.departments)
+          ? { departments: idsOf(data.departments) }
+          : {})
+      },
+      { signal }
+    ),
+
+  /**
+   * Remove the descriptors sharing a field name from every open project.
+   * @param {string} fieldName
+   * @param {string} entityType
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
+   */
+  removeMetadataDescriptorOnAllProjects: async (
+    fieldName,
+    entityType,
+    { signal } = {}
+  ) =>
+    http.remove(
+      'metadata-descriptors/all-projects',
+      fieldSegmentOf(fieldName),
+      { entity_type: requiredOf('entityType', entityType) },
+      { signal }
+    ),
+
+  /**
+   * Set the position of the descriptors of an entity type on every open
+   * project from the order of the given field names.
+   * @param {string} entityType
+   * @param {string[]} fieldNames
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The reordered metadata descriptors.
+   */
+  reorderMetadataDescriptorsOnAllProjects: async (
+    entityType,
+    fieldNames,
+    { signal } = {}
+  ) =>
+    http.post(
+      'actions/metadata-descriptors/all-projects/reorder',
+      {
+        entity_type: requiredOf('entityType', entityType),
+        field_order: fieldNames
+      },
+      { signal }
+    ),
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} Every status automation of the studio.
+   *   allStatusAutomations lists the ones linked to a project.
+   */
+  allGlobalStatusAutomations: async ({ signal } = {}) =>
+    http.fetchAll('status-automations', {}, { signal }),
+
+  /**
+   * @param {Model} automation
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The status automation, null when it does
+   *   not exist.
+   */
+  getStatusAutomation: async (automation, { signal } = {}) =>
+    http.fetchOne('status-automations', idOf(automation), { signal }),
+
+  /**
+   * @param {{
+   *   entityType?: string,
+   *   inFieldType?: string,
+   *   inTaskType: Model,
+   *   inTaskStatus: Model,
+   *   outFieldType: string,
+   *   outTaskType: Model,
+   *   outTaskStatus?: Model,
+   *   importLastRevision?: boolean,
+   *   signal?: AbortSignal
+   * }} options entityType is asset (default) or shot. outFieldType is status
+   *   (outTaskStatus is then the status to set) or ready_for.
+   * @returns {Promise<Entity>} The created status automation.
+   */
+  newStatusAutomation: async ({
+    entityType = 'asset',
+    inFieldType = 'status',
+    inTaskType,
+    inTaskStatus,
+    outFieldType,
+    outTaskType,
+    outTaskStatus,
+    importLastRevision = false,
+    signal
+  }) =>
+    http.create(
+      'status-automations',
+      withoutNil({
+        entity_type: entityType,
+        in_field_type: inFieldType,
+        in_task_type_id: idOf(inTaskType),
+        in_task_status_id: idOf(inTaskStatus),
+        out_field_type: requiredOf('outFieldType', outFieldType),
+        out_task_type_id: idOf(outTaskType),
+        out_task_status_id: optionalIdOf(outTaskStatus),
+        import_last_revision: importLastRevision
+      }),
+      { signal }
+    ),
+
+  /**
+   * @param {Entity} automation
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The updated status automation.
+   */
+  updateStatusAutomation: async (automation, { signal } = {}) =>
+    http.update('status-automations', idOf(automation), automation, {
+      signal
+    }),
+
+  /**
+   * Delete the automation itself. removeStatusAutomation only unlinks it
+   * from a project.
+   * @param {Model} automation
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
+   */
+  deleteStatusAutomation: async (automation, { signal } = {}) =>
+    http.remove('status-automations', idOf(automation), {}, { signal }),
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} Every preview background file of the studio.
+   *   getPreviewBackgroundFiles lists the ones linked to a project.
+   */
+  allPreviewBackgroundFiles: async ({ signal } = {}) =>
+    http.fetchAll('preview-background-files', {}, { signal }),
+
+  /**
+   * @param {Model} backgroundFile
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The preview background file, null when it
+   *   does not exist.
+   */
+  getPreviewBackgroundFile: async (backgroundFile, { signal } = {}) =>
+    http.fetchOne('preview-background-files', idOf(backgroundFile), {
+      signal
+    }),
+
+  /**
+   * Create the record of a background. Its HDR file is sent afterwards with
+   * uploadPreviewBackgroundFile.
+   * @param {string} name
+   * @param {{
+   *   archived?: boolean,
+   *   isDefault?: boolean,
+   *   signal?: AbortSignal
+   * }} [options]
+   * @returns {Promise<Entity>} The created preview background file.
+   */
+  newPreviewBackgroundFile: async (
+    name,
+    { archived = false, isDefault = false, signal } = {}
+  ) =>
+    http.create(
+      'preview-background-files',
+      { name: requiredOf('name', name), archived, is_default: isDefault },
+      { signal }
+    ),
+
+  /**
+   * @param {Entity} backgroundFile
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity>} The updated preview background file.
+   */
+  updatePreviewBackgroundFile: async (backgroundFile, { signal } = {}) =>
+    http.update(
+      'preview-background-files',
+      idOf(backgroundFile),
+      backgroundFile,
+      { signal }
+    ),
+
+  /**
+   * Delete the background itself. removePreviewBackgroundFile only unlinks it
+   * from a project.
+   * @param {Model} backgroundFile
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
+   */
+  deletePreviewBackgroundFile: async (backgroundFile, { signal } = {}) =>
+    http.remove(
+      'preview-background-files',
+      idOf(backgroundFile),
+      {},
+      { signal }
+    ),
+
+  /**
+   * @param {Model} backgroundFile
+   * @param {Blob} file The HDR file, a Blob or a File.
+   * @param {{
+   *   fileName?: string,
+   *   onProgress?: (progress: {loaded: number, total: number}) => void,
+   *   signal?: AbortSignal
+   * }} [options] fileName names a Blob that has no name. onProgress needs
+   *   XMLHttpRequest (browsers).
+   * @returns {Promise<Entity>} The preview background file.
+   */
+  uploadPreviewBackgroundFile: async (
+    backgroundFile,
+    file,
+    { fileName, onProgress, signal } = {}
+  ) =>
+    http.upload(`pictures/preview-background-files/${idOf(backgroundFile)}`, {
+      file,
+      fileName,
+      onProgress,
+      signal
+    }),
+
+  /**
+   * @param {Model} project
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Record<string, any>>} The time spent on the project, by
+   *   department and person, to compare with the budgets.
+   */
+  getBudgetsTimeSpents: async (project, { signal } = {}) =>
+    http.get(`data/${budgetsOf(project)}/time-spents`, {}, { signal }),
+
+  /**
+   * @param {Model} project
+   * @param {Model} taskType
+   * @param {{
+   *   startDate?: Date|string,
+   *   endDate?: Date|string,
+   *   signal?: AbortSignal
+   * }} [options] Dates are Date objects or YYYY-MM-DD strings.
+   * @returns {Promise<Record<string, Entity[]>>} The time spents of the task
+   *   type in the project, by person id.
+   */
+  getTaskTypeTimeSpents: async (
+    project,
+    taskType,
+    { startDate, endDate, signal } = {}
+  ) =>
+    http.get(
+      `data/projects/${idOf(project)}/task-types/${idOf(taskType)}/time-spents`,
+      { start_date: dateOf(startDate), end_date: dateOf(endDate) },
+      { signal }
+    ),
+
+  /**
+   * @param {Model} project
+   * @param {{
+   *   startDate?: Date|string,
+   *   endDate?: Date|string,
+   *   signal?: AbortSignal
+   * }} [options] Dates are Date objects or YYYY-MM-DD strings.
+   * @returns {Promise<Record<string, Entity[]>>} The days off of the project
+   *   team, by person id.
+   */
+  allDayOffsForProject: async (project, { startDate, endDate, signal } = {}) =>
+    http.get(
+      `data/projects/${idOf(project)}/day-offs`,
+      { start_date: dateOf(startDate), end_date: dateOf(endDate) },
+      { signal }
+    ),
 
   /**
    * @param {Model} project
