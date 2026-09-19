@@ -32,6 +32,24 @@ export const studioApi = http => ({
     http.fetchFirst('studios', { name: requiredOf('name', name) }, { signal }),
 
   /**
+   * Studio names are unique: the API refuses a name already in use.
+   * @param {string} name
+   * @param {string} color Hexadecimal color, such as "#ff0000".
+   * @param {{archived?: boolean, signal?: AbortSignal}} [options]
+   * @returns {Promise<Entity>} The created studio.
+   */
+  newStudio: async (name, color, { archived = false, signal } = {}) =>
+    http.create(
+      'studios',
+      {
+        name: requiredOf('name', name),
+        color: requiredOf('color', color),
+        archived
+      },
+      { signal }
+    ),
+
+  /**
    * Save the studio. Its metadata are fully replaced by the given ones.
    * @param {{id: string}} studio
    * @param {RequestOptions} [options]
