@@ -4,6 +4,12 @@ import { NotFoundError, ParameterError } from './errors.js'
  * @typedef {string|{id: string}} Model An entity object or its id.
  * @typedef {{id: string, [field: string]: any}} Entity A raw Zou dict.
  * @typedef {{signal?: AbortSignal}} RequestOptions
+ * @typedef {{
+ *   fileName?: string,
+ *   onProgress?: (progress: {loaded: number, total: number}) => void,
+ *   signal?: AbortSignal
+ * }} TransferOptions fileName names the uploaded file when it is a plain
+ *   Blob. onProgress needs XMLHttpRequest (browsers, webviews).
  */
 
 const UUID =
