@@ -4,9 +4,10 @@ import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   ASSET_TYPE_ID,
+  CHAT_MESSAGE_ID,
   ENTITY_ID,
-  FILTER_ID,
   FILTER_GROUP_ID,
+  FILTER_ID,
   NOTIFICATION_ID,
   PROJECT_ID,
   SCENE_ID,
@@ -62,6 +63,14 @@ const FUNCTIONS = [
   ['allChats', []],
   ['joinChat', [ENTITY_ID]],
   ['leaveChat', [ENTITY_ID]],
+  ['getChat', [ENTITY_ID]],
+  ['allChatMessages', [ENTITY_ID]],
+  ['getChatMessage', [ENTITY_ID, CHAT_MESSAGE_ID]],
+  ['newChatMessage', [ENTITY_ID, 'Hello']],
+  ['removeChatMessage', [ENTITY_ID, CHAT_MESSAGE_ID]],
+  ['getTasksRequiringFeedbackFilterValues', []],
+  ['subscribeToTasks', [[TASK_ID]]],
+  ['unsubscribeFromTasks', [[TASK_ID]]],
   ['clearAvatar', []],
   ['markAllNotificationsAsRead', []]
 ]
@@ -72,7 +81,7 @@ describe('user namespace: surface and cancellation', () => {
     ;({ kitsu, fake } = makeClient())
   })
 
-  it('exposes exactly the functions ported from gazu', () => {
+  it('exposes exactly the functions ported from gazu and Kitsu', () => {
     expect(Object.keys(kitsu.user).sort()).toEqual(
       FUNCTIONS.map(([name]) => name).sort()
     )

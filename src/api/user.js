@@ -2,8 +2,10 @@ import {
   dateOf,
   dayOf,
   idOf,
+  idsOf,
   optionalIdOf,
   orNull,
+  requiredOf,
   sortedByName
 } from '../core/params.js'
 
@@ -429,6 +431,113 @@ export const userApi = http => ({
   leaveChat: async (entity, { signal } = {}) =>
     // Leaving is a DELETE on the join route.
     http.del(`actions/user/chats/${idOf(entity)}/join`, undefined, { signal }),
+
+  /**
+   * @param {Model} entity The entity the chat is about (see joinChat).
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The chat of the entity, null when
+   *   missing.
+   */
+  getChat: async (entity, { signal } = {}) =>
+    orNull(http.get(`data/entities/${idOf(entity)}/chat`, {}, { signal })),
+
+  /**
+   * @param {Model} entity The entity the chat is about (see joinChat).
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} Messages of the chat of the entity.
+   */
+  allChatMessages: async (entity, { signal } = {}) =>
+    http.get(`data/entities/${idOf(entity)}/chat/messages`, {}, { signal }),
+
+  /**
+   * @param {Model} entity The entity the chat is about (see joinChat).
+   * @param {Model} chatMessage
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The message, null when missing.
+   */
+  getChatMessage: async (entity, chatMessage, { signal } = {}) =>
+    orNull(
+      http.get(
+        `data/entities/${idOf(entity)}/chat/messages/${idOf(chatMessage)}`,
+        {},
+        { signal }
+      )
+    ),
+
+  /**
+   * Post a message in the chat of an entity. The user must have joined the
+   * chat first.
+   * @param {Model} entity The entity the chat is about (see joinChat).
+   * @param {string} message May be empty when attachments are given.
+   * @param {{attachments?: Blob[],
+   *   onProgress?: (progress: {loaded: number, total: number}) => void,
+   *   signal?: AbortSignal}} [options] With attachments the message goes as
+   *   a multipart form. onProgress needs XMLHttpRequest (browsers,
+   *   webviews) and only applies to attachments.
+   * @returns {Promise<Entity>} The created message.
+   */
+  newChatMessage: async (
+    entity,
+    message,
+    { attachments = [], onProgress, signal } = {}
+  ) => {
+    const path = `data/entities/${idOf(entity)}/chat/messages`
+    // Kitsu and Zou accept a message made of attachments only.
+    const isFileOnly = attachments.length > 0 && message === ''
+    const fields = {
+      message: isFileOnly ? '' : requiredOf('message', message)
+    }
+    return attachments.length
+      ? http.upload(path, { file: attachments, fields, onProgress, signal })
+      : http.post(path, fields, { signal })
+  },
+
+  /**
+   * @param {Model} entity The entity the chat is about (see joinChat).
+   * @param {Model} chatMessage
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
+   */
+  removeChatMessage: async (entity, chatMessage, { signal } = {}) =>
+    http.del(
+      `data/entities/${idOf(entity)}/chat/messages/${idOf(chatMessage)}`,
+      undefined,
+      { signal }
+    ),
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} Values available to filter the tasks
+   *   waiting for a feedback from the user (see allTasksRequiringFeedback).
+   */
+  getTasksRequiringFeedbackFilterValues: async ({ signal } = {}) =>
+    orNull(http.get('data/user/tasks-to-check/filter-values', {}, { signal })),
+
+  /**
+   * @param {Model[]} tasks
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity[]>} The subscriptions, one per task.
+   */
+  subscribeToTasks: async (tasks, { signal } = {}) =>
+    http.post(
+      'actions/user/tasks/subscribe',
+      { task_ids: idsOf(tasks) },
+      { signal }
+    ),
+
+  /**
+   * @param {Model[]} tasks
+   * @param {RequestOptions} [options]
+   * @returns {Promise<string[]>} Ids of the tasks the user was unsubscribed
+   *   from.
+   */
+  unsubscribeFromTasks: async (tasks, { signal } = {}) =>
+    // Unlike unsubscribeFromTask, the bulk route is a POST.
+    http.post(
+      'actions/user/tasks/unsubscribe',
+      { task_ids: idsOf(tasks) },
+      { signal }
+    ),
 
   /**
    * @param {RequestOptions} [options]
