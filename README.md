@@ -1,4 +1,4 @@
-[![Kitsu](https://www.cg-wire.com/en/images/kitsu.png)](https://kitsu.cg-wire.com)
+[![Kitsu](https://zou.cg-wire.com/kitsu.png)](https://kitsu.cg-wire.com)
 
 # JavaScript client for Kitsu
 
@@ -8,11 +8,11 @@
 and VFX studios. It targets plugin and app authors: browsers, webviews
 (Tauri, Electron) and Node 22 or later.
 
-- No runtime dependency, ESM only, tree-shakeable.
+- Every client is isolated: its own session, requests and event socket.
 - Same function names as gazu, in camelCase: `all*`, `get*`, `new*`,
   `update*`, `remove*`.
-- Every client is isolated: its own session, requests and event socket.
 - Typed: declarations are generated from the JSDoc of the sources.
+- No runtime dependency
 
 [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.com/invite/VbCxtKN)
 
@@ -44,14 +44,12 @@ User credentials, two-factor authentication and cookie mode are covered in
 
 ## Documentation
 
-| Topic                                                                         | Page                                                    |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Bot tokens, `logIn`, two-factor authentication, cookie mode, isolated clients | [Authentication and sessions](./docs/authentication.md) |
-| Naming, arguments, returned values, error classes, timeouts                   | [Conventions and errors](./docs/conventions.md)         |
-| Paths from the file tree, publishing previews, downloads, Tauri               | [Working files, uploads and downloads](./docs/files.md) |
-| `kitsu.events.on('task:update', ...)`, reconnection                           | [Real-time events](./docs/events.md)                    |
-| Sorting, frames, previews, URLs, composing only what you use                  | [Utilities and smaller bundles](./docs/utilities.md)    |
-| Checks, route contract gate, coverage of the Kitsu web app                    | [Development](./docs/development.md)                    |
+- [Authentication and sessions](./docs/authentication.md)
+- [Conventions and errors](./docs/conventions.md)
+- [Working files, uploads and downloads](./docs/files.md)
+- [Real-time events](./docs/events.md)
+- [Utilities and smaller bundles](./docs/utilities.md)
+- [Development](./docs/development.md)
 
 ## Contributing
 
@@ -65,3 +63,5 @@ Pull requests follow the [C4 contract](https://rfc.zeromq.org/spec/42/).
 Kitsu is written by CGWire, a company based in France. We help animation and
 VFX studios to collaborate better through efficient tooling. Visit
 [cg-wire.com](https://cg-wire.com) for more information.
+
+[![CGWire Logo](https://zou.cg-wire.com/cgwire.png)](https://cg-wire.com)
