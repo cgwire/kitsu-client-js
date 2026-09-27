@@ -36,6 +36,8 @@ const twoDigits = value => String(intOf(value)).padStart(2, '0')
  * @typedef {{project?: Model, studio?: Model, signal?: AbortSignal}}
  *   TimeSpentOptions project and studio keep the time spent on that project
  *   or by the people of that studio.
+ * @typedef {{project?: Model, signal?: AbortSignal}} PersonTimeSpentOptions
+ *   project keeps the time spent on that project.
  * @typedef {{
  *   project?: Model,
  *   taskType?: Model,
@@ -56,6 +58,15 @@ const getTimeSpents = (http, path, { project, studio, signal } = {}) =>
     { project_id: optionalIdOf(project), studio_id: optionalIdOf(studio) },
     { signal }
   )
+
+// The routes of a single person have no studio filter.
+/**
+ * @param {any} http
+ * @param {string} path
+ * @param {PersonTimeSpentOptions} [options]
+ */
+const getPersonTimeSpents = (http, path, { project, signal } = {}) =>
+  orNull(getTimeSpents(http, path, { project, signal }))
 
 /**
  * @param {any} http
@@ -462,34 +473,30 @@ export const personApi = http => ({
    * @param {Model} person
    * @param {number} year
    * @param {number} week
-   * @param {TimeSpentOptions} [options]
+   * @param {PersonTimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the week,
    *   null when the person does not exist.
    */
   getWeekTimeSpents: async (person, year, week, options) =>
-    orNull(
-      getTimeSpents(
-        http,
-        `data/persons/${idOf(person)}/time-spents/week/${intOf(year)}/${intOf(week)}`,
-        options
-      )
+    getPersonTimeSpents(
+      http,
+      `data/persons/${idOf(person)}/time-spents/week/${intOf(year)}/${intOf(week)}`,
+      options
     ),
 
   /**
    * @param {Model} person
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
-   * @param {TimeSpentOptions} [options]
+   * @param {PersonTimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the
    *   month, null when the person does not exist.
    */
   getMonthTimeSpents: async (person, year, month, options) =>
-    orNull(
-      getTimeSpents(
-        http,
-        `data/persons/${idOf(person)}/time-spents/month/${intOf(year)}/${intOf(month)}`,
-        options
-      )
+    getPersonTimeSpents(
+      http,
+      `data/persons/${idOf(person)}/time-spents/month/${intOf(year)}/${intOf(month)}`,
+      options
     ),
 
   /**
@@ -497,33 +504,29 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {number} day
-   * @param {TimeSpentOptions} [options]
+   * @param {PersonTimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the day,
    *   null when the person does not exist.
    */
   getDayTimeSpents: async (person, year, month, day, options) =>
-    orNull(
-      getTimeSpents(
-        http,
-        `data/persons/${idOf(person)}/time-spents/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
-        options
-      )
+    getPersonTimeSpents(
+      http,
+      `data/persons/${idOf(person)}/time-spents/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
+      options
     ),
 
   /**
    * @param {Model} person
    * @param {number} year
-   * @param {TimeSpentOptions} [options]
+   * @param {PersonTimeSpentOptions} [options]
    * @returns {Promise<Entity[]|null>} Time spents of the person for the year,
    *   null when the person does not exist.
    */
   getYearTimeSpents: async (person, year, options) =>
-    orNull(
-      getTimeSpents(
-        http,
-        `data/persons/${idOf(person)}/time-spents/year/${intOf(year)}`,
-        options
-      )
+    getPersonTimeSpents(
+      http,
+      `data/persons/${idOf(person)}/time-spents/year/${intOf(year)}`,
+      options
     ),
 
   /**

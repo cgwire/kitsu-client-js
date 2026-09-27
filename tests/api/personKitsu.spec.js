@@ -167,14 +167,8 @@ describe('person namespace, Kitsu store coverage', () => {
       path: `/data/persons/${PERSON_ID}/time-spents/${suffix}`
     })
     expect(queryOf(fake.calls[0])).toEqual({})
-    await kitsu.person[name](PERSON_ID, ...args, {
-      project: PROJECT_ID,
-      studio: { id: STUDIO_ID }
-    })
-    expect(queryOf(fake.calls[1])).toEqual({
-      project_id: PROJECT_ID,
-      studio_id: STUDIO_ID
-    })
+    await kitsu.person[name](PERSON_ID, ...args, { project: PROJECT_ID })
+    expect(queryOf(fake.calls[1])).toEqual({ project_id: PROJECT_ID })
   })
 
   it.each([
