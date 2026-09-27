@@ -2040,7 +2040,7 @@
     "route": "/data/projects/<id>/settings/task-types",
     "client": "project.addTaskType",
     "status": "existing",
-    "note": "The client also accepts optional bitrate compression fields"
+    "note": ""
   },
   {
     "module": "productions",
@@ -2256,7 +2256,7 @@
     "route": "/data/project-templates/<id>/task-types",
     "client": "projectTemplate.addTaskTypeToProjectTemplate",
     "status": "existing",
-    "note": "Client also accepts optional bitrate compression fields."
+    "note": ""
   },
   {
     "module": "projecttemplates",

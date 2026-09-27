@@ -230,32 +230,17 @@ export const projectApi = http => ({
 
   /**
    * Link a task type to the project. Calling it again on an existing link
-   * updates its priority and bitrates.
+   * updates its priority.
    * @param {Model} project
    * @param {Model} taskType
    * @param {number} priority
-   * @param {{
-   *   hdBitrateCompression?: number,
-   *   ldBitrateCompression?: number,
-   *   signal?: AbortSignal
-   * }} [options] Bitrates in Mbit/s of the movies encoded for that task
-   *   type in the project.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
-  addTaskType: async (
-    project,
-    taskType,
-    priority,
-    { hdBitrateCompression, ldBitrateCompression, signal } = {}
-  ) =>
+  addTaskType: async (project, taskType, priority, { signal } = {}) =>
     http.create(
       settingsOf(project, 'task-types'),
-      withoutNil({
-        task_type_id: idOf(taskType),
-        priority,
-        hd_bitrate_compression: hdBitrateCompression,
-        ld_bitrate_compression: ldBitrateCompression
-      }),
+      withoutNil({ task_type_id: idOf(taskType), priority }),
       { signal }
     ),
 
