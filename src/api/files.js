@@ -612,7 +612,7 @@ export const filesApi = http => {
           mode,
           name,
           revision,
-          separator: sep,
+          sep,
           software_id: optionalIdOf(software)
         }),
         { signal }
