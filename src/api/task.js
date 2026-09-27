@@ -655,10 +655,20 @@ export const taskApi = http => {
 
     /**
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} All open tasks.
+     * @returns {Promise<Entity[]>} All open tasks, every page gathered.
      */
-    allOpenTasks: async ({ signal } = {}) =>
-      http.fetchAll('tasks/open-tasks', {}, { signal }),
+    allOpenTasks: async ({ signal } = {}) => {
+      // Zou answers one page of tasks at a time, wrapped with their stats.
+      const fetchFrom = async page => {
+        const { data, is_more: isMore } = await http.get(
+          'data/tasks/open-tasks',
+          { page },
+          { signal }
+        )
+        return isMore ? [...data, ...(await fetchFrom(page + 1))] : data
+      }
+      return fetchFrom(1)
+    },
 
     /**
      * @param {RequestOptions} [options]
