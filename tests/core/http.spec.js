@@ -285,6 +285,18 @@ describe('timeouts and cancellation', () => {
     expect((await settledWithin(reading, 50)).name).toBe('AbortError')
   })
 
+  it('releases a raw response once its body is read to the end', async () => {
+    const signals = []
+    const http = makeHttp(async (url, init) => {
+      signals.push(init.signal)
+      return new Response('movie', { status: 200 })
+    })
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    expect(await response.text()).toBe('movie')
+    http.abortAll()
+    expect(signals[0].aborted).toBe(false)
+  })
+
   it('leaves a raw body unbounded once the headers arrived', async () => {
     const response = await makeHttp(stalledDownload).request(
       'GET',
