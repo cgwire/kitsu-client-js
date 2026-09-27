@@ -1,15 +1,13 @@
 // Compact rows are positional arrays described by the field lists sent in
 // the NDJSON header: always map by name, never by position.
 const decodeCompactRow = (row, fields, taskFields) =>
-  fields.reduce(
-    (entity, field, index) => ({
-      ...entity,
-      [field]:
-        field === 'tasks'
-          ? row[index].map(task => decodeCompactTask(task, taskFields))
-          : row[index]
-    }),
-    {}
+  Object.fromEntries(
+    fields.map((field, index) => [
+      field,
+      field === 'tasks'
+        ? row[index].map(task => decodeCompactTask(task, taskFields))
+        : row[index]
+    ])
   )
 
 // Compact rows may omit the assignees relation; consumers treat
