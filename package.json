@@ -42,7 +42,8 @@
     "check": "npm run lint && npm run types && npm test",
     "sync-routes": "node scripts/sync-routes.js",
     "prepublishOnly": "npm run check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
     "socket.io-client": "^4.0.0"
@@ -75,6 +76,7 @@
   "homepage": "https://github.com/cgwire/kitsu-client-js#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^5.0.2",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
