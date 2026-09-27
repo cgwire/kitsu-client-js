@@ -23,7 +23,6 @@ import * as urls from '../utils/urls.js'
  * @property {string} [mode] Template of the file tree, "output" by default.
  * @property {string} [representation] Selects a template inside the mode.
  * @property {number} [revision]
- * @property {number} [nbElements] Number of files of an image sequence.
  * @property {string} [sep] OS separator, "/" by default.
  * @property {AbortSignal} [signal]
  */
@@ -126,7 +125,6 @@ export const filesApi = http => {
       mode = 'output',
       representation = '',
       revision = 0,
-      nbElements = 1,
       sep = '/',
       signal
     } = {}
@@ -140,7 +138,6 @@ export const filesApi = http => {
         name,
         representation,
         revision,
-        nb_elements: nbElements,
         separator: sep
       },
       { signal }
