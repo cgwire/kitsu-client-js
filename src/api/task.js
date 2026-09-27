@@ -1388,14 +1388,14 @@ export const taskApi = http => {
      * @param {Model} task
      * @param {Model} comment
      * @param {string} text
-     * @param {{person?: Model, signal?: AbortSignal}} [options] person is the
-     *   author of the reply.
-     * @returns {Promise<Entity>} The created reply.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The created reply, authored by the current
+     *   user.
      */
-    replyToComment: async (task, comment, text, { person, signal } = {}) =>
+    replyToComment: async (task, comment, text, { signal } = {}) =>
       http.post(
         `${commentPath('data', task, comment)}/reply`,
-        withoutNil({ text, person_id: optionalIdOf(person) }),
+        { text },
         { signal }
       ),
 
