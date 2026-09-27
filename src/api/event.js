@@ -1,4 +1,4 @@
-import { dateOf, idsOf, optionalIdOf } from '../core/params.js'
+import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -21,8 +21,9 @@ export const eventApi = http => ({
    *   namePrefixes?: string[],
    *   nameSuffixes?: string[],
    *   signal?: AbortSignal
-   * }} [options] lastEvent is the last event of the previous page (cursor
-   *   pagination). The API caps limit at 1000.
+   * }} [options] A Date for after or before is sent to the second, in UTC.
+   *   lastEvent is the last event of the previous page (cursor pagination).
+   *   The API caps limit at 1000.
    * @returns {Promise<Entity[]>}
    */
   allLastEvents: async ({
@@ -40,8 +41,8 @@ export const eventApi = http => ({
     http.get(
       'data/events/last',
       {
-        after: dateOf(after),
-        before: dateOf(before),
+        after: datetimeOf(after),
+        before: datetimeOf(before),
         limit,
         cursor_event_id: optionalIdOf(lastEvent),
         project_id: optionalIdOf(project),
@@ -70,8 +71,9 @@ export const eventApi = http => ({
    *   lastLoginLog?: Model,
    *   persons?: Model[],
    *   signal?: AbortSignal
-   * }} [options] lastLoginLog is the last log of the previous page (cursor
-   *   pagination). The API caps limit at 1000.
+   * }} [options] A Date for after or before is sent to the second, in UTC.
+   *   lastLoginLog is the last log of the previous page (cursor pagination).
+   *   The API caps limit at 1000.
    * @returns {Promise<Entity[]>}
    */
   allLastLoginLogs: async ({
@@ -85,8 +87,8 @@ export const eventApi = http => ({
     http.get(
       'data/events/login-logs/last',
       {
-        after: dateOf(after),
-        before: dateOf(before),
+        after: datetimeOf(after),
+        before: datetimeOf(before),
         limit,
         cursor_login_log_id: optionalIdOf(lastLoginLog),
         person_ids: idsOf(persons)

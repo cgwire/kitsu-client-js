@@ -7,6 +7,7 @@ import {
 } from '../../src/core/errors.js'
 import {
   dateOf,
+  datetimeOf,
   dayOf,
   idOf,
   idsOf,
@@ -119,6 +120,20 @@ describe('dateOf', () => {
 
   it('rejects an invalid Date', () => {
     expect(() => dateOf(new Date('garbage'))).toThrow(ParameterError)
+  })
+})
+
+describe('datetimeOf', () => {
+  it('formats a Date as its UTC time to the second, passes strings through', () => {
+    expect(datetimeOf(new Date(Date.UTC(2026, 8, 19, 23, 30, 5, 900)))).toBe(
+      '2026-09-19T23:30:05'
+    )
+    expect(datetimeOf('2026-09-19')).toBe('2026-09-19')
+    expect(datetimeOf(undefined)).toBeUndefined()
+  })
+
+  it('rejects an invalid Date', () => {
+    expect(() => datetimeOf(new Date('garbage'))).toThrow(ParameterError)
   })
 })
 
