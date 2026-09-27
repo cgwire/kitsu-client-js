@@ -721,35 +721,42 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {Model} budget
-   * @param {string} name
+   * @param {Model} department
    * @param {{
-   *   date?: Date|string,
-   *   amount?: number,
-   *   quantity?: number,
-   *   unitPrice?: number,
-   *   description?: string,
-   *   category?: string,
+   *   person?: Model,
+   *   position?: string,
+   *   seniority?: string,
+   *   startDate?: Date|string,
+   *   monthsDuration?: number,
+   *   dailySalary?: number,
    *   signal?: AbortSignal
-   * }} [options] date is a Date object or a YYYY-MM-DD string. amount is
-   *   the total of the entry, or quantity and unitPrice give it.
+   * }} [options] startDate is a Date object or a YYYY-MM-DD string.
    * @returns {Promise<Entity>} The created budget entry.
    */
   createBudgetEntry: async (
     project,
     budget,
-    name,
-    { date, amount, quantity, unitPrice, description, category, signal } = {}
+    department,
+    {
+      person,
+      position,
+      seniority,
+      startDate,
+      monthsDuration,
+      dailySalary,
+      signal
+    } = {}
   ) =>
     http.create(
       entriesOf(project, budget),
       withoutNil({
-        name,
-        date: dateOf(date),
-        amount,
-        quantity,
-        unit_price: unitPrice,
-        description,
-        category
+        department_id: idOf(department),
+        person_id: optionalIdOf(person),
+        position,
+        seniority,
+        start_date: dateOf(startDate),
+        months_duration: monthsDuration,
+        daily_salary: dailySalary
       }),
       { signal }
     ),

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeClient } from '../helpers/client.js'
-import { PROJECT_ID } from '../helpers/ids.js'
+import { DEPARTMENT_ID, PERSON_ID, PROJECT_ID } from '../helpers/ids.js'
 
 const BUDGET_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const ENTRY_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
@@ -104,16 +104,20 @@ describe('project namespace: budgets', () => {
     })
   })
 
-  it('createBudgetEntry sends the name alone by default', async () => {
+  it('createBudgetEntry sends the department alone by default', async () => {
     fake.reply(201, { id: ENTRY_ID })
     expect(
-      await kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID, 'Animator')
+      await kitsu.project.createBudgetEntry(
+        PROJECT_ID,
+        BUDGET_ID,
+        DEPARTMENT_ID
+      )
     ).toEqual({ id: ENTRY_ID })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries`
     })
-    expect(fake.calls[0].body).toEqual({ name: 'Animator' })
+    expect(fake.calls[0].body).toEqual({ department_id: DEPARTMENT_ID })
   })
 
   it('createBudgetEntry sends every option on the wire', async () => {
@@ -121,25 +125,32 @@ describe('project namespace: budgets', () => {
     await kitsu.project.createBudgetEntry(
       { id: PROJECT_ID },
       { id: BUDGET_ID },
-      'Animator',
+      { id: DEPARTMENT_ID },
       {
-        date: new Date(2026, 2, 1),
-        amount: 12000,
-        quantity: 3,
-        unitPrice: 4000,
-        description: 'Three months',
-        category: 'salary'
+        person: { id: PERSON_ID },
+        position: 'artist',
+        seniority: 'senior',
+        startDate: new Date(2026, 2, 1),
+        monthsDuration: 3,
+        dailySalary: 400
       }
     )
     expect(fake.calls[0].body).toEqual({
-      name: 'Animator',
-      date: '2026-03-01',
-      amount: 12000,
-      quantity: 3,
-      unit_price: 4000,
-      description: 'Three months',
-      category: 'salary'
+      department_id: DEPARTMENT_ID,
+      person_id: PERSON_ID,
+      position: 'artist',
+      seniority: 'senior',
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 400
     })
+  })
+
+  it('createBudgetEntry rejects a missing department', async () => {
+    await expect(
+      kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID)
+    ).rejects.toThrow('Wrong format')
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getBudgetEntry returns the entry, null on 404', async () => {

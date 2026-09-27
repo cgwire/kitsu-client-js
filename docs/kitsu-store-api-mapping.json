@@ -348,7 +348,7 @@
     "route": "/data/projects/<id>/budgets/<id>/entries",
     "client": "project.createBudgetEntry",
     "status": "existing",
-    "note": "Same method and route, but the client signature (project, budget, name, {date, amount, quantity, unitPrice, description, category}) builds a fixed body that covers none of the fields Kitsu sends (department_id, person_id, position, seniority, start_date, months_duration, daily_salary) and requires a name Kitsu does not send: the client function must accept these fields (or a raw data object like updateBudgetEntry) before Kitsu can switch to it."
+    "note": "The client takes the department positionally and the other fields as options (person, position, seniority, startDate, monthsDuration, dailySalary)."
   },
   {
     "module": "budget",
