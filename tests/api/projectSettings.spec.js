@@ -105,7 +105,7 @@ describe('project namespace: settings', () => {
     )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: `/data/projects/${PROJECT_ID}/settings/task-types`
+      path: `/data/projects/${PROJECT_ID}/task-types`
     })
   })
 

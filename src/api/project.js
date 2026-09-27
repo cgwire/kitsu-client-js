@@ -513,7 +513,7 @@ export const projectApi = http => ({
    * @returns {Promise<Entity[]>} The task types configured for the project.
    */
   getProjectTaskTypes: async (project, { signal } = {}) =>
-    http.fetchAll(settingsOf(project, 'task-types'), {}, { signal }),
+    http.fetchAll(`projects/${idOf(project)}/task-types`, {}, { signal }),
 
   /**
    * @param {Model} project
