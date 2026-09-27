@@ -18,12 +18,14 @@ export const eventApi = http => ({
    *   project?: Model,
    *   onlyFiles?: boolean,
    *   persons?: Model[],
+   *   name?: string,
    *   namePrefixes?: string[],
    *   nameSuffixes?: string[],
    *   signal?: AbortSignal
-   * }} [options] A Date for after or before is sent to the second, in UTC.
-   *   lastEvent is the last event of the previous page (cursor pagination).
-   *   The API caps limit at 1000.
+   * }} [options] name keeps one event name ("task:update"). A Date for
+   *   after or before is sent to the second, in UTC. lastEvent is the last
+   *   event of the previous page (cursor pagination). The API caps limit at
+   *   1000.
    * @returns {Promise<Entity[]>}
    */
   allLastEvents: async ({
@@ -34,6 +36,7 @@ export const eventApi = http => ({
     project,
     onlyFiles,
     persons,
+    name,
     namePrefixes,
     nameSuffixes,
     signal
@@ -48,6 +51,7 @@ export const eventApi = http => ({
         project_id: optionalIdOf(project),
         only_files: onlyFiles ? true : null,
         person_ids: idsOf(persons),
+        name,
         name_prefixes: namePrefixes,
         name_suffixes: nameSuffixes
       },

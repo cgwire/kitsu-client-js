@@ -32,6 +32,7 @@ describe('event namespace: Kitsu logs', () => {
       project: { id: PROJECT_ID },
       onlyFiles: true,
       persons: [{ id: PERSON_ID }, OTHER_ID],
+      name: 'task:update',
       namePrefixes: ['task', 'comment'],
       nameSuffixes: ['new']
     })
@@ -43,6 +44,7 @@ describe('event namespace: Kitsu logs', () => {
     expect(query.get('project_id')).toBe(PROJECT_ID)
     expect(query.get('only_files')).toBe('true')
     expect(query.getAll('person_ids')).toEqual([PERSON_ID, OTHER_ID])
+    expect(query.get('name')).toBe('task:update')
     expect(query.getAll('name_prefixes')).toEqual(['task', 'comment'])
     expect(query.getAll('name_suffixes')).toEqual(['new'])
   })
