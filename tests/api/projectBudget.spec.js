@@ -36,23 +36,12 @@ describe('project namespace: budgets', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Season 1' })
   })
 
-  it('createBudget sends every option, dates as YYYY-MM-DD', async () => {
+  it('createBudget sends the currency', async () => {
     fake.reply(201, { id: BUDGET_ID })
     await kitsu.project.createBudget({ id: PROJECT_ID }, 'Season 1', {
-      description: 'First season',
-      currency: 'EUR',
-      startDate: new Date(2026, 0, 5, 10),
-      endDate: '2026-12-18',
-      amount: 0
+      currency: 'EUR'
     })
-    expect(fake.calls[0].body).toEqual({
-      name: 'Season 1',
-      description: 'First season',
-      currency: 'EUR',
-      start_date: '2026-01-05',
-      end_date: '2026-12-18',
-      amount: 0
-    })
+    expect(fake.calls[0].body).toEqual({ name: 'Season 1', currency: 'EUR' })
   })
 
   it('getBudget returns the budget, null on 404', async () => {

@@ -652,34 +652,14 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {string} name
-   * @param {{
-   *   description?: string,
-   *   currency?: string,
-   *   startDate?: Date|string,
-   *   endDate?: Date|string,
-   *   amount?: number,
-   *   signal?: AbortSignal
-   * }} [options] currency is a code such as USD or EUR. Dates are Date
-   *   objects or YYYY-MM-DD strings. amount is the overall budget.
+   * @param {{currency?: string, signal?: AbortSignal}} [options] currency is
+   *   a code such as USD or EUR.
    * @returns {Promise<Entity>} The created budget.
    */
-  createBudget: async (
-    project,
-    name,
-    { description, currency, startDate, endDate, amount, signal } = {}
-  ) =>
-    http.create(
-      budgetsOf(project),
-      withoutNil({
-        name,
-        description,
-        currency,
-        start_date: dateOf(startDate),
-        end_date: dateOf(endDate),
-        amount
-      }),
-      { signal }
-    ),
+  createBudget: async (project, name, { currency, signal } = {}) =>
+    http.create(budgetsOf(project), withoutNil({ name, currency }), {
+      signal
+    }),
 
   /**
    * @param {Model} project
