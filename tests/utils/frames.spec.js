@@ -79,6 +79,11 @@ describe('frames', () => {
     expect(formatTime(362.018, 25)).toBe('00:06:02:00')
   })
 
+  it('formatTime never names a frame past the last one of the second', () => {
+    expect(formatTime(0.99, 25)).toBe('00:00:00:24')
+    expect(formatTime(1.99, 24)).toBe('00:00:01:23')
+  })
+
   it('formatTime with negative time', () => {
     expect(formatTime(-1, 25)).toBe('00:00:00:00')
   })
@@ -107,6 +112,10 @@ describe('frames', () => {
     expect(formatToTimecode(1525, 25)).toBe('00:01:01:00')
     expect(formatToTimecode(null, 25)).toBe('00:00:00:00')
     expect(formatToTimecode(-5, 25)).toBe('00:00:00:00')
+  })
+
+  it('formatToTimecode keeps whole frames with a fractional fps', () => {
+    expect(formatToTimecode(100, 23.976)).toBe('00:00:04:04')
   })
 
   it('formatToTimecode beyond one hour and with the default fps', () => {
