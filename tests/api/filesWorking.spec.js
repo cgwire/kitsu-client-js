@@ -50,7 +50,7 @@ describe('files namespace: working files', () => {
       mode: 'working',
       name: 'main',
       revision: 1,
-      separator: '/'
+      sep: '/'
     })
   })
 
@@ -69,7 +69,7 @@ describe('files namespace: working files', () => {
       mode: 'wip',
       name: 'hires',
       revision: 3,
-      separator: '\\',
+      sep: '\\',
       software_id: SOFTWARE_ID
     })
   })

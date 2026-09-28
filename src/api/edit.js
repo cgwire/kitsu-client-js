@@ -129,7 +129,7 @@ export const editApi = http => {
         name,
         data,
         ...withoutNil({
-          parent_id: episode == null ? null : idOf(episode),
+          episode_id: optionalIdOf(episode),
           description
         })
       }

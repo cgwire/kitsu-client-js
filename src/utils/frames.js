@@ -76,10 +76,11 @@ export const formatTime = (rawTime, fps) => {
   const time = new Date(1000 * seconds).toISOString()
   const milliseconds = parseInt(time.substring(20, 23))
   const frameDuration = roundPrecision(1 / fps)
-  const frame = `${Math.round(milliseconds / (1000 * frameDuration))}`.padStart(
-    2,
-    '0'
-  )
+  // Rounding up the last milliseconds of a second would name frame fps.
+  const frame = `${Math.min(
+    Math.round(milliseconds / (1000 * frameDuration)),
+    Math.ceil(fps) - 1
+  )}`.padStart(2, '0')
   return `${time.substring(11, 19)}:${frame}`
 }
 
@@ -97,7 +98,8 @@ export const formatToTimecode = (frame, fps = DEFAULT_FPS) => {
   const seconds = Math.floor(
     (count - hours * fps * 3600 - minutes * fps * 60) / fps
   )
-  return [hours, minutes, seconds, count % fps]
+  // Floored: a fractional fps (23.976) leaves a fractional remainder.
+  return [hours, minutes, seconds, Math.floor(count % fps)]
     .map(part => part.toString().padStart(2, '0'))
     .join(':')
 }

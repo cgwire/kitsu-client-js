@@ -1,10 +1,15 @@
 # Development
 
 ```bash
-npm run check        # eslint, prettier, type declarations, tests
-npm run sync-routes  # regenerate tests/fixtures/zou_routes.json from ../zou
-npm run test:live    # read-only smoke test: KITSU_HOST and KITSU_TOKEN
+npm run check          # eslint, prettier, type declarations, tests
+npm run test:coverage  # tests with the coverage report
+npm run sync-routes    # regenerate tests/fixtures/zou_routes.json from ../zou
+npm run test:live      # read-only smoke test: KITSU_HOST and KITSU_TOKEN
 ```
+
+`sync-routes` runs the extractor of gazu with Python 3: it expects the `gazu`
+and `zou` checkouts next to this repository. `scripts/extract-kitsu-routes.js`
+reads the `kitsu` checkout the same way.
 
 Tests inject a fake `fetch`. It rejects any path that Zou does not serve
 (`tests/fixtures/zou_routes.json`), so an invented route fails its test. Known

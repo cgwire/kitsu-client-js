@@ -230,32 +230,17 @@ export const projectApi = http => ({
 
   /**
    * Link a task type to the project. Calling it again on an existing link
-   * updates its priority and bitrates.
+   * updates its priority.
    * @param {Model} project
    * @param {Model} taskType
    * @param {number} priority
-   * @param {{
-   *   hdBitrateCompression?: number,
-   *   ldBitrateCompression?: number,
-   *   signal?: AbortSignal
-   * }} [options] Bitrates in Mbit/s of the movies encoded for that task
-   *   type in the project.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
-  addTaskType: async (
-    project,
-    taskType,
-    priority,
-    { hdBitrateCompression, ldBitrateCompression, signal } = {}
-  ) =>
+  addTaskType: async (project, taskType, priority, { signal } = {}) =>
     http.create(
       settingsOf(project, 'task-types'),
-      withoutNil({
-        task_type_id: idOf(taskType),
-        priority,
-        hd_bitrate_compression: hdBitrateCompression,
-        ld_bitrate_compression: ldBitrateCompression
-      }),
+      withoutNil({ task_type_id: idOf(taskType), priority }),
       { signal }
     ),
 
@@ -513,7 +498,7 @@ export const projectApi = http => ({
    * @returns {Promise<Entity[]>} The task types configured for the project.
    */
   getProjectTaskTypes: async (project, { signal } = {}) =>
-    http.fetchAll(settingsOf(project, 'task-types'), {}, { signal }),
+    http.fetchAll(`projects/${idOf(project)}/task-types`, {}, { signal }),
 
   /**
    * @param {Model} project
@@ -652,34 +637,14 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {string} name
-   * @param {{
-   *   description?: string,
-   *   currency?: string,
-   *   startDate?: Date|string,
-   *   endDate?: Date|string,
-   *   amount?: number,
-   *   signal?: AbortSignal
-   * }} [options] currency is a code such as USD or EUR. Dates are Date
-   *   objects or YYYY-MM-DD strings. amount is the overall budget.
+   * @param {{currency?: string, signal?: AbortSignal}} [options] currency is
+   *   a code such as USD or EUR.
    * @returns {Promise<Entity>} The created budget.
    */
-  createBudget: async (
-    project,
-    name,
-    { description, currency, startDate, endDate, amount, signal } = {}
-  ) =>
-    http.create(
-      budgetsOf(project),
-      withoutNil({
-        name,
-        description,
-        currency,
-        start_date: dateOf(startDate),
-        end_date: dateOf(endDate),
-        amount
-      }),
-      { signal }
-    ),
+  createBudget: async (project, name, { currency, signal } = {}) =>
+    http.create(budgetsOf(project), withoutNil({ name, currency }), {
+      signal
+    }),
 
   /**
    * @param {Model} project
@@ -721,35 +686,42 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {Model} budget
-   * @param {string} name
+   * @param {Model} department
    * @param {{
-   *   date?: Date|string,
-   *   amount?: number,
-   *   quantity?: number,
-   *   unitPrice?: number,
-   *   description?: string,
-   *   category?: string,
+   *   person?: Model,
+   *   position?: string,
+   *   seniority?: string,
+   *   startDate?: Date|string,
+   *   monthsDuration?: number,
+   *   dailySalary?: number,
    *   signal?: AbortSignal
-   * }} [options] date is a Date object or a YYYY-MM-DD string. amount is
-   *   the total of the entry, or quantity and unitPrice give it.
+   * }} [options] startDate is a Date object or a YYYY-MM-DD string.
    * @returns {Promise<Entity>} The created budget entry.
    */
   createBudgetEntry: async (
     project,
     budget,
-    name,
-    { date, amount, quantity, unitPrice, description, category, signal } = {}
+    department,
+    {
+      person,
+      position,
+      seniority,
+      startDate,
+      monthsDuration,
+      dailySalary,
+      signal
+    } = {}
   ) =>
     http.create(
       entriesOf(project, budget),
       withoutNil({
-        name,
-        date: dateOf(date),
-        amount,
-        quantity,
-        unit_price: unitPrice,
-        description,
-        category
+        department_id: idOf(department),
+        person_id: optionalIdOf(person),
+        position,
+        seniority,
+        start_date: dateOf(startDate),
+        months_duration: monthsDuration,
+        daily_salary: dailySalary
       }),
       { signal }
     ),

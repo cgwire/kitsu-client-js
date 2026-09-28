@@ -22,6 +22,8 @@ import {
 const UNSORTED = [{ name: 'main' }, { name: 'Alt' }, { name: 'extra' }]
 const SORTED_NAMES = ['Alt', 'extra', 'main']
 
+const OTHER_TASK_ID = '67676767-6767-4676-8676-676767676767'
+
 describe('task namespace: tasks, types and statuses', () => {
   let kitsu, fake
   beforeEach(() => {
@@ -225,13 +227,20 @@ describe('task namespace: tasks, types and statuses', () => {
     })
   })
 
-  it('allOpenTasks lists the open tasks', async () => {
-    fake.reply(200, [{ id: TASK_ID }])
-    expect(await kitsu.task.allOpenTasks()).toEqual([{ id: TASK_ID }])
+  it('allOpenTasks gathers every page of open tasks', async () => {
+    fake
+      .reply(200, { data: [{ id: TASK_ID }], is_more: true, page: 1 })
+      .reply(200, { data: [{ id: OTHER_TASK_ID }], is_more: false, page: 2 })
+    expect(await kitsu.task.allOpenTasks()).toEqual([
+      { id: TASK_ID },
+      { id: OTHER_TASK_ID }
+    ])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/tasks/open-tasks'
     })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({ page: '1' })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({ page: '2' })
   })
 
   it.each([

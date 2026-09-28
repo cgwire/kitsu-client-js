@@ -350,20 +350,16 @@ describe('task namespace: comments, previews and time spent', () => {
     expect(fake.calls[0].body).toEqual({})
   })
 
-  it('replyToComment posts the reply, author on demand', async () => {
-    fake.reply(201, { id: OTHER_ID }).reply(201, {})
+  it('replyToComment posts the reply', async () => {
+    fake.reply(201, { id: OTHER_ID })
     expect(
       await kitsu.task.replyToComment({ id: TASK_ID }, COMMENT_ID, 'Thanks')
     ).toEqual({ id: OTHER_ID })
-    await kitsu.task.replyToComment(TASK_ID, { id: COMMENT_ID }, 'Thanks', {
-      person: { id: PERSON_ID }
-    })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/data${COMMENT_PATH}/reply`
     })
     expect(fake.calls[0].body).toEqual({ text: 'Thanks' })
-    expect(fake.calls[1].body).toEqual({ text: 'Thanks', person_id: PERSON_ID })
   })
 
   it('deleteCommentAttachment deletes an attachment of a comment', async () => {

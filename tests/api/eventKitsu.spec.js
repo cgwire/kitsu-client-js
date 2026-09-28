@@ -26,23 +26,25 @@ describe('event namespace: Kitsu logs', () => {
     fake.reply(200, [])
     await kitsu.event.allLastEvents({
       after: '2026-09-01T10:00:00',
-      before: new Date(2026, 8, 19),
+      before: new Date(Date.UTC(2026, 8, 19, 8, 30, 15, 500)),
       limit: 50,
       lastEvent: { id: OTHER_ID },
       project: { id: PROJECT_ID },
       onlyFiles: true,
       persons: [{ id: PERSON_ID }, OTHER_ID],
+      name: 'task:update',
       namePrefixes: ['task', 'comment'],
       nameSuffixes: ['new']
     })
     const { query } = fake.calls[0]
     expect(query.get('after')).toBe('2026-09-01T10:00:00')
-    expect(query.get('before')).toBe('2026-09-19')
+    expect(query.get('before')).toBe('2026-09-19T08:30:15')
     expect(query.get('limit')).toBe('50')
     expect(query.get('cursor_event_id')).toBe(OTHER_ID)
     expect(query.get('project_id')).toBe(PROJECT_ID)
     expect(query.get('only_files')).toBe('true')
     expect(query.getAll('person_ids')).toEqual([PERSON_ID, OTHER_ID])
+    expect(query.get('name')).toBe('task:update')
     expect(query.getAll('name_prefixes')).toEqual(['task', 'comment'])
     expect(query.getAll('name_suffixes')).toEqual(['new'])
   })
@@ -87,14 +89,14 @@ describe('event namespace: Kitsu logs', () => {
   it('allLastLoginLogs sends every filter under its wire name', async () => {
     fake.reply(200, [])
     await kitsu.event.allLastLoginLogs({
-      after: new Date(2026, 8, 1),
+      after: new Date(Date.UTC(2026, 8, 1)),
       before: '2026-09-19',
       limit: 200,
       lastLoginLog: OTHER_ID,
       persons: [{ id: PERSON_ID }]
     })
     const { query } = fake.calls[0]
-    expect(query.get('after')).toBe('2026-09-01')
+    expect(query.get('after')).toBe('2026-09-01T00:00:00')
     expect(query.get('before')).toBe('2026-09-19')
     expect(query.get('limit')).toBe('200')
     expect(query.get('cursor_login_log_id')).toBe(OTHER_ID)

@@ -123,7 +123,7 @@ describe('edit namespace', () => {
     expect(fake.calls[1].body).toEqual({
       name: 'Trailer',
       data: { fps: 24 },
-      parent_id: EPISODE_ID,
+      episode_id: EPISODE_ID,
       description: 'First cut'
     })
   })

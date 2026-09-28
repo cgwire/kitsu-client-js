@@ -90,13 +90,21 @@ export const createHttp = (config, session) => {
         const { data } = await readBody(response).catch(() => ({ data: '' }))
         throw errorFromResponse(response.status, { ...info, body: data || '' })
       }
-      if (raw) {
+      if (raw && response.body) {
         // The body is still to be read by the caller: the abort wiring
-        // stays until an abort (caller signal, abortAll) releases it.
+        // stays until the body is read to its end or an abort (caller
+        // signal, abortAll) releases it.
         streaming = true
         controller.signal.addEventListener('abort', release, { once: true })
-        return response
+        // cancel (the caller drops the body) is newer than the DOM typings.
+        const transformer = /** @type {Transformer} */ ({
+          flush: release,
+          cancel: release
+        })
+        const body = response.body.pipeThrough(new TransformStream(transformer))
+        return new Response(body, response)
       }
+      if (raw) return response
       if (read) return await read(response)
       const { data, isJson } = await readBody(response)
       // A page served with a 2xx (host without "/api", SSO portal) must not

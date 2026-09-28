@@ -124,6 +124,21 @@ export const dateOf = date => {
 }
 
 /**
+ * Zou stores event and log times as naive UTC and reads them to the second.
+ * @template T
+ * @param {Date|T} date
+ * @returns {string|T} "YYYY-MM-DDTHH:MM:SS" in UTC for a Date, the value
+ *   itself otherwise.
+ */
+export const datetimeOf = date => {
+  if (!(date instanceof Date)) return date
+  if (Number.isNaN(date.getTime())) {
+    throw new ParameterError('Wrong format: invalid Date')
+  }
+  return date.toISOString().slice(0, 19)
+}
+
+/**
  * A day that lands in a request path is checked like ids are, so caller
  * input can never reshape the route.
  * @param {Date|string} date

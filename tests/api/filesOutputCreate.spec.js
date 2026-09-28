@@ -42,7 +42,6 @@ describe('files namespace: output file paths and creation', () => {
       name: 'main',
       representation: '',
       revision: 0,
-      nb_elements: 1,
       separator: '/'
     })
   })
@@ -59,7 +58,6 @@ describe('files namespace: output file paths and creation', () => {
           mode: 'publish',
           representation: 'abc',
           revision: 3,
-          nbElements: 24,
           sep: '\\'
         }
       )
@@ -71,7 +69,6 @@ describe('files namespace: output file paths and creation', () => {
       name: 'hires',
       representation: 'abc',
       revision: 3,
-      nb_elements: 24,
       separator: '\\'
     })
   })
@@ -99,7 +96,6 @@ describe('files namespace: output file paths and creation', () => {
           representation: 'abc',
           mode: 'publish',
           revision: 2,
-          nbElements: 24,
           sep: '\\'
         }
       )
@@ -115,7 +111,6 @@ describe('files namespace: output file paths and creation', () => {
       name: 'main',
       representation: '',
       revision: 0,
-      nb_elements: 1,
       separator: '/'
     })
     expect(fake.calls[1].body).toEqual({
@@ -125,7 +120,6 @@ describe('files namespace: output file paths and creation', () => {
       name: 'hires',
       representation: 'abc',
       revision: 2,
-      nb_elements: 24,
       separator: '\\'
     })
   })

@@ -77,6 +77,15 @@ describe('logIn', () => {
     expect(err).not.toBeInstanceOf(AuthFailedError)
     expect(kitsu.getTokens()).toBeNull()
   })
+
+  it('rejects a JSON answer without access token in bearer mode', async () => {
+    const fake = createFakeFetch().reply(200, { login: true })
+    const kitsu = createCore({ host: HOST, fetch: fake })
+    await expect(kitsu.logIn('a@b.c', 'secret')).rejects.toBeInstanceOf(
+      AuthFailedError
+    )
+    expect(kitsu.getTokens()).toBeNull()
+  })
 })
 
 describe('session helpers', () => {

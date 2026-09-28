@@ -1,4 +1,9 @@
-import { KitsuError, NotAuthenticatedError, loginErrorFrom } from './errors.js'
+import {
+  AuthFailedError,
+  KitsuError,
+  NotAuthenticatedError,
+  loginErrorFrom
+} from './errors.js'
 import { requiredOf, withoutNil } from './params.js'
 
 /**
@@ -91,6 +96,16 @@ export const authApi = (http, session) => {
             : err
         })
       if (session.mode === 'bearer') {
+        // A JSON answer without a token (proxy, wrong service) must not
+        // leave the client believing it is logged in.
+        if (typeof body?.access_token !== 'string' || !body.access_token) {
+          throw new AuthFailedError('Login returned no access token', {
+            status: 200,
+            path: 'auth/login',
+            method: 'POST',
+            body
+          })
+        }
         session.setTokens({
           access_token: body.access_token,
           refresh_token: body.refresh_token
