@@ -5,6 +5,7 @@ import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   CONCEPT_ID,
+  DEPARTMENT_ID,
   EDIT_ID,
   ENTITY_ID,
   EPISODE_ID,
@@ -14,6 +15,7 @@ import {
   SCENE_ID,
   SEQUENCE_ID,
   SHOT_ID,
+  STUDIO_ID,
   TASK_ID,
   TASK_STATUS_ID,
   TASK_TYPE_ID
@@ -21,8 +23,6 @@ import {
 
 const UNSORTED = [{ name: 'main' }, { name: 'Alt' }, { name: 'extra' }]
 const SORTED_NAMES = ['Alt', 'extra', 'main']
-
-const OTHER_TASK_ID = '67676767-6767-4676-8676-676767676767'
 
 describe('task namespace: tasks, types and statuses', () => {
   let kitsu, fake
@@ -227,20 +227,45 @@ describe('task namespace: tasks, types and statuses', () => {
     })
   })
 
-  it('allOpenTasks gathers every page of open tasks', async () => {
-    fake
-      .reply(200, { data: [{ id: TASK_ID }], is_more: true, page: 1 })
-      .reply(200, { data: [{ id: OTHER_TASK_ID }], is_more: false, page: 2 })
-    expect(await kitsu.task.allOpenTasks()).toEqual([
-      { id: TASK_ID },
-      { id: OTHER_TASK_ID }
-    ])
+  it('allOpenTasks returns the page of Zou, filtered', async () => {
+    const page = { data: [{ id: TASK_ID }], is_more: false, page: 1 }
+    fake.reply(200, page).reply(200, page).reply(200, page)
+    expect(await kitsu.task.allOpenTasks()).toEqual(page)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/tasks/open-tasks'
     })
-    expect(Object.fromEntries(fake.calls[0].query)).toEqual({ page: '1' })
-    expect(Object.fromEntries(fake.calls[1].query)).toEqual({ page: '2' })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({})
+    await kitsu.task.allOpenTasks({
+      project: PROJECT_ID,
+      taskType: { id: TASK_TYPE_ID },
+      taskStatus: TASK_STATUS_ID,
+      persons: [PERSON_ID, { id: OTHER_ID }],
+      department: DEPARTMENT_ID,
+      studio: STUDIO_ID,
+      startDate: new Date(2026, 8, 1),
+      dueDate: '2026-09-30',
+      priority: 2,
+      page: 2,
+      limit: 20
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
+      project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      person_id: `${PERSON_ID},${OTHER_ID}`,
+      department_id: DEPARTMENT_ID,
+      studio_id: STUDIO_ID,
+      start_date: '2026-09-01',
+      due_date: '2026-09-30',
+      priority: '2',
+      page: '2',
+      limit: '20'
+    })
+    await kitsu.task.allOpenTasks({ persons: 'unassigned' })
+    expect(Object.fromEntries(fake.calls[2].query)).toEqual({
+      person_id: 'unassigned'
+    })
   })
 
   it.each([

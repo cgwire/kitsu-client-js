@@ -170,18 +170,28 @@ export const projectTemplateApi = http => {
     /**
      * @param {Model} projectTemplate
      * @param {Model} taskType
-     * @param {{priority?: number, signal?: AbortSignal}} [options]
+     * @param {{
+     *   priority?: number,
+     *   hdBitrateCompression?: number,
+     *   ldBitrateCompression?: number,
+     *   signal?: AbortSignal
+     * }} [options] Bitrates are movie bitrates in Mbit/s for that task type.
      * @returns {Promise<Entity>} The created link.
      */
     addTaskTypeToProjectTemplate: async (
       projectTemplate,
       taskType,
-      { priority, signal } = {}
+      { priority, hdBitrateCompression, ldBitrateCompression, signal } = {}
     ) =>
       addLink(
         projectTemplate,
         'task-types',
-        withoutNil({ task_type_id: idOf(taskType), priority }),
+        withoutNil({
+          task_type_id: idOf(taskType),
+          priority,
+          hd_bitrate_compression: hdBitrateCompression,
+          ld_bitrate_compression: ldBitrateCompression
+        }),
         signal
       ),
 

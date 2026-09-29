@@ -1,5 +1,6 @@
 import { NotFoundError, ParameterError } from '../core/errors.js'
 import {
+  dateOf,
   dayOf,
   idOf,
   idsOf,
@@ -654,21 +655,59 @@ export const taskApi = http => {
       ),
 
     /**
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} All open tasks, every page gathered.
+     * One page of the open tasks, the same way the Kitsu task list reads it.
+     * @param {{
+     *   project?: Model,
+     *   taskType?: Model,
+     *   taskStatus?: Model,
+     *   persons?: Model[]|'unassigned',
+     *   department?: Model,
+     *   studio?: Model,
+     *   startDate?: Date|string,
+     *   dueDate?: Date|string,
+     *   priority?: number,
+     *   page?: number,
+     *   limit?: number,
+     *   signal?: AbortSignal
+     * }} [options] persons is a list, or "unassigned" for the tasks nobody
+     *   is assigned to. page starts at 1, limit is 100 by default.
+     * @returns {Promise<{data: Entity[], stats: object, is_more: boolean,
+     *   limit: number, page: number}>} The page of Zou.
      */
-    allOpenTasks: async ({ signal } = {}) => {
-      // Zou answers one page of tasks at a time, wrapped with their stats.
-      const fetchFrom = async page => {
-        const { data, is_more: isMore } = await http.get(
-          'data/tasks/open-tasks',
-          { page },
-          { signal }
-        )
-        return isMore ? [...data, ...(await fetchFrom(page + 1))] : data
-      }
-      return fetchFrom(1)
-    },
+    allOpenTasks: async ({
+      project,
+      taskType,
+      taskStatus,
+      persons,
+      department,
+      studio,
+      startDate,
+      dueDate,
+      priority,
+      page,
+      limit,
+      signal
+    } = {}) =>
+      http.get(
+        'data/tasks/open-tasks',
+        {
+          project_id: optionalIdOf(project),
+          task_type_id: optionalIdOf(taskType),
+          task_status_id: optionalIdOf(taskStatus),
+          person_id:
+            persons === 'unassigned'
+              ? persons
+              : persons && idsOf(persons).join(','),
+          department_id: optionalIdOf(department),
+          studio_id: optionalIdOf(studio),
+          start_date: dateOf(startDate),
+          due_date: dateOf(dueDate),
+          priority,
+          page,
+          limit
+        },
+        { signal }
+      ),
 
     /**
      * @param {RequestOptions} [options]

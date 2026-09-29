@@ -46,6 +46,28 @@ describe('project namespace: settings', () => {
     })
   })
 
+  it('addTaskType sends the bitrates only when they are set', async () => {
+    fake.reply(201, {}).reply(201, {})
+    await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
+      hdBitrateCompression: 28,
+      ldBitrateCompression: 6
+    })
+    await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
+      ldBitrateCompression: 0
+    })
+    expect(fake.calls[0].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      priority: 1,
+      hd_bitrate_compression: 28,
+      ld_bitrate_compression: 6
+    })
+    expect(fake.calls[1].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      priority: 1,
+      ld_bitrate_compression: 0
+    })
+  })
+
   it('addTaskStatus links a task status to the project', async () => {
     fake.reply(201, { id: PROJECT_ID })
     await kitsu.project.addTaskStatus(PROJECT_ID, { id: TASK_STATUS_ID })
