@@ -3039,7 +3039,7 @@
     "route": "/data/tasks/open-tasks",
     "client": "task.allOpenTasks",
     "status": "existing",
-    "note": "Query differs: Kitsu sends a free filters object (project, status, person, page, limit...), the client sends no query. allOpenTasks needs a filters option before the Kitsu switch."
+    "note": "Kitsu sends a filters object with snake_case keys; the client takes the same filters as named options (persons as a list or \"unassigned\")."
   },
   {
     "module": "tasks",
