@@ -108,16 +108,18 @@ describe('projectTemplate namespace: links', () => {
     })
   })
 
-  it('addTaskTypeToProjectTemplate sends the priority', async () => {
+  it('addTaskTypeToProjectTemplate sends priority and bitrates', async () => {
     fake.reply(201, {})
     await kitsu.projectTemplate.addTaskTypeToProjectTemplate(
       TEMPLATE_ID,
       TASK_TYPE_ID,
-      { priority: 0 }
+      { priority: 0, hdBitrateCompression: 28, ldBitrateCompression: 6 }
     )
     expect(fake.calls[0].body).toEqual({
       task_type_id: TASK_TYPE_ID,
-      priority: 0
+      priority: 0,
+      hd_bitrate_compression: 28,
+      ld_bitrate_compression: 6
     })
   })
 
