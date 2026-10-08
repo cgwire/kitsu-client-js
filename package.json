@@ -4,6 +4,8 @@
   "description": "JavaScript client for the Kitsu API",
   "type": "module",
   "sideEffects": false,
+  "main": "./src/index.js",
+  "types": "./types/index.d.ts",
   "exports": {
     ".": {
       "types": "./types/index.d.ts",
@@ -17,6 +19,7 @@
       "types": "./types/utils/index.d.ts",
       "default": "./src/utils/index.js"
     },
+    "./package.json": "./package.json",
     "./*": {
       "types": "./types/api/*.d.ts",
       "default": "./src/api/*.js"
