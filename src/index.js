@@ -21,6 +21,15 @@ import { taskApi } from './api/task.js'
 import { userApi } from './api/user.js'
 import { createCore } from './core/index.js'
 
+// The public types. Other type names in the declarations of a subpath are
+// internal and may change in any release.
+/**
+ * @typedef {import('./core/index.js').ClientOptions} ClientOptions
+ * @typedef {import('./core/session.js').Tokens} Tokens
+ * @typedef {import('./core/errors.js').ErrorInfo} ErrorInfo
+ * @typedef {ReturnType<typeof createClient>} KitsuClient
+ */
+
 /**
  * Create a Kitsu client. Every client owns its session, its in-flight
  * requests and its event socket: two clients never share anything.
@@ -57,5 +66,20 @@ export const createClient = options => {
   })
 }
 
-export * from './core/errors.js'
+export {
+  KitsuError,
+  ParameterError,
+  NotAuthenticatedError,
+  NotAllowedError,
+  NotFoundError,
+  TooBigFileError,
+  ServerError,
+  NetworkError,
+  TimeoutError,
+  AuthFailedError,
+  WrongOtpError,
+  TooManyLoginAttemptsError,
+  DefaultPasswordError,
+  MissingOtpError
+} from './core/errors.js'
 export * from './utils/index.js'
