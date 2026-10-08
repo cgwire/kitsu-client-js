@@ -6,12 +6,13 @@
 [gazu](https://github.com/cgwire/gazu): a client for the API of
 [Kitsu](https://kitsu.cg-wire.com), the collaboration platform for animation
 and VFX studios. It targets plugin and app authors: browsers, webviews
-(Tauri, Electron) and Node 22 or later.
+(Tauri, Electron) and Node 22.12 or later.
 
 - Every client is isolated: its own session, requests and event socket.
 - Same function names as gazu, in camelCase: `all*`, `get*`, `new*`,
   `update*`, `remove*`.
 - Typed: declarations are generated from the JSDoc of the sources.
+- ES modules only: CommonJS code can `require()` it from Node 22.12.
 - No runtime dependency
 
 [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.com/invite/VbCxtKN)
