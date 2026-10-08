@@ -1,0 +1,53 @@
+---
+# The trusted publisher settings of @cgwire/kitsu-client on npm name this
+# file: renaming it makes every publish fail until they are updated.
+name: Publish Kitsu Client to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  HUSKY: 0
+
+jobs:
+  publish:
+    if: github.repository_owner == 'cgwire'
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check the tag matches the version
+        run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
+      - name: Check the prerelease flag matches the version
+        env:
+          PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          case "$(node -p "require('./package.json').version")" in *-*) pre=true ;; *) pre=false ;; esac
+          test "$pre" = "$PRERELEASE"
+      - name: Install npm dependencies
+        run: |
+          echo "Node.js $(node -v)"
+          echo "npm v$(npm -v)"
+          npm ci
+      # npm logs why an OIDC token exchange failed only at verbose level. A
+      # rerun cannot add the flag: it runs the workflow of the tagged commit.
+      - name: Publish to npm
+        if: ${{ !github.event.release.prerelease }}
+        run: npm publish --loglevel verbose
+      - name: Publish prerelease to npm (next tag)
+        if: ${{ github.event.release.prerelease }}
+        run: npm publish --tag next --loglevel verbose
