@@ -33,9 +33,11 @@ import { requiredOf, withoutNil } from './params.js'
  * @property {AbortSignal} [signal]
  */
 
-// The statuses Zou refuses a login with: 400 (wrong credentials, missing or
-// wrong OTP, too many attempts, default password), 401 (inactive user) and
-// 409 (no authentication strategy configured).
+// The statuses Zou refuses a login with, whatever the cause, error.status
+// telling them apart. 400: wrong credentials, missing or wrong OTP, too many
+// attempts, default password, LDAP user without fallback, malformed body,
+// and also a timeout of its database pool. 401: inactive user. 409: no
+// authentication strategy configured, which refuses every user alike.
 const LOGIN_REFUSALS = [400, 401, 409]
 
 /**

@@ -32,8 +32,11 @@ Every error extends `KitsuError` and carries `status`, `path`, `method` and
 | `signal` or `close()` | the native `AbortError`                                                                                       |
 | 2xx that is not JSON  | `KitsuError` (usually a host given without its `/api` suffix)                                                 |
 
-A refused `logIn` is a 400, 401 or 409 answer of Zou. Any other failure keeps
-its own error: an outage is a `ServerError`, not wrong credentials.
+A refused `logIn` is a 400, 401 or 409 answer of Zou, whatever the cause: Zou
+also answers 400 when its database pool times out, and 409 when it has no
+authentication strategy configured. `error.status` tells them apart. Any
+other failure keeps its own error: a 5xx outage is a `ServerError`, not wrong
+credentials.
 
 Regular calls are bounded: 60 s to the first byte, 5 min in total
 (`timeout: { response, deadline }`, `0` disables a timer). Uploads are not
