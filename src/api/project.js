@@ -1069,6 +1069,17 @@ export const projectApi = http => ({
       signal
     } = {}
   ) => {
+    // 0.1.0 took a single object: name the arguments instead of reporting
+    // a missing outFieldType.
+    if (
+      typeof inTaskType === 'object' &&
+      inTaskType !== null &&
+      ('inTaskType' in inTaskType || 'outFieldType' in inTaskType)
+    ) {
+      throw new ParameterError(
+        'Wrong format: inTaskType, inTaskStatus, outFieldType and outTaskType are positional arguments'
+      )
+    }
     // Zou would store both: an unknown output type breaks every later read
     // of the automations, and a status one without its status fails every
     // comment that triggers it.

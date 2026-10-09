@@ -261,6 +261,20 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    it('newStatusAutomation names its arguments to a 0.1.0 call', async () => {
+      const err = await kitsu.project
+        .newStatusAutomation({
+          inTaskType: TASK_TYPE_ID,
+          inTaskStatus: TASK_STATUS_ID,
+          outFieldType: 'ready_for',
+          outTaskType: OTHER_ID
+        })
+        .catch(e => e)
+      expect(err).toBeInstanceOf(ParameterError)
+      expect(err.message).toMatch(/positional arguments/)
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('updateStatusAutomation saves the automation', async () => {
       fake.reply(200, { id: STATUS_AUTOMATION_ID })
       await kitsu.project.updateStatusAutomation({
