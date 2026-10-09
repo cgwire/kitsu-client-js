@@ -28,6 +28,8 @@ import { createCore } from './core/index.js'
  * @typedef {import('./core/session.js').Tokens} Tokens
  * @typedef {import('./core/errors.js').ErrorInfo} ErrorInfo
  * @typedef {ReturnType<typeof createClient>} KitsuClient
+ * @typedef {import('./core/params.js').Entity} Entity
+ * @typedef {import('./core/params.js').Model} Model
  */
 
 /**
