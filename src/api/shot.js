@@ -74,8 +74,9 @@ export const shotApi = http => {
     )
 
   // Only the given keys, which Zou merges into the stored metadata:
-  // resending the others would revert concurrent changes, and fail for a
-  // supervisor with departments.
+  // resending the others would revert concurrent changes and, on a shot,
+  // fail for a supervisor with departments (Zou refuses that supervisor on
+  // sequences and episodes whatever the keys).
   const saveEntityData = (entity, data, signal) =>
     http.update('entities', idOf(entity), { data: { ...data } }, { signal })
 
