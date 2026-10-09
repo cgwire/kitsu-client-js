@@ -419,20 +419,25 @@ export const projectApi = http => ({
     ),
 
   /**
+   * Remove the descriptor. Zou also erases the values of its field from
+   * every entity of its type in the project (from the tasks of its task type
+   * for a Task descriptor, from the project itself for a Project one).
+   *
+   * gazu's force is not ported: Zou never reads it on this route.
    * @param {Model} project
    * @param {Model} metadataDescriptor
-   * @param {{force?: boolean, signal?: AbortSignal}} [options]
+   * @param {RequestOptions} [options]
    * @returns {Promise<null>}
    */
   removeMetadataDescriptor: async (
     project,
     metadataDescriptor,
-    { force = false, signal } = {}
+    { signal } = {}
   ) =>
     http.remove(
       descriptorsOf(project),
       idOf(metadataDescriptor),
-      { force: force ? true : null },
+      {},
       { signal }
     ),
 
