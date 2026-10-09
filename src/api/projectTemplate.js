@@ -109,7 +109,7 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * @param {{id: string}} projectTemplate
+     * @param {Entity} projectTemplate
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */

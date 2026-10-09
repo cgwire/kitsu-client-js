@@ -530,7 +530,7 @@ export const filesApi = http => {
       ),
 
     /**
-     * @param {{id: string}} software The software dict, with its changes.
+     * @param {Entity} software The software dict, with its changes.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated software.
      */

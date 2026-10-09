@@ -806,7 +806,7 @@ export const taskApi = http => {
       http.remove('task-status', idOf(taskStatus), { force: true }, { signal }),
 
     /**
-     * @param {{id: string}} taskType
+     * @param {Entity} taskType
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated task type.
      */
@@ -814,7 +814,7 @@ export const taskApi = http => {
       http.update('task-types', idOf(taskType), taskType, { signal }),
 
     /**
-     * @param {{id: string}} taskStatus
+     * @param {Entity} taskStatus
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated task status.
      */
@@ -1174,7 +1174,7 @@ export const taskApi = http => {
       http.remove('comments', idOf(comment), {}, { signal }),
 
     /**
-     * @param {{id: string}} comment
+     * @param {Entity} comment
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated comment.
      */

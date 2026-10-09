@@ -89,7 +89,7 @@ export const sceneApi = http => {
     /**
      * Save the scene. Zou merges the given metadata into the stored ones: a
      * key left out keeps its value, a key set to null is stored as null.
-     * @param {{id: string}} scene
+     * @param {Entity} scene
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated scene.
      */
