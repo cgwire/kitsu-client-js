@@ -406,6 +406,18 @@ describe('person namespace', () => {
     expect(edited).toEqual({ ...bot, first_name: 'Render farm 2' })
   })
 
+  // 0.1.0 renewed a token with updateBot({ id, expiration_date }): without
+  // the date, that call would save nothing and answer without any token.
+  it('updatePerson and updateBot refuse an expiration date alone', async () => {
+    await expect(
+      kitsu.person.updateBot({ id: PERSON_ID, expiration_date: '2027-01-31' })
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      kitsu.person.updatePerson({ id: PERSON_ID, expiration_date: null })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('generateToken asks for a new token, expiring or not', async () => {
     fake
       .reply(200, { id: PERSON_ID, access_token: 'new-token' })

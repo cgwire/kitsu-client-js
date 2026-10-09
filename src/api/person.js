@@ -127,10 +127,22 @@ const withoutExpirationDate = person =>
  * @param {Entity} person
  * @param {RequestOptions} [options]
  */
-const updatePerson = (http, person, { signal } = {}) =>
-  http.update(
+const updatePerson = (http, person, { signal } = {}) => {
+  const id = idOf(person)
+  // { id, expiration_date } is how 0.1.0 renewed a token: saved without the
+  // date, it would answer 200 without any token.
+  if (
+    Object.keys(person)
+      .filter(key => key !== 'id')
+      .join() === 'expiration_date'
+  ) {
+    throw new ParameterError(
+      'Wrong format: expiration_date is never saved, generateToken changes it'
+    )
+  }
+  return http.update(
     'persons',
-    idOf(person),
+    id,
     withoutExpirationDate(
       Array.isArray(person.departments)
         ? { ...person, departments: idsOf(person.departments) }
@@ -138,6 +150,7 @@ const updatePerson = (http, person, { signal } = {}) =>
     ),
     { signal }
   )
+}
 
 /**
  * @param {any} http
@@ -353,7 +366,8 @@ export const personApi = http => ({
   /**
    * Save the person. Its expiration_date is left out: Zou takes it as a
    * request for a new token, which revokes the previous one (see
-   * generateToken).
+   * generateToken). A person holding nothing else to save rejects with a
+   * ParameterError.
    * @param {Entity} person Its departments may be objects or ids.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated person.
@@ -407,7 +421,8 @@ export const personApi = http => ({
 
   /**
    * Save the bot. Its expiration_date is left out, so its token keeps
-   * working: generateToken changes the expiration date with a new token.
+   * working: generateToken changes the expiration date with a new token. A
+   * bot holding nothing else to save rejects with a ParameterError.
    * @param {Entity} bot Its departments may be objects or ids.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated bot.
