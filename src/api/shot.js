@@ -1,6 +1,7 @@
 import {
   idOf,
   optionalIdOf,
+  placeholdersToNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -62,8 +63,15 @@ export const shotApi = http => {
     )
 
   // Shots, sequences and episodes are all saved through the entity route.
+  // The rows of allSequencesWithTasks and allEpisodesWithTasks write a
+  // missing preview as '', which Zou refuses on save.
   const saveEntity = (entity, signal) =>
-    http.update('entities', idOf(entity), entity, { signal })
+    http.update(
+      'entities',
+      idOf(entity),
+      placeholdersToNull(entity, { preview_file_id: '' }),
+      { signal }
+    )
 
   // Only the given keys, which Zou merges into the stored metadata:
   // resending the others would revert concurrent changes, and fail for a
@@ -288,6 +296,8 @@ export const shotApi = http => {
 
     /**
      * Save the sequence. Its metadata are fully replaced by the given ones.
+     * A row of allSequencesWithTasks can be saved back as it is: its
+     * missing preview, written '', is sent as null.
      * @param {{id: string}} sequence
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated sequence.
@@ -372,6 +382,8 @@ export const shotApi = http => {
 
     /**
      * Save the episode. Its metadata are fully replaced by the given ones.
+     * A row of allEpisodesWithTasks can be saved back as it is: its missing
+     * preview, written '', is sent as null.
      * @param {{id: string}} episode
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated episode.

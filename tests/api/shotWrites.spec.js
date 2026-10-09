@@ -136,6 +136,55 @@ describe('shot namespace: writes', () => {
     expect(fake.calls[0].body).toEqual({ name: 'E02' })
   })
 
+  it('updateSequence saves back a row of allSequencesWithTasks', async () => {
+    // A missing preview reads as '' there: Zou answers 400 when it is sent
+    // back.
+    const row = {
+      id: SEQUENCE_ID,
+      name: 'SQ01',
+      status: 'running',
+      episode_id: 'None',
+      preview_file_id: '',
+      canceled: false,
+      data: {},
+      tasks: []
+    }
+    fake.reply(200, [row]).reply(200, { id: SEQUENCE_ID })
+    const [sequence] = await kitsu.shot.allSequencesWithTasks(PROJECT_ID)
+    await kitsu.shot.updateSequence(
+      Object.freeze({ ...sequence, description: 'Act 1' })
+    )
+    expect(fake.calls[1]).toMatchObject({
+      method: 'PUT',
+      path: `/data/entities/${SEQUENCE_ID}`
+    })
+    expect(fake.calls[1].body).toMatchObject({
+      description: 'Act 1',
+      preview_file_id: null
+    })
+  })
+
+  it('updateEpisode saves back a row of allEpisodesWithTasks', async () => {
+    fake
+      .reply(200, [{ id: EPISODE_ID, name: 'E01', preview_file_id: '' }])
+      .reply(200, { id: EPISODE_ID })
+    const [episode] = await kitsu.shot.allEpisodesWithTasks(PROJECT_ID)
+    await kitsu.shot.updateEpisode(
+      Object.freeze({ ...episode, description: 'Pilot' })
+    )
+    expect(fake.calls[1].body).toEqual({
+      name: 'E01',
+      preview_file_id: null,
+      description: 'Pilot'
+    })
+  })
+
+  it('updateShot keeps the id of a preview', async () => {
+    fake.reply(200, { id: SHOT_ID })
+    await kitsu.shot.updateShot({ id: SHOT_ID, preview_file_id: OTHER_ID })
+    expect(fake.calls[0].body).toEqual({ preview_file_id: OTHER_ID })
+  })
+
   it('updateShotData sends only the given keys, Zou merges them', async () => {
     const updated = { id: SHOT_ID, data: { fps: 24, lens: 50 } }
     fake.reply(200, updated)
