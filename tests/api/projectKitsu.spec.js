@@ -261,6 +261,20 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    // Zou stores it, then ignores it: a shot is never ready for a task type.
+    it('newStatusAutomation rejects a ready_for output on shots', async () => {
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          'ready_for',
+          OTHER_ID,
+          { entityType: 'shot' }
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('newStatusAutomation names its arguments to a 0.1.0 call', async () => {
       const err = await kitsu.project
         .newStatusAutomation({

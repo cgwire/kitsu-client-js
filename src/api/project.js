@@ -1054,7 +1054,7 @@ export const projectApi = http => ({
    *   importLastRevision?: boolean,
    *   signal?: AbortSignal
    * }} [options] entityType is asset (default) or shot. outTaskStatus is
-   *   required with status.
+   *   required with status, and ready_for only works on assets.
    * @returns {Promise<Entity>} The created status automation.
    */
   newStatusAutomation: async (
@@ -1080,9 +1080,9 @@ export const projectApi = http => ({
         'Wrong format: inTaskType, inTaskStatus, outFieldType and outTaskType are positional arguments'
       )
     }
-    // Zou would store both: an unknown output type breaks every later read
-    // of the automations, and a status one without its status fails every
-    // comment that triggers it.
+    // Zou would store all three: an unknown output type breaks every later
+    // read of the automations, a status one without its status fails every
+    // comment that triggers it, and a ready_for one only acts on assets.
     if (!OUT_FIELD_TYPES.includes(outFieldType)) {
       throw new ParameterError(
         `Wrong format: outFieldType must be one of ${OUT_FIELD_TYPES.join(', ')}`
@@ -1092,6 +1092,9 @@ export const projectApi = http => ({
       throw new ParameterError(
         'Missing parameter: outTaskStatus is required with status'
       )
+    }
+    if (outFieldType === 'ready_for' && entityType !== 'asset') {
+      throw new ParameterError('Wrong format: ready_for only works on assets')
     }
     return http.create(
       'status-automations',
