@@ -12,7 +12,8 @@ and VFX studios. It targets plugin and app authors: browsers, webviews
 - Same function names as gazu, in camelCase: `all*`, `get*`, `new*`,
   `update*`, `remove*`.
 - Typed: declarations are generated from the JSDoc of the sources.
-- ES modules only: CommonJS code can `require()` it from Node 22.12.
+- ES modules only: CommonJS code can `require()` it from Node 22.12, and
+  TypeScript 5.9 types it with `module` set to `node20` or `nodenext`.
 - No runtime dependency
 
 [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.com/invite/VbCxtKN)
