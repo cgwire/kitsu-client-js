@@ -129,10 +129,10 @@ const xhrUpload = ({
  *   Registers an attempt among the in-flight requests of the instance, so
  *   close() aborts it like any other request.
  * @param {boolean} deps.withCredentials Cookie mode: the XHR sends cookies.
- * @param {boolean} [deps.globalFetch] The client runs on the global fetch.
+ * @param {boolean} [deps.xhrUploads] Uploads with progress go through XHR.
  */
 export const createUpload =
-  ({ host, request, withAuthReplay, track, withCredentials, globalFetch }) =>
+  ({ host, request, withAuthReplay, track, withCredentials, xhrUploads }) =>
   /**
    * @param {string} path
    * @param {UploadOptions} options
@@ -143,10 +143,11 @@ export const createUpload =
     const { query, onProgress, signal } = options
     // XHR goes out through the network stack of the page, like the global
     // fetch. An injected fetch (the Tauri http plugin, which escapes CORS,
-    // or a wrapper adding headers) must not be bypassed: progress is lost.
+    // or a wrapper adding headers) is not bypassed unless xhrUploads says
+    // so: progress is lost.
     const useXhr =
       onProgress &&
-      globalFetch &&
+      xhrUploads &&
       typeof globalThis.XMLHttpRequest !== 'undefined'
     if (!useXhr) return request('POST', path, { body: form, query, signal })
     return withAuthReplay(headers => {

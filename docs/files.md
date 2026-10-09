@@ -31,8 +31,11 @@ const { comment, preview_file } = await kitsu.task.publishPreview(
 
 `onProgress` needs `XMLHttpRequest` (browsers and webviews): `fetch` cannot
 report upload progress. Without it, or on a client given its own `fetch`, the
-upload goes through `fetch` and `onProgress` is never called. In Node, write a
-download to disk yourself:
+upload goes through `fetch` and `onProgress` is never called. A client whose
+`fetch` only wraps the global one (logs, headers) gets the progress back with
+`createClient({ host, fetch, xhrUploads: true })`: its uploads then skip that
+`fetch`. `xhrUploads: false` sends every upload through `fetch`. In Node,
+write a download to disk yourself:
 
 ```js
 import { createWriteStream } from 'node:fs'

@@ -37,7 +37,7 @@ const isAuthFailure = err =>
   (err instanceof KitsuError && err.status >= 400 && err.status < 500)
 
 export const createHttp = (config, session) => {
-  const { host, fetch: fetchImpl, timeout, credentials, globalFetch } = config
+  const { host, fetch: fetchImpl, timeout, credentials, xhrUploads } = config
   const inflight = new Set()
 
   // One network attempt. options.raw returns the Response untouched;
@@ -250,7 +250,7 @@ export const createHttp = (config, session) => {
     withAuthReplay,
     track,
     withCredentials: credentials === 'same-origin',
-    globalFetch
+    xhrUploads
   })
 
   /**

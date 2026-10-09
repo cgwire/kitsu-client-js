@@ -269,6 +269,44 @@ describe('http.upload over XHR, instance wiring', () => {
     expect(onProgress).not.toHaveBeenCalled()
   })
 
+  // A fetch that only wraps the global one loses nothing to XHR.
+  it('skips an injected fetch for progress with xhrUploads', async () => {
+    const xhrs = installFakeXhr()
+    const fake = createFakeFetch()
+    const kitsu = createClient({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'token' },
+      xhrUploads: true
+    })
+    const onProgress = vi.fn()
+    const pending = kitsu.http.upload(PATH, { file: blob, onProgress })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].upload.onprogress({ loaded: 3, total: 6 })
+    xhrs[0].respond(201, { id: 'c1' })
+    expect(await pending).toEqual({ id: 'c1' })
+    expect(onProgress).toHaveBeenCalledWith({ loaded: 3, total: 6 })
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('never uploads over XHR with xhrUploads set to false', async () => {
+    const xhrs = installFakeXhr()
+    const fake = createFakeFetch().reply(201, { id: 'c1' })
+    vi.stubGlobal('fetch', fake)
+    const kitsu = createClient({
+      host: HOST,
+      tokens: { access_token: 'token' },
+      xhrUploads: false
+    })
+    const onProgress = vi.fn()
+    expect(await kitsu.http.upload(PATH, { file: blob, onProgress })).toEqual({
+      id: 'c1'
+    })
+    expect(fake.calls).toHaveLength(1)
+    expect(xhrs).toHaveLength(0)
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
   it('names extra files file-1, file-2 like gazu', async () => {
     const { kitsu, fake } = makeClient()
     fake.reply(201, {})
