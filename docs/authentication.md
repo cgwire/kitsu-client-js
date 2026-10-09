@@ -15,6 +15,13 @@ const shots = await kitsu.shot.allShotsForProject(projects[0])
 const tasks = await kitsu.task.allTasksForShot(shots[0])
 ```
 
+`kitsu.person.newBot` returns the token of the bot it creates in
+`access_token`. `kitsu.person.generateToken` issues a new one and revokes the
+previous one at once; `updateBot` and `updatePerson` never touch it. Only an
+admin can renew the token of a bot: when a bot without the admin role asks
+for its own, Zou issues none, `generateToken` rejects with a `KitsuError` and
+the current token keeps working.
+
 ## User credentials
 
 With user credentials, two-factor authentication included:

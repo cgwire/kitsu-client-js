@@ -1084,9 +1084,9 @@
     "kitsu": "generateToken",
     "method": "PUT",
     "route": "/data/persons/<id>",
-    "client": "person.updateBot",
-    "status": "excluded",
-    "note": "Duplicate of updatePerson: same route with the body { expiration_date }, which makes Zou issue a new bot token. Use person.updateBot."
+    "client": "person.generateToken",
+    "status": "added",
+    "note": "Same route as updatePerson with the body { expiration_date }: Zou issues a new token and revokes the previous one. person.updatePerson and person.updateBot never send expiration_date. An answer without token, which Kitsu takes as is, rejects with a KitsuError."
   },
   {
     "module": "people",
@@ -1104,7 +1104,7 @@
     "route": "/data/persons/<id>",
     "client": "person.updatePerson",
     "status": "existing",
-    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives."
+    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives, without expiration_date, which would revoke the token (see person.generateToken)."
   },
   {
     "module": "people",

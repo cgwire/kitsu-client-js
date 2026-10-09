@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ParameterError } from '../../src/core/errors.js'
+import { KitsuError, ParameterError } from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import { DEPARTMENT_ID, OTHER_ID, PERSON_ID } from '../helpers/ids.js'
+
+// Bodies are compared without their id: an update sends it in its path, and
+// whether the body repeats it is up to http.update.
+const withoutId = body =>
+  Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
 
 describe('person namespace', () => {
   let kitsu, fake
@@ -293,6 +298,29 @@ describe('person namespace', () => {
     expect(person.departments).toEqual([{ id: DEPARTMENT_ID }, OTHER_ID])
   })
 
+  // Zou issues a new token, and revokes the previous one, as soon as the body
+  // holds expiration_date, even null: every admin read holds it.
+  it('updatePerson leaves expiration_date out of the body', async () => {
+    fake.reply(200, { id: PERSON_ID })
+    const person = {
+      id: PERSON_ID,
+      first_name: 'John',
+      expiration_date: null,
+      departments: [{ id: DEPARTMENT_ID }]
+    }
+    await kitsu.person.updatePerson(person)
+    expect(withoutId(fake.calls[0].body)).toEqual({
+      first_name: 'John',
+      departments: [DEPARTMENT_ID]
+    })
+    expect(person).toEqual({
+      id: PERSON_ID,
+      first_name: 'John',
+      expiration_date: null,
+      departments: [{ id: DEPARTMENT_ID }]
+    })
+  })
+
   it('removePerson deletes the person, forcing on demand', async () => {
     fake.reply(204).reply(204)
     await kitsu.person.removePerson(PERSON_ID)
@@ -357,6 +385,77 @@ describe('person namespace', () => {
       path: `/data/persons/${PERSON_ID}`,
       body: { id: PERSON_ID, active: false, departments: [DEPARTMENT_ID] }
     })
+  })
+
+  it('updateBot keeps the token of a bot read back', async () => {
+    const bot = {
+      id: PERSON_ID,
+      first_name: 'Render farm',
+      is_bot: true,
+      expiration_date: '2027-01-31'
+    }
+    const edited = { ...bot, first_name: 'Render farm 2' }
+    fake.reply(200, bot)
+    await kitsu.person.updateBot(edited)
+    expect(withoutId(fake.calls[0].body)).toEqual({
+      first_name: 'Render farm 2',
+      is_bot: true
+    })
+    // Without a departments array, nothing copies the bot before
+    // expiration_date is left out: the object given must stay as it was.
+    expect(edited).toEqual({ ...bot, first_name: 'Render farm 2' })
+  })
+
+  it('generateToken asks for a new token, expiring or not', async () => {
+    fake
+      .reply(200, { id: PERSON_ID, access_token: 'new-token' })
+      .reply(200, { id: PERSON_ID, access_token: 'newer-token' })
+      .reply(200, { id: PERSON_ID, access_token: 'newest-token' })
+    expect(await kitsu.person.generateToken({ id: PERSON_ID })).toEqual({
+      id: PERSON_ID,
+      access_token: 'new-token'
+    })
+    await kitsu.person.generateToken(PERSON_ID, {
+      expirationDate: new Date(2027, 0, 31, 12)
+    })
+    await kitsu.person.generateToken(PERSON_ID, {
+      expirationDate: '2027-02-28'
+    })
+    expect(fake.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: `/data/persons/${PERSON_ID}`
+    })
+    expect(fake.calls[0].body).toEqual({ expiration_date: null })
+    expect(fake.calls[1].body).toEqual({ expiration_date: '2027-01-31' })
+    expect(fake.calls[2].body).toEqual({ expiration_date: '2027-02-28' })
+  })
+
+  // Zou answers 200 without any token, and changes nothing, when a bot
+  // without the admin role asks for its own, or when the date sent is the
+  // stored one and already past: the caller would take undefined for its
+  // new token.
+  it('generateToken rejects an answer without token', async () => {
+    const bot = { id: PERSON_ID, is_bot: true, expiration_date: null }
+    fake.reply(200, bot).reply(200, { ...bot, access_token: null })
+    const err = await kitsu.person.generateToken(bot).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: `data/persons/${PERSON_ID}`,
+      method: 'PUT',
+      body: bot
+    })
+    await expect(kitsu.person.generateToken(PERSON_ID)).rejects.toBeInstanceOf(
+      KitsuError
+    )
+  })
+
+  it('generateToken forwards the caller signal', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    fake.reply(200, { id: PERSON_ID, access_token: 'new-token' })
+    await kitsu.person.generateToken(PERSON_ID, { signal: controller.signal })
+    expect(fake.calls[0].signal.aborted).toBe(true)
   })
 
   it('removeBot deletes the bot like a person', async () => {
@@ -449,6 +548,9 @@ describe('person namespace', () => {
     await expect(
       kitsu.person.removePersonFromDepartment(PERSON_ID, 'rigging')
     ).rejects.toThrow(ParameterError)
+    await expect(kitsu.person.generateToken('bot')).rejects.toThrow(
+      ParameterError
+    )
     expect(fake.calls).toHaveLength(0)
   })
 

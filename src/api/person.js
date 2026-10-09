@@ -1,4 +1,4 @@
-import { ParameterError } from '../core/errors.js'
+import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
   dayOf,
@@ -110,6 +110,18 @@ const getPersonByEmail = (http, email, { isBot = false, signal } = {}) =>
     { signal }
   )
 
+// Zou issues a new token, and revokes the previous one, whenever the body of
+// a person update holds expiration_date, even null. Every admin read holds
+// it: only generateToken sends it.
+/**
+ * @param {Record<string, any>} person
+ * @returns {Record<string, any>} A copy without expiration_date.
+ */
+const withoutExpirationDate = person =>
+  Object.fromEntries(
+    Object.entries(person).filter(([key]) => key !== 'expiration_date')
+  )
+
 /**
  * @param {any} http
  * @param {Entity} person
@@ -119,9 +131,11 @@ const updatePerson = (http, person, { signal } = {}) =>
   http.update(
     'persons',
     idOf(person),
-    Array.isArray(person.departments)
-      ? { ...person, departments: idsOf(person.departments) }
-      : person,
+    withoutExpirationDate(
+      Array.isArray(person.departments)
+        ? { ...person, departments: idsOf(person.departments) }
+        : person
+    ),
     { signal }
   )
 
@@ -337,6 +351,9 @@ export const personApi = http => ({
     ),
 
   /**
+   * Save the person. Its expiration_date is left out: Zou takes it as a
+   * request for a new token, which revokes the previous one (see
+   * generateToken).
    * @param {Entity} person Its departments may be objects or ids.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated person.
@@ -389,11 +406,49 @@ export const personApi = http => ({
     ),
 
   /**
-   * @param {Entity} bot
+   * Save the bot. Its expiration_date is left out, so its token keeps
+   * working: generateToken changes the expiration date with a new token.
+   * @param {Entity} bot Its departments may be objects or ids.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated bot.
    */
   updateBot: async (bot, options) => updatePerson(http, bot, options),
+
+  /**
+   * Issue a new access token for the bot, or an API token for a human. Zou
+   * revokes the previous one at once: whatever still uses it gets a 401.
+   * An admin can issue a token for anybody, a human for themselves only. A
+   * bot without the admin role cannot renew its own token: Zou answers
+   * without any token and changes nothing, as it does when sent the stored
+   * expiration date once past. The call then rejects with a KitsuError
+   * carrying that answer, and the current token keeps working.
+   * @param {Model} person
+   * @param {{expirationDate?: Date|string|null, signal?: AbortSignal}}
+   *   [options] expirationDate is the last day the token works,
+   *   "YYYY-MM-DD", today or later. Without it the token never expires.
+   * @returns {Promise<Entity>} The person, with the new token in
+   *   access_token.
+   */
+  generateToken: async (person, { expirationDate = null, signal } = {}) => {
+    const id = idOf(person)
+    const body = await http.update(
+      'persons',
+      id,
+      { expiration_date: dateOf(expirationDate) },
+      { signal }
+    )
+    // Zou answers 200 when it issues no token: a caller that stores the
+    // token must not get undefined in its place.
+    if (typeof body?.access_token !== 'string' || !body.access_token) {
+      throw new KitsuError('Zou issued no access token', {
+        status: 200,
+        path: `data/persons/${id}`,
+        method: 'PUT',
+        body
+      })
+    }
+    return body
+  },
 
   /**
    * @param {Model} bot
