@@ -1608,7 +1608,7 @@
     "route": "/data/projects/<id>/playlists | /data/projects/<id>/episodes/<id>/playlists",
     "client": "playlist.allPlaylistsForProject",
     "status": "existing",
-    "note": "Episode branch is covered by playlist.allPlaylistsForEpisode. Query differs: Kitsu sends sort_by, page, task_type_id and for_entity; the client only sends page on the project route and nothing on the episode route (which also reads the episode first when given an id). Extend both with sortBy, page, taskType and forEntity options. Client sorts the result by name, which overrides the server sort_by."
+    "note": "Episode branch is covered by playlist.allPlaylistsForEpisode. Query differs: Kitsu sends sort_by, page, task_type_id and for_entity; the client only sends page (the episode route also reads the episode first when given an id). Extend both with sortBy, taskType and forEntity options. Client sorts the result by name, which overrides the server sort_by."
   },
   {
     "module": "playlists",
@@ -2958,7 +2958,7 @@
     "route": "/data/status-automations",
     "client": "project.newStatusAutomation",
     "status": "added",
-    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered. Kitsu posts with a trailing slash."
+    "note": "The client takes the input task type and status, the output field type and the output task type positionally, the other fields as options (entityType, outTaskStatus, importLastRevision). It rejects an output field type other than status and ready_for, and a status output without outTaskStatus: Zou stores both, then fails to read the first back and fails every comment that triggers the second. Kitsu's form allows neither. Kitsu posts with a trailing slash. Its in_field_type comes from a form value that is never set, so the key never reaches Zou, which has no such column and answers 400 to it: the client does not send it."
   },
   {
     "module": "statusautomation",

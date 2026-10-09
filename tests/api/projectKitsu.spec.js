@@ -154,22 +154,23 @@ describe('project namespace: Kitsu store coverage', () => {
 
     it('newStatusAutomation posts the automation in snake case', async () => {
       fake.reply(201, { id: STATUS_AUTOMATION_ID })
-      await kitsu.project.newStatusAutomation({
-        entityType: 'asset',
-        inTaskType: { id: TASK_TYPE_ID },
-        inTaskStatus: TASK_STATUS_ID,
-        outFieldType: 'status',
-        outTaskType: OTHER_ID,
-        outTaskStatus: { id: TASK_STATUS_ID },
-        importLastRevision: true
-      })
+      await kitsu.project.newStatusAutomation(
+        { id: TASK_TYPE_ID },
+        TASK_STATUS_ID,
+        'status',
+        OTHER_ID,
+        {
+          entityType: 'shot',
+          outTaskStatus: { id: TASK_STATUS_ID },
+          importLastRevision: true
+        }
+      )
       expect(fake.calls[0]).toMatchObject({
         method: 'POST',
         path: '/data/status-automations'
       })
       expect(fake.calls[0].body).toEqual({
-        entity_type: 'asset',
-        in_field_type: 'status',
+        entity_type: 'shot',
         in_task_type_id: TASK_TYPE_ID,
         in_task_status_id: TASK_STATUS_ID,
         out_field_type: 'status',
@@ -181,21 +182,111 @@ describe('project namespace: Kitsu store coverage', () => {
 
     it('newStatusAutomation leaves the unset output out of the body', async () => {
       fake.reply(201, { id: STATUS_AUTOMATION_ID })
-      await kitsu.project.newStatusAutomation({
-        inTaskType: TASK_TYPE_ID,
-        inTaskStatus: TASK_STATUS_ID,
-        outFieldType: 'ready_for',
-        outTaskType: OTHER_ID
-      })
+      await kitsu.project.newStatusAutomation(
+        TASK_TYPE_ID,
+        TASK_STATUS_ID,
+        'ready_for',
+        OTHER_ID
+      )
       expect(fake.calls[0].body).toEqual({
         entity_type: 'asset',
-        in_field_type: 'status',
         in_task_type_id: TASK_TYPE_ID,
         in_task_status_id: TASK_STATUS_ID,
         out_field_type: 'ready_for',
         out_task_type_id: OTHER_ID,
         import_last_revision: false
       })
+    })
+
+    it('newStatusAutomation rejects a missing input or output', async () => {
+      await expect(kitsu.project.newStatusAutomation()).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      // Zou would store an automation that nothing triggers.
+      await expect(
+        kitsu.project.newStatusAutomation(
+          undefined,
+          TASK_STATUS_ID,
+          'ready_for',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          undefined,
+          'ready_for',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          '',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          'ready_for'
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    it('newStatusAutomation rejects an unknown output type', async () => {
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          'ready-for',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    it('newStatusAutomation rejects a status output without its status', async () => {
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          'status',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    // Zou stores it, then ignores it: a shot is never ready for a task type.
+    it('newStatusAutomation rejects a ready_for output on shots', async () => {
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          TASK_STATUS_ID,
+          'ready_for',
+          OTHER_ID,
+          { entityType: 'shot' }
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    it('newStatusAutomation names its arguments to a 0.1.0 call', async () => {
+      const err = await kitsu.project
+        .newStatusAutomation({
+          inTaskType: TASK_TYPE_ID,
+          inTaskStatus: TASK_STATUS_ID,
+          outFieldType: 'ready_for',
+          outTaskType: OTHER_ID
+        })
+        .catch(e => e)
+      expect(err).toBeInstanceOf(ParameterError)
+      expect(err.message).toMatch(/positional arguments/)
+      expect(fake.calls).toHaveLength(0)
     })
 
     it('updateStatusAutomation saves the automation', async () => {

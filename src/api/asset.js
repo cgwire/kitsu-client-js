@@ -548,15 +548,31 @@ export const assetApi = http => {
       }),
 
     /**
-     * @param {{source_id?: string|null, episode_id?: string|null}} asset
+     * @param {Model|{
+     *   id: string,
+     *   source_id?: string|null,
+     *   episode_id?: string|null,
+     *   [field: string]: any
+     * }} asset An asset given as an id, or as an object without its source_id
+     *   or episode_id, is read first.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The episode of the asset, null when the
      *   asset belongs to the main pack.
      */
     getEpisodeFromAsset: async (asset, { signal } = {}) => {
-      // source_id is the episode link; listings serialize it as episode_id.
+      // source_id is the episode link; listings serialize it as episode_id,
+      // an empty string for a main pack asset (getAsset, allAssetsWithTasks).
       // parent_id is the asset hierarchy, not the episode.
-      const episodeId = optionalIdOf(asset.source_id || asset.episode_id)
+      const known =
+        typeof asset === 'object' &&
+        asset !== null &&
+        ('source_id' in asset || 'episode_id' in asset)
+      const source = known
+        ? asset
+        : await http.get(`data/assets/${idOf(asset)}`, {}, { signal })
+      const episodeId = optionalIdOf(
+        source.source_id || source.episode_id || null
+      )
       return episodeId === null
         ? Promise.resolve(null)
         : http.fetchOne('episodes', episodeId, { signal })

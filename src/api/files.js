@@ -48,6 +48,25 @@ import * as urls from '../utils/urls.js'
  * @property {AbortSignal} [signal]
  */
 
+/**
+ * @typedef {object} AnnotationFrame The drawing of a preview at one time.
+ * @property {number} time Position in seconds, 0 for a picture. Zou matches
+ *   it exactly: reuse the time stored on the preview, or snap a new one with
+ *   the roundToFrame(time, fps) helper, as Kitsu does.
+ * @property {number} [frame] Frame number, counted from 1. Zou stores it
+ *   without reading it, but Kitsu reads it back (before 1.0.39, to jump to
+ *   a drawing): send it when you add a drawing at a new time.
+ * @property {{objects: Record<string, any>[]}} drawing The Fabric.js objects
+ *   drawn at that time. Zou gives an id to an added object that has none.
+ */
+
+/**
+ * @typedef {object} AnnotationDeletion
+ * @property {number} time Position in seconds, as stored on the preview.
+ * @property {number} [frame]
+ * @property {string[]} objects Ids of the drawing objects to remove.
+ */
+
 // Same as gazu: spaces never reach the file system.
 const formatPath = (folder, name, sep) =>
   `${folder.replace(/ /g, '_')}${sep}${name.replace(/ /g, '_')}`
@@ -1122,11 +1141,17 @@ export const filesApi = http => {
       ),
 
     /**
+     * Change the annotations of a preview. Zou finds a frame by its exact
+     * time and a drawing object by its id: an addition never replaces an
+     * object, an update only replaces existing ones, and a frame left without
+     * objects is removed.
      * @param {Model} previewFile
-     * @param {{additions?: object[], updates?: object[], deletions?: string[],
-     *   signal?: AbortSignal}} [options] additions are the annotations to add,
-     *   updates carry the id of the annotation they change, deletions are
-     *   annotation ids.
+     * @param {{
+     *   additions?: AnnotationFrame[],
+     *   updates?: AnnotationFrame[],
+     *   deletions?: AnnotationDeletion[],
+     *   signal?: AbortSignal
+     * }} [options]
      * @returns {Promise<Entity>} The preview file with its new annotations.
      */
     updatePreviewAnnotations: async (
