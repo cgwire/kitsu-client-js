@@ -9,5 +9,5 @@
     "skipLibCheck": false,
     "noEmit": true
   },
-  "files": ["public.ts"]
+  "files": ["public.ts", "require.cts"]
 }
