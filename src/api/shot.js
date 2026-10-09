@@ -287,7 +287,8 @@ export const shotApi = http => {
     },
 
     /**
-     * Save the shot. Its metadata are fully replaced by the given ones.
+     * Save the shot. Zou merges the given metadata into the stored ones: a
+     * key left out keeps its value, a key set to null is stored as null.
      * @param {{id: string}} shot
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated shot.
@@ -295,8 +296,9 @@ export const shotApi = http => {
     updateShot: async (shot, { signal } = {}) => saveEntity(shot, signal),
 
     /**
-     * Save the sequence. Its metadata are fully replaced by the given ones.
-     * A row of allSequencesWithTasks can be saved back as it is: its
+     * Save the sequence. Zou merges the given metadata into the stored
+     * ones: a key left out keeps its value, a key set to null is stored as
+     * null. A row of allSequencesWithTasks can be saved back as it is: its
      * missing preview, written '', is sent as null.
      * @param {{id: string}} sequence
      * @param {RequestOptions} [options]
@@ -381,9 +383,10 @@ export const shotApi = http => {
     },
 
     /**
-     * Save the episode. Its metadata are fully replaced by the given ones.
-     * A row of allEpisodesWithTasks can be saved back as it is: its missing
-     * preview, written '', is sent as null.
+     * Save the episode. Zou merges the given metadata into the stored
+     * ones: a key left out keeps its value, a key set to null is stored as
+     * null. A row of allEpisodesWithTasks can be saved back as it is: its
+     * missing preview, written '', is sent as null.
      * @param {{id: string}} episode
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated episode.

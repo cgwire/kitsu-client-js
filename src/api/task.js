@@ -200,7 +200,10 @@ export const taskApi = http => {
     orNull(http.get(`data/tasks/${idOf(task)}/full`, {}, { signal }))
 
   /**
-   * Save the task. Its metadata are fully replaced by the given ones.
+   * Save the task. Zou 1.0.58 and later merge the given metadata into the
+   * stored ones: a key left out keeps its value, a key set to null is
+   * stored as null. An older Zou replaces them with the given ones. An
+   * empty or null data clears them all.
    * @param {{id: string, assignees?: Model[]|null, [field: string]: any}} task
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated task.

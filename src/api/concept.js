@@ -121,7 +121,8 @@ export const conceptApi = http => {
     },
 
     /**
-     * Save the concept. Its metadata are fully replaced by the given ones.
+     * Save the concept. Zou merges the given metadata into the stored ones:
+     * a key left out keeps its value, a key set to null is stored as null.
      * @param {{id: string}} concept
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated concept.
