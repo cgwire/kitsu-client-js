@@ -11,8 +11,7 @@ const mapping = JSON.parse(
 )
 const { kitsu } = makeClient()
 
-// "root.x" lives on the client itself, "http.x" on client.http, anything
-// else on its namespace.
+// "root.x" lives on the client itself, anything else on its namespace.
 const resolve = path => {
   const [namespace, name] = path.split('.')
   const owner = namespace === 'root' ? kitsu : kitsu[namespace] || {}
@@ -33,6 +32,13 @@ describe('Kitsu store/api mapping', () => {
   it('explains every exclusion', () => {
     const silent = mapping.filter(row => row.status === 'excluded' && !row.note)
     expect(silent.map(row => `${row.module}.${row.kitsu}`)).toEqual([])
+  })
+
+  it('points to public functions, never to the internal core.http', () => {
+    const internal = mapping
+      .filter(row => clientsOf(row).some(path => path.startsWith('http.')))
+      .map(row => `${row.module}.${row.kitsu}`)
+    expect(internal).toEqual([])
   })
 
   it('points to client functions that exist', () => {

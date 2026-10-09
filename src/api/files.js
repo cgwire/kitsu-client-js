@@ -1183,7 +1183,7 @@ export const filesApi = http => {
      * @param {Model} previewFile Loaded for its extension, like gazu.
      * @param {RequestOptions} [options]
      * @returns {Promise<string>} Path of the original file, relative to the
-     *   API host: pass it to http.download.
+     *   API host. downloadPreviewFile downloads that file.
      */
     getPreviewFileUrl: async (previewFile, { signal } = {}) =>
       urls.getPreviewFilePath(
