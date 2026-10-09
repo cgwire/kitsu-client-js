@@ -93,7 +93,7 @@ export const sceneApi = http => {
      * @returns {Promise<Entity>} The updated scene.
      */
     updateScene: async (scene, { signal } = {}) =>
-      http.put(`data/entities/${idOf(scene)}`, scene, { signal }),
+      http.update('entities', idOf(scene), scene, { signal }),
 
     /**
      * Instantiate an asset in the scene. Zou generates the instance number.

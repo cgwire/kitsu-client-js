@@ -157,7 +157,8 @@ describe('edit namespace', () => {
       method: 'PUT',
       path: `/data/entities/${EDIT_ID}`
     })
-    expect(fake.calls[0].body).toEqual(edit)
+    expect(fake.calls[0].body).toEqual({ name: 'Teaser' })
+    expect(edit).toEqual({ id: EDIT_ID, name: 'Teaser' })
   })
 
   it('updateEditData merges the new keys into the stored metadata', async () => {
@@ -174,17 +175,14 @@ describe('edit namespace', () => {
       method: 'PUT',
       path: `/data/entities/${EDIT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      id: EDIT_ID,
-      data: { fps: 24, lens: 50 }
-    })
+    expect(fake.calls[1].body).toEqual({ data: { fps: 24, lens: 50 } })
     expect(data).toEqual({ lens: 50 })
   })
 
   it('updateEditData starts from empty metadata when none is stored', async () => {
     fake.reply(200, { id: EDIT_ID, data: null }).reply(200, { id: EDIT_ID })
     await kitsu.edit.updateEditData(EDIT_ID, { fps: 25 })
-    expect(fake.calls[1].body).toEqual({ id: EDIT_ID, data: { fps: 25 } })
+    expect(fake.calls[1].body).toEqual({ data: { fps: 25 } })
   })
 
   it('updateEditData rejects when the edit does not exist', async () => {

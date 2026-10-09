@@ -141,7 +141,6 @@ describe('project namespace: metadata descriptors', () => {
       path: `/data/projects/${PROJECT_ID}/metadata-descriptors/${DESCRIPTOR_ID}`
     })
     expect(fake.calls[0].body).toEqual({
-      id: DESCRIPTOR_ID,
       name: 'Renamed',
       departments: [DEPARTMENT_ID]
     })
@@ -154,7 +153,7 @@ describe('project namespace: metadata descriptors', () => {
       { id: PROJECT_ID },
       { id: DESCRIPTOR_ID, name: 'Renamed' }
     )
-    expect(fake.calls[0].body).toEqual({ id: DESCRIPTOR_ID, name: 'Renamed' })
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
   })
 
   it('removeMetadataDescriptor deletes the descriptor, forcing on demand', async () => {

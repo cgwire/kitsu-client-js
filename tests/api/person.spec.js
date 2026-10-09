@@ -192,9 +192,9 @@ describe('person namespace', () => {
     expect(await kitsu.person.updateDepartment(department)).toEqual(department)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/departments/${DEPARTMENT_ID}`,
-      body: { id: DEPARTMENT_ID, name: 'Rig' }
+      path: `/data/departments/${DEPARTMENT_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Rig' })
   })
 
   it('removeDepartment deletes the department, forcing on demand', async () => {
@@ -283,11 +283,10 @@ describe('person namespace', () => {
       path: `/data/persons/${PERSON_ID}`
     })
     expect(fake.calls[0].body).toEqual({
-      id: PERSON_ID,
       phone: '0102',
       departments: [DEPARTMENT_ID, OTHER_ID]
     })
-    expect(fake.calls[1].body).toEqual({ id: PERSON_ID, role: 'admin' })
+    expect(fake.calls[1].body).toEqual({ role: 'admin' })
     expect(person.departments).toEqual([{ id: DEPARTMENT_ID }, OTHER_ID])
   })
 
@@ -352,8 +351,11 @@ describe('person namespace', () => {
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/persons/${PERSON_ID}`,
-      body: { id: PERSON_ID, active: false, departments: [DEPARTMENT_ID] }
+      path: `/data/persons/${PERSON_ID}`
+    })
+    expect(fake.calls[0].body).toEqual({
+      active: false,
+      departments: [DEPARTMENT_ID]
     })
   })
 

@@ -110,9 +110,10 @@ describe('shot namespace: writes', () => {
     expect(await kitsu.shot.updateShot(shot)).toEqual(shot)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/entities/${SHOT_ID}`,
-      body: { id: SHOT_ID, name: 'SH011' }
+      path: `/data/entities/${SHOT_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'SH011' })
+    expect(shot).toEqual({ id: SHOT_ID, name: 'SH011' })
   })
 
   it('updateSequence saves the sequence through the entity route', async () => {
@@ -120,9 +121,9 @@ describe('shot namespace: writes', () => {
     await kitsu.shot.updateSequence({ id: SEQUENCE_ID, name: 'SQ02' })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/entities/${SEQUENCE_ID}`,
-      body: { id: SEQUENCE_ID, name: 'SQ02' }
+      path: `/data/entities/${SEQUENCE_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'SQ02' })
   })
 
   it('updateEpisode saves the episode through the entity route', async () => {
@@ -130,9 +131,9 @@ describe('shot namespace: writes', () => {
     await kitsu.shot.updateEpisode({ id: EPISODE_ID, name: 'E02' })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/entities/${EPISODE_ID}`,
-      body: { id: EPISODE_ID, name: 'E02' }
+      path: `/data/entities/${EPISODE_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'E02' })
   })
 
   it('updateShotData merges the new keys into the stored metadata', async () => {
@@ -149,17 +150,14 @@ describe('shot namespace: writes', () => {
       method: 'PUT',
       path: `/data/entities/${SHOT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      id: SHOT_ID,
-      data: { fps: 24, lens: 50 }
-    })
+    expect(fake.calls[1].body).toEqual({ data: { fps: 24, lens: 50 } })
     expect(data).toEqual({ lens: 50 })
   })
 
   it('updateShotData copes with a shot without metadata', async () => {
     fake.reply(200, { id: SHOT_ID, data: null }).reply(200, { id: SHOT_ID })
     await kitsu.shot.updateShotData(SHOT_ID, { lens: 50 })
-    expect(fake.calls[1].body).toEqual({ id: SHOT_ID, data: { lens: 50 } })
+    expect(fake.calls[1].body).toEqual({ data: { lens: 50 } })
   })
 
   it('updateShotData rejects when the shot does not exist', async () => {
@@ -180,10 +178,7 @@ describe('shot namespace: writes', () => {
       method: 'PUT',
       path: `/data/entities/${SEQUENCE_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      id: SEQUENCE_ID,
-      data: { mood: 'dark', act: 2 }
-    })
+    expect(fake.calls[1].body).toEqual({ data: { mood: 'dark', act: 2 } })
   })
 
   it('updateEpisodeData merges the new keys into the stored metadata', async () => {
@@ -197,7 +192,6 @@ describe('shot namespace: writes', () => {
       path: `/data/entities/${EPISODE_ID}`
     })
     expect(fake.calls[1].body).toEqual({
-      id: EPISODE_ID,
       data: { air: '2026', director: 'Ann' }
     })
   })

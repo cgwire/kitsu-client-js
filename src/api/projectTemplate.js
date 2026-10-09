@@ -114,7 +114,9 @@ export const projectTemplateApi = http => {
      * @returns {Promise<Entity>} The updated project template.
      */
     updateProjectTemplate: async (projectTemplate, { signal } = {}) =>
-      http.put(templatePath(projectTemplate), projectTemplate, { signal }),
+      http.update('project-templates', idOf(projectTemplate), projectTemplate, {
+        signal
+      }),
 
     /**
      * @param {Model} projectTemplate

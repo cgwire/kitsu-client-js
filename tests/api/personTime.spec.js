@@ -287,7 +287,10 @@ describe('person namespace: day offs', () => {
       method: 'PUT',
       path: `/data/day-offs/${DAY_OFF_ID}`
     })
-    expect(fake.calls[0].body).toEqual(dayOff)
+    expect(fake.calls[0].body).toEqual({
+      end_date: '2026-04-15',
+      person_id: OTHER_ID
+    })
   })
 
   it('removeDayOff deletes the day off', async () => {

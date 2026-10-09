@@ -187,7 +187,8 @@ describe('asset namespace: assets', () => {
       method: 'PUT',
       path: `/data/entities/${ASSET_ID}`
     })
-    expect(fake.calls[0].body).toEqual({ id: ASSET_ID, name: 'Bunny' })
+    expect(fake.calls[0].body).toEqual({ name: 'Bunny' })
+    expect(asset).toEqual({ id: ASSET_ID, name: 'Bunny' })
   })
 
   it('updateAsset maps episode_id to source_id without mutating', async () => {
@@ -195,7 +196,6 @@ describe('asset namespace: assets', () => {
     const asset = { id: ASSET_ID, episode_id: EPISODE_ID }
     await kitsu.asset.updateAsset(asset)
     expect(fake.calls[0].body).toEqual({
-      id: ASSET_ID,
       episode_id: EPISODE_ID,
       source_id: EPISODE_ID
     })
@@ -217,17 +217,14 @@ describe('asset namespace: assets', () => {
       method: 'PUT',
       path: `/data/entities/${ASSET_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      id: ASSET_ID,
-      data: { fur: true, age: 3 }
-    })
+    expect(fake.calls[1].body).toEqual({ data: { fur: true, age: 3 } })
     expect(data).toEqual({ age: 3 })
   })
 
   it('updateAssetData copes with an asset that has no data yet', async () => {
     fake.reply(200, { id: ASSET_ID, data: null }).reply(200, { id: ASSET_ID })
     await kitsu.asset.updateAssetData(ASSET_ID, { age: 3 })
-    expect(fake.calls[1].body).toEqual({ id: ASSET_ID, data: { age: 3 } })
+    expect(fake.calls[1].body).toEqual({ data: { age: 3 } })
   })
 
   it('updateAssetData rejects with NotFoundError on a missing asset', async () => {

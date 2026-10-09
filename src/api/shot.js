@@ -63,7 +63,7 @@ export const shotApi = http => {
 
   // Shots, sequences and episodes are all saved through the entity route.
   const saveEntity = (entity, signal) =>
-    http.put(`data/entities/${idOf(entity)}`, entity, { signal })
+    http.update('entities', idOf(entity), entity, { signal })
 
   // The base read is a plain get, not fetchOne: a missing entity must raise
   // instead of being merged as empty metadata.

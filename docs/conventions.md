@@ -9,6 +9,10 @@
   ones go in one trailing options object, which also takes an `AbortSignal`:
   `kitsu.task.allTasksForShot(shot, { relations: true, signal })`.
 - **Returned values are the raw dicts of the API**, with snake_case keys.
+- **An update sends the id in the request path only**:
+  `kitsu.task.updateTask({ id, priority: 2 })` sends `{ priority: 2 }`. Zou
+  checks the keys of the body against what the role of the user may write,
+  and an `id` key would fail that check.
 - **`get*` of a single entity resolves to `null` when it does not exist.**
 - **Functions never throw synchronously**: a wrong argument is a rejected
   promise. They never mutate their arguments.

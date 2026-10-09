@@ -159,9 +159,9 @@ describe('files namespace: output types, softwares and file status', () => {
     expect(await kitsu.files.updateSoftware(software)).toEqual(software)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/softwares/${OTHER_ID}`,
-      body: { id: OTHER_ID, secondary_extensions: ['mb'] }
+      path: `/data/softwares/${OTHER_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ secondary_extensions: ['mb'] })
   })
 
   it('getFileStatus returns the status, null on 404', async () => {

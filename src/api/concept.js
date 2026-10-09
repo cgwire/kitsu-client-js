@@ -127,6 +127,6 @@ export const conceptApi = http => {
      * @returns {Promise<Entity>} The updated concept.
      */
     updateConcept: async (concept, { signal } = {}) =>
-      http.put(`data/entities/${idOf(concept)}`, concept, { signal })
+      http.update('entities', idOf(concept), concept, { signal })
   }
 }

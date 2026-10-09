@@ -161,6 +161,21 @@ describe('gazu helpers', () => {
     expect(fake.calls[2].query.get('force')).toBe('true')
   })
 
+  it('update sends the id in the path, not in the body', async () => {
+    const fake = createFakeFetch().reply(200, {}).reply(200, {})
+    const http = makeHttp(fake)
+    const task = Object.freeze({ id: TASK_ID, priority: 2 })
+    await http.update('tasks', TASK_ID, task)
+    await http.update('tasks', TASK_ID, { priority: 3 })
+    expect(fake.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: `/data/tasks/${TASK_ID}`
+    })
+    expect(fake.calls[0].body).toEqual({ priority: 2 })
+    expect(fake.calls[1].body).toEqual({ priority: 3 })
+    expect(task).toEqual({ id: TASK_ID, priority: 2 })
+  })
+
   it('does not swallow a 404 outside get helpers', async () => {
     const fake = createFakeFetch().reply(404, {})
     await expect(makeHttp(fake).get('data/tasks')).rejects.toBeInstanceOf(

@@ -28,7 +28,7 @@ export const editApi = http => {
 
   // Edits are saved through the entity route.
   const saveEdit = (edit, signal) =>
-    http.put(`data/entities/${idOf(edit)}`, edit, { signal })
+    http.update('entities', idOf(edit), edit, { signal })
 
   // Kitsu pseudo-episodes are not ids: 'main' keeps the edits out of any
   // episode, 'all' does not filter, so it is dropped as Kitsu does.
