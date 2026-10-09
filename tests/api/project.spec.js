@@ -196,7 +196,7 @@ describe('project namespace: projects', () => {
     expect(fake.calls[0].body).toEqual({ fps: '25' })
   })
 
-  it('updateProjectData merges the metadata on the server copy', async () => {
+  it('updateProjectData merges the metadata and sends them alone', async () => {
     fake
       .reply(200, {
         id: PROJECT_ID,
@@ -218,8 +218,6 @@ describe('project namespace: projects', () => {
       path: `/data/projects/${PROJECT_ID}`
     })
     expect(fake.calls[1].body).toEqual({
-      name: 'Sprite',
-      team: [PERSON_ID],
       data: { lut: 'rec709', ratio: '16:9' }
     })
     expect(data).toEqual({ lut: 'rec709' })
@@ -228,7 +226,7 @@ describe('project namespace: projects', () => {
   it('updateProjectData starts from an empty object when data is null', async () => {
     fake.reply(200, { id: PROJECT_ID, data: null }).reply(200, {})
     await kitsu.project.updateProjectData(PROJECT_ID, { lut: 'aces' })
-    expect(fake.calls[1].body.data).toEqual({ lut: 'aces' })
+    expect(fake.calls[1].body).toEqual({ data: { lut: 'aces' } })
   })
 
   it('updateProjectData rejects when the project does not exist', async () => {
