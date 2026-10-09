@@ -2,6 +2,23 @@
   "name": "@cgwire/kitsu-client",
   "version": "0.1.0",
   "description": "JavaScript client for the Kitsu API",
+  "keywords": [
+    "animation",
+    "vfx",
+    "kitsu",
+    "zou",
+    "client"
+  ],
+  "author": "CGWire",
+  "homepage": "https://github.com/cgwire/kitsu-client-js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cgwire/kitsu-client-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cgwire/kitsu-client-js/issues"
+  },
+  "license": "LGPL-3.0-only",
   "type": "module",
   "sideEffects": false,
   "main": "./src/index.js",
@@ -29,25 +46,22 @@
     "src",
     "types"
   ],
-  "engines": {
-    "node": ">=22.12.0"
-  },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:live": "node scripts/live-smoke.js",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "types": "node scripts/clean-types.js && tsc -p tsconfig.json",
     "check": "npm run lint && npm run types && npm test",
     "sync-routes": "node scripts/sync-routes.js",
-    "prepublishOnly": "npm run check",
-    "prepack": "npm run types",
     "prepare": "husky",
-    "test:coverage": "vitest run --coverage"
+    "prepublishOnly": "npm run check",
+    "prepack": "npm run types"
   },
   "peerDependencies": {
     "socket.io-client": "^4.0.0"
@@ -57,27 +71,6 @@
       "optional": true
     }
   },
-  "lint-staged": {
-    "*.{js,json,md}": "prettier --write",
-    "*.js": "eslint --fix"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/cgwire/kitsu-client-js.git"
-  },
-  "keywords": [
-    "animation",
-    "vfx",
-    "kitsu",
-    "zou",
-    "client"
-  ],
-  "author": "CGWire",
-  "license": "LGPL-3.0-only",
-  "bugs": {
-    "url": "https://github.com/cgwire/kitsu-client-js/issues"
-  },
-  "homepage": "https://github.com/cgwire/kitsu-client-js#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^5.0.3",
@@ -92,5 +85,12 @@
   },
   "allowScripts": {
     "fsevents": false
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "lint-staged": {
+    "*.{js,json,md}": "prettier --write",
+    "*.js": "eslint --fix"
   }
 }
