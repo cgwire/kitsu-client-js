@@ -391,9 +391,9 @@
     "kitsu": "getModel",
     "method": "GET",
     "route": "/data/<model>/<id>",
-    "client": "http.fetchOne",
-    "status": "existing",
-    "note": "Generic CRUD read. The client returns null on a 404 and sends no query: the Kitsu relations=true flag is not supported by fetchOne (use http.get with a query for it)."
+    "client": "",
+    "status": "excluded",
+    "note": "Generic CRUD read of any model. The client has a get* function per model instead: core.http, which could send this route, is internal."
   },
   {
     "module": "client",
@@ -1048,9 +1048,9 @@
     "kitsu": "getPerson",
     "method": "GET",
     "route": "/data/persons/<id>",
-    "client": "http.fetchOne",
+    "client": "person.getPerson",
     "status": "existing",
-    "note": "http.fetchOne('persons', id) sends this exact route. person.getPerson reads the same person through GET /data/persons?id=<id> and returns null on a 404."
+    "note": "Reads the same person through GET /data/persons?id=<id>, with an optional relations flag, and returns null when the person does not exist."
   },
   {
     "module": "people",

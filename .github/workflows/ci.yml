@@ -72,3 +72,5 @@ jobs:
           npm ci
       - name: Check types and build declarations
         run: npm run types
+      - name: Check the declarations as a consumer
+        run: npm run test:types

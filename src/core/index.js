@@ -103,4 +103,19 @@ export const createCore = options => {
   }
 }
 
-export * from './errors.js'
+export {
+  KitsuError,
+  ParameterError,
+  NotAuthenticatedError,
+  NotAllowedError,
+  NotFoundError,
+  TooBigFileError,
+  ServerError,
+  NetworkError,
+  TimeoutError,
+  AuthFailedError,
+  WrongOtpError,
+  TooManyLoginAttemptsError,
+  DefaultPasswordError,
+  MissingOtpError
+} from './errors.js'

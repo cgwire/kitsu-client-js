@@ -1,7 +1,8 @@
 # Development
 
 ```bash
-npm run check          # eslint, prettier, type declarations, tests
+npm run check          # eslint, prettier, type declarations, type and unit tests
+npm run test:types     # compile tests/consumer against the built declarations
 npm run test:coverage  # tests with the coverage report
 npm run sync-routes    # regenerate tests/fixtures/zou_routes.json from ../zou
 npm run test:live      # read-only smoke test: KITSU_HOST and KITSU_TOKEN
