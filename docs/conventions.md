@@ -15,6 +15,8 @@
 - **Public types come from the root entry**: `ClientOptions`, `Tokens`,
   `KitsuClient`, `ErrorInfo`, `Entity` and `Model`. Other type names in the
   declarations of a subpath are internal and may change in any release.
+- **`kitsu.http` is internal**, like `core.http`: it only feeds the namespace
+  factories, and its methods may change in any release.
 
 ## Errors
 
