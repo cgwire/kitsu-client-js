@@ -159,15 +159,27 @@ describe('task namespace: comments, previews and time spent', () => {
     })
   })
 
-  it('updateComment saves the whole comment', async () => {
+  it('updateComment saves the fields of the comment', async () => {
     const comment = { id: COMMENT_ID, text: 'Edited' }
     fake.reply(200, comment)
     expect(await kitsu.task.updateComment(comment)).toEqual(comment)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/comments/${COMMENT_ID}`,
-      body: comment
+      path: `/data/comments/${COMMENT_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ text: 'Edited' })
+    expect(comment).toEqual({ id: COMMENT_ID, text: 'Edited' })
+  })
+
+  it('updateComment sends a pin or a checklist without the id', async () => {
+    // Zou refuses any other key, the id included, from anyone but the
+    // author of the comment.
+    fake.reply(200, {}).reply(200, {})
+    const checklist = [{ text: 'Fix the hands', checked: true }]
+    await kitsu.task.updateComment({ id: COMMENT_ID, pinned: true })
+    await kitsu.task.updateComment({ id: COMMENT_ID, checklist })
+    expect(fake.calls[0].body).toEqual({ pinned: true })
+    expect(fake.calls[1].body).toEqual({ checklist })
   })
 
   it('allCommentsForTask lists the comments of a task', async () => {

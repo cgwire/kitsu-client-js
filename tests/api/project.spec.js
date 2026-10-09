@@ -181,7 +181,6 @@ describe('project namespace: projects', () => {
       path: `/data/projects/${PROJECT_ID}`
     })
     expect(fake.calls[0].body).toEqual({
-      id: PROJECT_ID,
       name: 'Renamed',
       team: [PERSON_ID],
       asset_types: [ASSET_ID],
@@ -194,10 +193,10 @@ describe('project namespace: projects', () => {
   it('updateProject leaves out the links the project does not carry', async () => {
     fake.reply(200, { id: PROJECT_ID })
     await kitsu.project.updateProject({ id: PROJECT_ID, fps: '25' })
-    expect(fake.calls[0].body).toEqual({ id: PROJECT_ID, fps: '25' })
+    expect(fake.calls[0].body).toEqual({ fps: '25' })
   })
 
-  it('updateProjectData merges the metadata on the server copy', async () => {
+  it('updateProjectData merges the metadata and sends them alone', async () => {
     fake
       .reply(200, {
         id: PROJECT_ID,
@@ -219,9 +218,6 @@ describe('project namespace: projects', () => {
       path: `/data/projects/${PROJECT_ID}`
     })
     expect(fake.calls[1].body).toEqual({
-      id: PROJECT_ID,
-      name: 'Sprite',
-      team: [PERSON_ID],
       data: { lut: 'rec709', ratio: '16:9' }
     })
     expect(data).toEqual({ lut: 'rec709' })
@@ -230,7 +226,7 @@ describe('project namespace: projects', () => {
   it('updateProjectData starts from an empty object when data is null', async () => {
     fake.reply(200, { id: PROJECT_ID, data: null }).reply(200, {})
     await kitsu.project.updateProjectData(PROJECT_ID, { lut: 'aces' })
-    expect(fake.calls[1].body.data).toEqual({ lut: 'aces' })
+    expect(fake.calls[1].body).toEqual({ data: { lut: 'aces' } })
   })
 
   it('updateProjectData rejects when the project does not exist', async () => {
@@ -259,7 +255,6 @@ describe('project namespace: projects', () => {
       path: `/data/projects/${PROJECT_ID}`
     })
     expect(fake.calls[1].body).toEqual({
-      id: PROJECT_ID,
       name: 'Sprite',
       project_status_id: STATUS_ID
     })
@@ -269,10 +264,7 @@ describe('project namespace: projects', () => {
   it('closeProject accepts an id', async () => {
     fake.reply(200, [{ id: STATUS_ID, name: 'closed' }]).reply(200, {})
     await kitsu.project.closeProject(PROJECT_ID)
-    expect(fake.calls[1].body).toEqual({
-      id: PROJECT_ID,
-      project_status_id: STATUS_ID
-    })
+    expect(fake.calls[1].body).toEqual({ project_status_id: STATUS_ID })
   })
 
   it('closeProject rejects when no closed status exists', async () => {

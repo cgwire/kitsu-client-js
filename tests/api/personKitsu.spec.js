@@ -29,9 +29,9 @@ describe('person namespace, Kitsu store coverage', () => {
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/organisations/${OTHER_ID}`,
-      body: organisation
+      path: `/data/organisations/${OTHER_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Studio', hours_by_day: 7 })
   })
 
   it('generateResetPasswordLink posts without a body', async () => {

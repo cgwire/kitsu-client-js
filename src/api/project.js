@@ -189,9 +189,13 @@ export const projectApi = http => ({
       {},
       { signal }
     )
-    return saveProject(
-      http,
-      { ...current, data: { ...current.data, ...data } },
+    // Zou replaces the metadata of a project instead of merging them: the
+    // merge is done here, and only the metadata go back, so the other fields
+    // and links keep any change made since the read.
+    return http.update(
+      'projects',
+      idOf(project),
+      { data: { ...current.data, ...data } },
       { signal }
     )
   },

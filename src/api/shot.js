@@ -1,6 +1,7 @@
 import {
   idOf,
   optionalIdOf,
+  placeholdersToNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -62,22 +63,22 @@ export const shotApi = http => {
     )
 
   // Shots, sequences and episodes are all saved through the entity route.
+  // The rows of allSequencesWithTasks and allEpisodesWithTasks write a
+  // missing preview as '', which Zou refuses on save.
   const saveEntity = (entity, signal) =>
-    http.put(`data/entities/${idOf(entity)}`, entity, { signal })
-
-  // The base read is a plain get, not fetchOne: a missing entity must raise
-  // instead of being merged as empty metadata.
-  const mergeEntityData = async (model, entity, data, signal) => {
-    const current = await http.get(
-      `data/${model}/${idOf(entity)}`,
-      {},
+    http.update(
+      'entities',
+      idOf(entity),
+      placeholdersToNull(entity, { preview_file_id: '' }),
       { signal }
     )
-    return saveEntity(
-      { id: current.id, data: { ...(current.data || {}), ...data } },
-      signal
-    )
-  }
+
+  // Only the given keys, which Zou merges into the stored metadata:
+  // resending the others would revert concurrent changes and, on a shot,
+  // fail for a supervisor with departments (Zou refuses that supervisor on
+  // sequences and episodes whatever the keys).
+  const saveEntityData = (entity, data, signal) =>
+    http.update('entities', idOf(entity), { data: { ...data } }, { signal })
 
   const removeWithForce = (model, entity, force, signal) =>
     http.remove(model, idOf(entity), { force: force ? true : null }, { signal })
@@ -287,16 +288,20 @@ export const shotApi = http => {
     },
 
     /**
-     * Save the shot. Its metadata are fully replaced by the given ones.
-     * @param {{id: string}} shot
+     * Save the shot. Zou merges the given metadata into the stored ones: a
+     * key left out keeps its value, a key set to null is stored as null.
+     * @param {Entity} shot
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated shot.
      */
     updateShot: async (shot, { signal } = {}) => saveEntity(shot, signal),
 
     /**
-     * Save the sequence. Its metadata are fully replaced by the given ones.
-     * @param {{id: string}} sequence
+     * Save the sequence. Zou merges the given metadata into the stored
+     * ones: a key left out keeps its value, a key set to null is stored as
+     * null. A row of allSequencesWithTasks can be saved back as it is: its
+     * missing preview, written '', is sent as null.
+     * @param {Entity} sequence
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated sequence.
      */
@@ -328,7 +333,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated shot.
      */
     updateShotData: async (shot, data = {}, { signal } = {}) =>
-      mergeEntityData('shots', shot, data, signal),
+      saveEntityData(shot, data, signal),
 
     /**
      * Update the sequence metadata. Keys that are not given are left
@@ -339,7 +344,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated sequence.
      */
     updateSequenceData: async (sequence, data = {}, { signal } = {}) =>
-      mergeEntityData('sequences', sequence, data, signal),
+      saveEntityData(sequence, data, signal),
 
     /**
      * A shot with tasks is only marked as canceled, unless forced.
@@ -379,8 +384,11 @@ export const shotApi = http => {
     },
 
     /**
-     * Save the episode. Its metadata are fully replaced by the given ones.
-     * @param {{id: string}} episode
+     * Save the episode. Zou merges the given metadata into the stored
+     * ones: a key left out keeps its value, a key set to null is stored as
+     * null. A row of allEpisodesWithTasks can be saved back as it is: its
+     * missing preview, written '', is sent as null.
+     * @param {Entity} episode
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated episode.
      */
@@ -396,7 +404,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated episode.
      */
     updateEpisodeData: async (episode, data = {}, { signal } = {}) =>
-      mergeEntityData('episodes', episode, data, signal),
+      saveEntityData(episode, data, signal),
 
     /**
      * Without force, the deletion fails when records are linked to the

@@ -87,13 +87,14 @@ export const sceneApi = http => {
       ),
 
     /**
-     * Save the scene. Its metadata are fully replaced by the given ones.
-     * @param {{id: string}} scene
+     * Save the scene. Zou merges the given metadata into the stored ones: a
+     * key left out keeps its value, a key set to null is stored as null.
+     * @param {Entity} scene
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated scene.
      */
     updateScene: async (scene, { signal } = {}) =>
-      http.put(`data/entities/${idOf(scene)}`, scene, { signal }),
+      http.update('entities', idOf(scene), scene, { signal }),
 
     /**
      * Instantiate an asset in the scene. Zou generates the instance number.

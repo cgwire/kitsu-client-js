@@ -62,9 +62,9 @@ describe('studio namespace', () => {
     expect(await kitsu.studio.updateStudio(studio)).toEqual(studio)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/studios/${STUDIO_ID}`,
-      body: studio
+      path: `/data/studios/${STUDIO_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Angers', color: '#ff0000' })
   })
 
   it('removeStudio deletes the studio, forcing on demand', async () => {

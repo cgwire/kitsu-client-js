@@ -163,8 +163,9 @@ describe('concept namespace', () => {
     expect(await kitsu.concept.updateConcept(concept)).toEqual(concept)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/entities/${CONCEPT_ID}`,
-      body: { id: CONCEPT_ID, name: 'Keep' }
+      path: `/data/entities/${CONCEPT_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Keep' })
+    expect(concept).toEqual({ id: CONCEPT_ID, name: 'Keep' })
   })
 })

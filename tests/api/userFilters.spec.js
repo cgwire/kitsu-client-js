@@ -66,9 +66,9 @@ describe('user namespace: filters', () => {
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/user/filters/${FILTER_ID}`,
-      body: { id: FILTER_ID, name: 'Retakes' }
+      path: `/data/user/filters/${FILTER_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Retakes' })
   })
 
   it('allFilterGroups lists the filter groups of the current user', async () => {
@@ -118,9 +118,9 @@ describe('user namespace: filters', () => {
     ).toMatchObject({ name: 'Layout' })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/user/filter-groups/${FILTER_GROUP_ID}`,
-      body: { id: FILTER_GROUP_ID, name: 'Layout' }
+      path: `/data/user/filter-groups/${FILTER_GROUP_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ name: 'Layout' })
   })
 
   it('removeFilterGroup deletes the group from an id or an object', async () => {

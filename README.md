@@ -24,6 +24,8 @@ npm i @cgwire/kitsu-client
 npm i socket.io-client
 ```
 
+It needs Zou 1.0.58 or later, the API server of Kitsu.
+
 ## Quick start
 
 With a bot token, the recommended mode for integrations:

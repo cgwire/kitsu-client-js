@@ -105,7 +105,8 @@ describe('task namespace: task types and task statuses', () => {
     const entry = { id, name: 'Renamed' }
     fake.reply(200, entry)
     expect(await kitsu.task[name](entry)).toEqual(entry)
-    expect(fake.calls[0]).toMatchObject({ method: 'PUT', path, body: entry })
+    expect(fake.calls[0]).toMatchObject({ method: 'PUT', path })
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
   })
 
   it('newTaskType returns the existing type with the same name', async () => {

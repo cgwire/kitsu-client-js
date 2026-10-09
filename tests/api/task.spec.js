@@ -418,40 +418,59 @@ describe('task namespace: tasks, types and statuses', () => {
     await kitsu.task.updateTask({ id: TASK_ID, priority: 2 })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/tasks/${TASK_ID}`,
-      body: { id: TASK_ID, assignees: [PERSON_ID, OTHER_ID] }
+      path: `/data/tasks/${TASK_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ id: TASK_ID, priority: 2 })
-    expect(task.assignees).toEqual([{ id: PERSON_ID }, OTHER_ID])
+    expect(fake.calls[0].body).toEqual({ assignees: [PERSON_ID, OTHER_ID] })
+    expect(fake.calls[1].body).toEqual({ priority: 2 })
+    expect(task).toEqual({
+      id: TASK_ID,
+      assignees: [{ id: PERSON_ID }, OTHER_ID]
+    })
+  })
+
+  it('updateTask sends only the fields a supervisor may write', async () => {
+    // Zou checks the body keys of a supervisor before it drops the id.
+    fake.reply(200, { id: TASK_ID })
+    await kitsu.task.updateTask({
+      id: TASK_ID,
+      estimation: 3,
+      due_date: '2026-11-02'
+    })
+    expect(fake.calls[0].body).toEqual({
+      estimation: 3,
+      due_date: '2026-11-02'
+    })
   })
 
   it('updateTask sends no assignee for null assignees', async () => {
     fake.reply(200, { id: TASK_ID })
     await kitsu.task.updateTask({ id: TASK_ID, assignees: null })
-    expect(fake.calls[0].body).toEqual({ id: TASK_ID, assignees: [] })
+    expect(fake.calls[0].body).toEqual({ assignees: [] })
   })
 
-  it('updateTaskData merges the data over the stored ones', async () => {
-    fake
-      .reply(200, { id: TASK_ID, name: 'main', data: { a: 1, b: 2 } })
-      .reply(200, { id: TASK_ID })
+  it('updateTaskData sends only the given keys, Zou merges them', async () => {
+    fake.reply(200, { id: TASK_ID, data: { a: 1, b: 3 } })
     const data = { b: 3 }
     expect(await kitsu.task.updateTaskData({ id: TASK_ID }, data)).toEqual({
-      id: TASK_ID
+      id: TASK_ID,
+      data: { a: 1, b: 3 }
     })
-    expect(fake.calls[0].path).toBe(`/data/tasks/${TASK_ID}/full`)
-    expect(fake.calls[1]).toMatchObject({
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/tasks/${TASK_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ id: TASK_ID, data: { a: 1, b: 3 } })
+    expect(fake.calls[0].body).toEqual({ data: { b: 3 } })
     expect(data).toEqual({ b: 3 })
   })
 
-  it('updateTaskData copes with a task without data', async () => {
-    fake.reply(200, { id: TASK_ID, data: null }).reply(200, { id: TASK_ID })
-    await kitsu.task.updateTaskData(TASK_ID, { a: 1 })
-    expect(fake.calls[1].body).toEqual({ id: TASK_ID, data: { a: 1 } })
+  it('updateTaskData sends no data without a key to set', async () => {
+    // Zou would take an empty data as the new metadata, wiping the stored one.
+    fake.reply(200, {}).reply(200, {}).reply(200, {})
+    await kitsu.task.updateTaskData(TASK_ID)
+    await kitsu.task.updateTaskData(TASK_ID, null)
+    await kitsu.task.updateTaskData(TASK_ID, { a: undefined })
+    expect(fake.calls.map(call => call.body)).toEqual([{}, {}, {}])
   })
 
   it('assignTask assigns one task to a person', async () => {

@@ -22,13 +22,13 @@ export const editApi = http => {
     )
 
   // A plain get, not fetchOne: a missing edit must raise instead of giving
-  // a broken URL or being merged as empty metadata.
+  // a broken URL.
   const readEdit = (edit, signal) =>
     http.get(`data/edits/${idOf(edit)}`, {}, { signal })
 
   // Edits are saved through the entity route.
   const saveEdit = (edit, signal) =>
-    http.put(`data/entities/${idOf(edit)}`, edit, { signal })
+    http.update('entities', idOf(edit), edit, { signal })
 
   // Kitsu pseudo-episodes are not ids: 'main' keeps the edits out of any
   // episode, 'all' does not filter, so it is dropped as Kitsu does.
@@ -181,8 +181,9 @@ export const editApi = http => {
       ),
 
     /**
-     * Save the edit. Its metadata are fully replaced by the given ones.
-     * @param {{id: string}} edit
+     * Save the edit. Zou merges the given metadata into the stored ones: a
+     * key left out keeps its value, a key set to null is stored as null.
+     * @param {Entity} edit
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated edit.
      */
@@ -195,12 +196,8 @@ export const editApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated edit.
      */
-    updateEditData: async (edit, data = {}, { signal } = {}) => {
-      const current = await readEdit(edit, signal)
-      return saveEdit(
-        { id: current.id, data: { ...(current.data || {}), ...data } },
-        signal
-      )
-    }
+    updateEditData: async (edit, data = {}, { signal } = {}) =>
+      // Only the given keys: Zou merges them into the stored metadata.
+      http.update('entities', idOf(edit), { data: { ...data } }, { signal })
   }
 }

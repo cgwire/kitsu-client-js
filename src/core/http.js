@@ -22,6 +22,15 @@ const encodeBody = body => {
   }
 }
 
+// The id of an update is in its path. Zou drops it from the body too, but
+// only after comparing the body keys with what the role of the user may
+// write (a supervisor on a task or an entity, anyone but its author on a
+// comment): an id there turns an allowed write into a 403.
+const withoutId = body =>
+  body && typeof body === 'object' && 'id' in body
+    ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
+    : body
+
 // A JSON body can be a string too, hence the explicit flag.
 const readBody = async response => {
   const type = response.headers.get('Content-Type') || ''
@@ -284,7 +293,7 @@ export const createHttp = (config, session) => {
       orNull(get(`data/${model}/${id}`, {}, options)),
     create: (model, data, options) => post(`data/${model}`, data, options),
     update: (model, id, data, options) =>
-      put(`data/${model}/${id}`, data, options),
+      put(`data/${model}/${id}`, withoutId(data), options),
     remove: (model, id, query, options) =>
       request('DELETE', `data/${model}/${id}`, { ...options, query }),
     abortAll: () => inflight.forEach(controller => controller.abort())
