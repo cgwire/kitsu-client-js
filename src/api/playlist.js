@@ -111,11 +111,11 @@ export const playlistApi = http => {
     /**
      * @param {Model} episode An episode given as an id, or as an object
      *   without its project_id, is read first.
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The playlists of the episode, sorted by
-     *   name.
+     * @param {{page?: number, signal?: AbortSignal}} [options]
+     * @returns {Promise<Entity[]>} One page of the playlists of the episode,
+     *   sorted by name.
      */
-    allPlaylistsForEpisode: async (episode, { signal } = {}) => {
+    allPlaylistsForEpisode: async (episode, { page = 1, signal } = {}) => {
       const episodeId = idOf(episode)
       const known = typeof episode === 'object' && 'project_id' in episode
       const source = known
@@ -124,7 +124,7 @@ export const playlistApi = http => {
       return http
         .fetchAll(
           `projects/${idOf(source.project_id)}/episodes/${episodeId}/playlists`,
-          {},
+          { page },
           { signal }
         )
         .then(sortedByName)

@@ -1608,7 +1608,7 @@
     "route": "/data/projects/<id>/playlists | /data/projects/<id>/episodes/<id>/playlists",
     "client": "playlist.allPlaylistsForProject",
     "status": "existing",
-    "note": "Episode branch is covered by playlist.allPlaylistsForEpisode. Query differs: Kitsu sends sort_by, page, task_type_id and for_entity; the client only sends page on the project route and nothing on the episode route (which also reads the episode first when given an id). Extend both with sortBy, page, taskType and forEntity options. Client sorts the result by name, which overrides the server sort_by."
+    "note": "Episode branch is covered by playlist.allPlaylistsForEpisode. Query differs: Kitsu sends sort_by, page, task_type_id and for_entity; the client only sends page (the episode route also reads the episode first when given an id). Extend both with sortBy, taskType and forEntity options. Client sorts the result by name, which overrides the server sort_by."
   },
   {
     "module": "playlists",
