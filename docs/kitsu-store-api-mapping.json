@@ -573,7 +573,7 @@
     "route": "/data/departments/<id>",
     "client": "person.removeDepartment",
     "status": "existing",
-    "note": "Client adds an optional force query flag; Kitsu sends none."
+    "note": ""
   },
   {
     "module": "departments",

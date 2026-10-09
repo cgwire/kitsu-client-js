@@ -274,17 +274,16 @@ export const personApi = http => ({
     http.update('departments', idOf(department), department, { signal }),
 
   /**
+   * Zou refuses (400) to delete a department still in use, for instance by
+   * its members (see removePersonFromDepartment) or by a task type.
+   *
+   * gazu's force is not ported: Zou never reads it on this route.
    * @param {Model} department
-   * @param {{force?: boolean, signal?: AbortSignal}} [options]
+   * @param {RequestOptions} [options]
    * @returns {Promise<null>}
    */
-  removeDepartment: async (department, { force = false, signal } = {}) =>
-    http.remove(
-      'departments',
-      idOf(department),
-      { force: force ? true : null },
-      { signal }
-    ),
+  removeDepartment: async (department, { signal } = {}) =>
+    http.remove('departments', idOf(department), {}, { signal }),
 
   /**
    * Create a person, or return the existing human bearing that email.
