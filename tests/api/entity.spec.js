@@ -134,16 +134,18 @@ describe('entity namespace', () => {
     })
   })
 
-  it('removeEntity deletes the entity, forcing on demand', async () => {
+  // Zou never reads force on this route: the former option sends nothing.
+  it('removeEntity deletes the entity without any query', async () => {
     fake.reply(204).reply(204)
     await kitsu.entity.removeEntity(ENTITY_ID)
     await kitsu.entity.removeEntity({ id: ENTITY_ID }, { force: true })
-    expect(fake.calls[0]).toMatchObject({
-      method: 'DELETE',
-      path: `/data/entities/${ENTITY_ID}`
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({
+        method: 'DELETE',
+        path: `/data/entities/${ENTITY_ID}`
+      })
+      expect([...call.query.keys()]).toEqual([])
     })
-    expect(fake.calls[0].query.has('force')).toBe(false)
-    expect(fake.calls[1].query.get('force')).toBe('true')
   })
 
   it('removeEntities deletes a batch of entities of a project', async () => {
