@@ -67,15 +67,17 @@ describe('studio namespace', () => {
     })
   })
 
-  it('removeStudio deletes the studio, forcing on demand', async () => {
+  // Zou never reads force on this route: the former option sends nothing.
+  it('removeStudio deletes the studio without any query', async () => {
     fake.reply(204).reply(204)
-    await kitsu.studio.removeStudio(STUDIO_ID)
+    expect(await kitsu.studio.removeStudio(STUDIO_ID)).toBeNull()
     await kitsu.studio.removeStudio({ id: STUDIO_ID }, { force: true })
-    expect(fake.calls[0]).toMatchObject({
-      method: 'DELETE',
-      path: `/data/studios/${STUDIO_ID}`
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({
+        method: 'DELETE',
+        path: `/data/studios/${STUDIO_ID}`
+      })
+      expect([...call.query.keys()]).toEqual([])
     })
-    expect(fake.calls[0].query.has('force')).toBe(false)
-    expect(fake.calls[1].query.get('force')).toBe('true')
   })
 })
