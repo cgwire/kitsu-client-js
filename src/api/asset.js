@@ -506,7 +506,9 @@ export const assetApi = http => {
      *   onProgress?: (progress: {loaded: number, total: number}) => void,
      *   signal?: AbortSignal
      * }} [options] update also updates the assets that already exist.
-     *   onProgress needs XMLHttpRequest (browsers, webviews).
+     *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
+     *   report it. A client given its own fetch (Tauri) uploads through it
+     *   and never calls onProgress.
      * @returns {Promise<Entity[]>} The assets created by the import.
      */
     importAssetsWithCsv: async (

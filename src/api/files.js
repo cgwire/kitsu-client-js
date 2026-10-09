@@ -44,7 +44,9 @@ import * as urls from '../utils/urls.js'
  * @typedef {object} UploadFileOptions
  * @property {string} [fileName] Name sent with the file: a bare Blob has none.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
- *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it.
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+ *   client given its own fetch (Tauri) uploads through it and never calls
+ *   onProgress.
  * @property {AbortSignal} [signal]
  */
 

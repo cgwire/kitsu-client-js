@@ -1173,7 +1173,9 @@ export const projectApi = http => ({
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal
    * }} [options] fileName names a Blob that has no name. onProgress needs
-   *   XMLHttpRequest (browsers).
+   *   XMLHttpRequest (browsers, webviews): fetch cannot report it. A client
+   *   given its own fetch (Tauri) uploads through it and never calls
+   *   onProgress.
    * @returns {Promise<Entity>} The preview background file.
    */
   uploadPreviewBackgroundFile: async (

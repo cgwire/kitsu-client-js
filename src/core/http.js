@@ -1,3 +1,4 @@
+import { parseBody } from './body.js'
 import {
   KitsuError,
   NetworkError,
@@ -23,14 +24,11 @@ const encodeBody = body => {
 }
 
 // A JSON body can be a string too, hence the explicit flag.
-const readBody = async response => {
-  const type = response.headers.get('Content-Type') || ''
-  const text = response.status === 204 ? '' : await response.text()
-  if (!text) return { data: null, isJson: true }
-  return type.includes('json')
-    ? { data: JSON.parse(text), isJson: true }
-    : { data: text, isJson: false }
-}
+const readBody = async response =>
+  parseBody(
+    response.status === 204 ? '' : await response.text(),
+    response.headers.get('Content-Type') || ''
+  )
 
 const NOT_STREAMED = Symbol('not streamed')
 
@@ -39,7 +37,7 @@ const isAuthFailure = err =>
   (err instanceof KitsuError && err.status >= 400 && err.status < 500)
 
 export const createHttp = (config, session) => {
-  const { host, fetch: fetchImpl, timeout, credentials } = config
+  const { host, fetch: fetchImpl, timeout, credentials, xhrUploads } = config
   const inflight = new Set()
 
   // One network attempt. options.raw returns the Response untouched;
@@ -251,7 +249,8 @@ export const createHttp = (config, session) => {
     request,
     withAuthReplay,
     track,
-    withCredentials: credentials === 'same-origin'
+    withCredentials: credentials === 'same-origin',
+    xhrUploads
   })
 
   /**

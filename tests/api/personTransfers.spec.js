@@ -15,6 +15,7 @@ describe('person namespace transfers', () => {
 
   afterEach(() => {
     delete globalThis.XMLHttpRequest
+    vi.unstubAllGlobals()
   })
 
   it('setAvatar uploads the picture in the file field', async () => {
@@ -38,6 +39,7 @@ describe('person namespace transfers', () => {
   })
 
   it('setAvatar reports the upload progress', async () => {
+    ;({ kitsu, fake } = makeClient({ globalFetch: true }))
     const xhrs = []
     globalThis.XMLHttpRequest = class {
       constructor() {
@@ -50,6 +52,9 @@ describe('person namespace transfers', () => {
       setRequestHeader() {}
       send(body) {
         this.body = body
+      }
+      getResponseHeader() {
+        return 'application/json'
       }
     }
     const onProgress = vi.fn()

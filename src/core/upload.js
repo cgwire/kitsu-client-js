@@ -1,4 +1,10 @@
-import { NetworkError, ParameterError, errorFromResponse } from './errors.js'
+import { parseBody } from './body.js'
+import {
+  KitsuError,
+  NetworkError,
+  ParameterError,
+  errorFromResponse
+} from './errors.js'
 import { buildUrl } from './query.js'
 
 /**
@@ -11,7 +17,9 @@ import { buildUrl } from './query.js'
  * @property {string} [fileName] File name of the first file.
  * @property {Record<string, any>} [query] Query parameters of the URL.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
- *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it.
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+ *   client given its own fetch (Tauri) uploads through it and never calls
+ *   onProgress.
  * @property {AbortSignal} [signal]
  */
 
@@ -40,12 +48,32 @@ const buildForm = ({ file, fields = {}, fileField = 'file', fileName }) => {
   return form
 }
 
+// Best effort for the body of an error: its status already tells the error.
 const parseText = text => {
   try {
     return text ? JSON.parse(text) : null
   } catch {
     return text
   }
+}
+
+// Read like send() reads a fetch answer in http.js: a page served with a 2xx
+// (host without "/api", SSO portal) must not reach the caller as if it were
+// data.
+const dataOf = (xhr, info) => {
+  const { status, responseText: text } = xhr
+  if (status < 200 || status >= 300) {
+    throw errorFromResponse(status, { ...info, body: parseText(text) || '' })
+  }
+  const type = xhr.getResponseHeader('Content-Type') || ''
+  const { data, isJson } = parseBody(text, type)
+  if (!isJson) {
+    throw new KitsuError(
+      `${info.method} ${info.path} answered ${status} without JSON`,
+      { ...info, status, body: data }
+    )
+  }
+  return data
 }
 
 const abortError = () =>
@@ -79,13 +107,10 @@ const xhrUpload = ({
     )
     xhr.upload.onprogress = ({ loaded, total }) => onProgress({ loaded, total })
     xhr.onload = () => {
-      const body = parseText(xhr.responseText)
-      if (xhr.status >= 200 && xhr.status < 300) settle(resolve, body)
-      else {
-        settle(
-          reject,
-          errorFromResponse(xhr.status, { ...info, body: body || '' })
-        )
+      try {
+        settle(resolve, dataOf(xhr, info))
+      } catch (err) {
+        settle(reject, err)
       }
     }
     xhr.onerror = () =>
@@ -104,9 +129,10 @@ const xhrUpload = ({
  *   Registers an attempt among the in-flight requests of the instance, so
  *   close() aborts it like any other request.
  * @param {boolean} deps.withCredentials Cookie mode: the XHR sends cookies.
+ * @param {boolean} [deps.xhrUploads] Uploads with progress go through XHR.
  */
 export const createUpload =
-  ({ host, request, withAuthReplay, track, withCredentials }) =>
+  ({ host, request, withAuthReplay, track, withCredentials, xhrUploads }) =>
   /**
    * @param {string} path
    * @param {UploadOptions} options
@@ -115,8 +141,14 @@ export const createUpload =
   async (path, options) => {
     const form = buildForm(options)
     const { query, onProgress, signal } = options
+    // XHR goes out through the network stack of the page, like the global
+    // fetch. An injected fetch (the Tauri http plugin, which escapes CORS,
+    // or a wrapper adding headers) is not bypassed unless xhrUploads says
+    // so: progress is lost.
     const useXhr =
-      onProgress && typeof globalThis.XMLHttpRequest !== 'undefined'
+      onProgress &&
+      xhrUploads &&
+      typeof globalThis.XMLHttpRequest !== 'undefined'
     if (!useXhr) return request('POST', path, { body: form, query, signal })
     return withAuthReplay(headers => {
       const tracked = track(signal)
