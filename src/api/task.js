@@ -915,23 +915,25 @@ export const taskApi = http => {
 
     /**
      * Merge data into the metadata of the task: keys that are not given are
-     * left unchanged.
+     * left unchanged. Needs Zou 1.0.58 or later: an older Zou replaces the
+     * whole metadata with the given keys.
      * @param {Model} task
      * @param {object} [data]
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated task.
      */
-    updateTaskData: async (task, data = {}, { signal } = {}) => {
-      const current = await http.get(
-        `data/tasks/${idOf(task)}/full`,
-        {},
+    updateTaskData: async (task, data = {}, { signal } = {}) =>
+      http.update(
+        'tasks',
+        idOf(task),
+        // Only the given keys, which Zou merges into the stored metadata
+        // (Zou 1.0.58 and later). An empty data would clear them instead, so
+        // none is sent without a key to set (JSON drops undefined values).
+        Object.values({ ...data }).some(value => value !== undefined)
+          ? { data }
+          : {},
         { signal }
-      )
-      return updateTask(
-        { id: current.id, data: { ...current.data, ...data } },
-        { signal }
-      )
-    },
+      ),
 
     /**
      * @param {Model} task
