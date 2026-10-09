@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ParameterError } from '../../src/index.js'
+import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   BUILD_JOB_ID,
@@ -16,6 +16,26 @@ import {
 
 const NEWER_PREVIEW_ID = 'c4c4c4c4-c4c4-4c4c-8c4c-c4c4c4c4c4c4'
 const TOKEN = 'c5c5c5c5-c5c5-4c5c-8c5c-c5c5c5c5c5c5'
+
+// A row of allPlaylistsForProject or allPlaylistsForEpisode: the list routes
+// leave the entries out.
+const LIST_ROW = {
+  type: 'Playlist',
+  id: PLAYLIST_ID,
+  name: 'Dailies',
+  project_id: PROJECT_ID,
+  first_preview_file_id: PREVIEW_FILE_ID
+}
+const STORED_ENTRIES = [
+  { entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID },
+  { entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID }
+]
+const STORED = { id: PLAYLIST_ID, name: 'Dailies', shots: STORED_ENTRIES }
+
+// Bodies are compared without their id: an update sends it in its path, and
+// whether the body repeats it is up to http.update.
+const withoutId = body =>
+  Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
 
 describe('playlist namespace: writes', () => {
   let kitsu, fake
@@ -253,6 +273,149 @@ describe('playlist namespace: writes', () => {
       shots: [{ entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }]
     })
     expect(fake.calls).toHaveLength(0)
+  })
+
+  it('removeEntityFromPlaylist keeps the stored entries of a list row', async () => {
+    const row = { ...LIST_ROW }
+    const updated = {
+      ...LIST_ROW,
+      shots: [{ entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID }]
+    }
+    fake.reply(200, STORED).reply(200, { id: PLAYLIST_ID })
+    expect(await kitsu.playlist.removeEntityFromPlaylist(row, SHOT_ID)).toEqual(
+      updated
+    )
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'PUT',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    expect(row).toEqual(LIST_ROW)
+  })
+
+  it('updateEntityPreview keeps the stored entries of a list row', async () => {
+    const updated = {
+      ...LIST_ROW,
+      shots: [
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID },
+        { entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID }
+      ]
+    }
+    fake.reply(200, STORED).reply(200, { id: PLAYLIST_ID })
+    expect(
+      await kitsu.playlist.updateEntityPreview(
+        LIST_ROW,
+        SHOT_ID,
+        NEWER_PREVIEW_ID
+      )
+    ).toEqual(updated)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+  })
+
+  it.each([[PLAYLIST_ID], [{ id: PLAYLIST_ID }]])(
+    'removeEntityFromPlaylist reads the entries of the playlist %j',
+    async playlist => {
+      const updated = {
+        id: PLAYLIST_ID,
+        shots: [{ entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID }]
+      }
+      fake.reply(200, STORED).reply(200, { id: PLAYLIST_ID })
+      expect(
+        await kitsu.playlist.removeEntityFromPlaylist(playlist, SHOT_ID)
+      ).toEqual(updated)
+      expect(fake.calls[0].path).toBe(`/data/playlists/${PLAYLIST_ID}`)
+      expect(fake.calls[1]).toMatchObject({
+        method: 'PUT',
+        path: `/data/playlists/${PLAYLIST_ID}`
+      })
+      expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    }
+  )
+
+  it('removeEntityFromPlaylist without persist reads but saves nothing', async () => {
+    fake.reply(200, STORED)
+    expect(
+      await kitsu.playlist.removeEntityFromPlaylist(LIST_ROW, OTHER_ID, {
+        persist: false
+      })
+    ).toEqual({
+      ...LIST_ROW,
+      shots: [{ entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID }]
+    })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].method).toBe('GET')
+  })
+
+  it('removeEntityFromPlaylist saves nothing when the playlist is missing', async () => {
+    fake.reply(404, { message: 'Playlist not found' })
+    await expect(
+      kitsu.playlist.removeEntityFromPlaylist(LIST_ROW, SHOT_ID)
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(fake.calls.map(call => call.method)).toEqual(['GET'])
+  })
+
+  it('updateEntityPreview takes stored shots: null as an empty list', async () => {
+    fake.reply(200, { id: PLAYLIST_ID, shots: null }).reply(200, {})
+    await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
+      id: NEWER_PREVIEW_ID
+    })
+    expect(withoutId(fake.calls[1].body)).toEqual({ shots: [] })
+  })
+
+  it('addEntityToPlaylist without persist adds to the stored entries', async () => {
+    fake.reply(200, STORED)
+    expect(
+      await kitsu.playlist.addEntityToPlaylist(
+        LIST_ROW,
+        { id: ENTITY_ID },
+        { previewFile: NEWER_PREVIEW_ID, persist: false }
+      )
+    ).toEqual({
+      ...LIST_ROW,
+      shots: [
+        ...STORED_ENTRIES,
+        { entity_id: ENTITY_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+  })
+
+  // Zou appends the entry to the stored ones: nothing to read.
+  it('addEntityToPlaylist adds to a list row on the server side', async () => {
+    fake.reply(200, STORED)
+    expect(
+      await kitsu.playlist.addEntityToPlaylist(LIST_ROW, SHOT_ID, {
+        previewFile: PREVIEW_FILE_ID
+      })
+    ).toEqual(STORED)
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'POST',
+      path: `/actions/playlists/${PLAYLIST_ID}/add-entity`
+    })
+  })
+
+  it('the read of the entries forwards the caller signal', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    fake.reply(200, STORED).reply(200, {})
+    await kitsu.playlist.removeEntityFromPlaylist(LIST_ROW, SHOT_ID, {
+      signal: controller.signal
+    })
+    expect(fake.calls).toHaveLength(2)
+    fake.calls.forEach(call => expect(call.signal.aborted).toBe(true))
   })
 
   it('deletePlaylist deletes the playlist', async () => {
