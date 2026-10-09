@@ -65,19 +65,11 @@ export const shotApi = http => {
   const saveEntity = (entity, signal) =>
     http.update('entities', idOf(entity), entity, { signal })
 
-  // The base read is a plain get, not fetchOne: a missing entity must raise
-  // instead of being merged as empty metadata.
-  const mergeEntityData = async (model, entity, data, signal) => {
-    const current = await http.get(
-      `data/${model}/${idOf(entity)}`,
-      {},
-      { signal }
-    )
-    return saveEntity(
-      { id: current.id, data: { ...(current.data || {}), ...data } },
-      signal
-    )
-  }
+  // Only the given keys, which Zou merges into the stored metadata:
+  // resending the others would revert concurrent changes, and fail for a
+  // supervisor with departments.
+  const saveEntityData = (entity, data, signal) =>
+    http.update('entities', idOf(entity), { data: { ...data } }, { signal })
 
   const removeWithForce = (model, entity, force, signal) =>
     http.remove(model, idOf(entity), { force: force ? true : null }, { signal })
@@ -328,7 +320,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated shot.
      */
     updateShotData: async (shot, data = {}, { signal } = {}) =>
-      mergeEntityData('shots', shot, data, signal),
+      saveEntityData(shot, data, signal),
 
     /**
      * Update the sequence metadata. Keys that are not given are left
@@ -339,7 +331,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated sequence.
      */
     updateSequenceData: async (sequence, data = {}, { signal } = {}) =>
-      mergeEntityData('sequences', sequence, data, signal),
+      saveEntityData(sequence, data, signal),
 
     /**
      * A shot with tasks is only marked as canceled, unless forced.
@@ -396,7 +388,7 @@ export const shotApi = http => {
      * @returns {Promise<Entity>} The updated episode.
      */
     updateEpisodeData: async (episode, data = {}, { signal } = {}) =>
-      mergeEntityData('episodes', episode, data, signal),
+      saveEntityData(episode, data, signal),
 
     /**
      * Without force, the deletion fails when records are linked to the

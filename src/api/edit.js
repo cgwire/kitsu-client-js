@@ -22,7 +22,7 @@ export const editApi = http => {
     )
 
   // A plain get, not fetchOne: a missing edit must raise instead of giving
-  // a broken URL or being merged as empty metadata.
+  // a broken URL.
   const readEdit = (edit, signal) =>
     http.get(`data/edits/${idOf(edit)}`, {}, { signal })
 
@@ -195,12 +195,8 @@ export const editApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated edit.
      */
-    updateEditData: async (edit, data = {}, { signal } = {}) => {
-      const current = await readEdit(edit, signal)
-      return saveEdit(
-        { id: current.id, data: { ...(current.data || {}), ...data } },
-        signal
-      )
-    }
+    updateEditData: async (edit, data = {}, { signal } = {}) =>
+      // Only the given keys: Zou merges them into the stored metadata.
+      http.update('entities', idOf(edit), { data: { ...data } }, { signal })
   }
 }

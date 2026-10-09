@@ -161,28 +161,26 @@ describe('edit namespace', () => {
     expect(edit).toEqual({ id: EDIT_ID, name: 'Teaser' })
   })
 
-  it('updateEditData merges the new keys into the stored metadata', async () => {
-    fake
-      .reply(200, { id: EDIT_ID, name: 'Trailer', data: { fps: 24, lens: 35 } })
-      .reply(200, { id: EDIT_ID })
+  it('updateEditData sends only the given keys, Zou merges them', async () => {
+    fake.reply(200, { id: EDIT_ID, data: { fps: 24, lens: 50 } })
     const data = { lens: 50 }
-    await kitsu.edit.updateEditData({ id: EDIT_ID }, data)
-    expect(fake.calls[0]).toMatchObject({
-      method: 'GET',
-      path: `/data/edits/${EDIT_ID}`
+    expect(await kitsu.edit.updateEditData({ id: EDIT_ID }, data)).toEqual({
+      id: EDIT_ID,
+      data: { fps: 24, lens: 50 }
     })
-    expect(fake.calls[1]).toMatchObject({
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/entities/${EDIT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ data: { fps: 24, lens: 50 } })
+    expect(fake.calls[0].body).toEqual({ data: { lens: 50 } })
     expect(data).toEqual({ lens: 50 })
   })
 
-  it('updateEditData starts from empty metadata when none is stored', async () => {
-    fake.reply(200, { id: EDIT_ID, data: null }).reply(200, { id: EDIT_ID })
-    await kitsu.edit.updateEditData(EDIT_ID, { fps: 25 })
-    expect(fake.calls[1].body).toEqual({ data: { fps: 25 } })
+  it('updateEditData sends empty metadata when no data is given', async () => {
+    fake.reply(200, { id: EDIT_ID })
+    await kitsu.edit.updateEditData(EDIT_ID, null)
+    expect(fake.calls[0].body).toEqual({ data: {} })
   })
 
   it('updateEditData rejects when the edit does not exist', async () => {
@@ -191,5 +189,6 @@ describe('edit namespace', () => {
       kitsu.edit.updateEditData(EDIT_ID, { fps: 25 })
     ).rejects.toBeInstanceOf(NotFoundError)
     expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].method).toBe('PUT')
   })
 })

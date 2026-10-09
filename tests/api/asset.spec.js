@@ -202,29 +202,24 @@ describe('asset namespace: assets', () => {
     expect(asset).toEqual({ id: ASSET_ID, episode_id: EPISODE_ID })
   })
 
-  it('updateAssetData merges the new keys into the current data', async () => {
-    fake
-      .reply(200, { id: ASSET_ID, name: 'Bunny', data: { fur: true, age: 2 } })
-      .reply(200, { id: ASSET_ID, data: { fur: true, age: 3 } })
+  it('updateAssetData sends only the given keys, Zou merges them', async () => {
+    fake.reply(200, { id: ASSET_ID, data: { fur: true, age: 3 } })
     const data = { age: 3 }
     const updated = await kitsu.asset.updateAssetData({ id: ASSET_ID }, data)
     expect(updated).toEqual({ id: ASSET_ID, data: { fur: true, age: 3 } })
+    expect(fake.calls).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
-      method: 'GET',
-      path: `/data/assets/${ASSET_ID}`
-    })
-    expect(fake.calls[1]).toMatchObject({
       method: 'PUT',
       path: `/data/entities/${ASSET_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ data: { fur: true, age: 3 } })
+    expect(fake.calls[0].body).toEqual({ data: { age: 3 } })
     expect(data).toEqual({ age: 3 })
   })
 
-  it('updateAssetData copes with an asset that has no data yet', async () => {
-    fake.reply(200, { id: ASSET_ID, data: null }).reply(200, { id: ASSET_ID })
-    await kitsu.asset.updateAssetData(ASSET_ID, { age: 3 })
-    expect(fake.calls[1].body).toEqual({ data: { age: 3 } })
+  it('updateAssetData sends empty metadata when no data is given', async () => {
+    fake.reply(200, { id: ASSET_ID })
+    await kitsu.asset.updateAssetData(ASSET_ID, null)
+    expect(fake.calls[0].body).toEqual({ data: {} })
   })
 
   it('updateAssetData rejects with NotFoundError on a missing asset', async () => {
@@ -233,6 +228,7 @@ describe('asset namespace: assets', () => {
       kitsu.asset.updateAssetData(ASSET_ID, { age: 3 })
     ).rejects.toBeInstanceOf(NotFoundError)
     expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].method).toBe('PUT')
   })
 
   it('removeAsset deletes the asset, forcing on demand', async () => {

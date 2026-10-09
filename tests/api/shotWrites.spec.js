@@ -136,28 +136,30 @@ describe('shot namespace: writes', () => {
     expect(fake.calls[0].body).toEqual({ name: 'E02' })
   })
 
-  it('updateShotData merges the new keys into the stored metadata', async () => {
-    fake
-      .reply(200, { id: SHOT_ID, name: 'SH010', data: { fps: 24, lens: 35 } })
-      .reply(200, { id: SHOT_ID })
+  it('updateShotData sends only the given keys, Zou merges them', async () => {
+    const updated = { id: SHOT_ID, data: { fps: 24, lens: 50 } }
+    fake.reply(200, updated)
     const data = { lens: 50 }
-    await kitsu.shot.updateShotData({ id: SHOT_ID }, data)
+    expect(await kitsu.shot.updateShotData({ id: SHOT_ID }, data)).toEqual(
+      updated
+    )
+    expect(fake.calls).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
-      method: 'GET',
-      path: `/data/shots/${SHOT_ID}`
-    })
-    expect(fake.calls[1]).toMatchObject({
       method: 'PUT',
       path: `/data/entities/${SHOT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ data: { fps: 24, lens: 50 } })
+    expect(fake.calls[0].body).toEqual({ data: { lens: 50 } })
     expect(data).toEqual({ lens: 50 })
   })
 
-  it('updateShotData copes with a shot without metadata', async () => {
-    fake.reply(200, { id: SHOT_ID, data: null }).reply(200, { id: SHOT_ID })
-    await kitsu.shot.updateShotData(SHOT_ID, { lens: 50 })
-    expect(fake.calls[1].body).toEqual({ data: { lens: 50 } })
+  it('updateShotData sends empty metadata when no data is given', async () => {
+    fake.reply(200, { id: SHOT_ID }).reply(200, { id: SHOT_ID })
+    await kitsu.shot.updateShotData(SHOT_ID)
+    await kitsu.shot.updateShotData(SHOT_ID, null)
+    expect(fake.calls.map(call => call.body)).toEqual([
+      { data: {} },
+      { data: {} }
+    ])
   })
 
   it('updateShotData rejects when the shot does not exist', async () => {
@@ -166,34 +168,29 @@ describe('shot namespace: writes', () => {
       kitsu.shot.updateShotData(SHOT_ID, { lens: 50 })
     ).rejects.toBeInstanceOf(NotFoundError)
     expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].method).toBe('PUT')
   })
 
-  it('updateSequenceData merges the new keys into the stored metadata', async () => {
-    fake
-      .reply(200, { id: SEQUENCE_ID, data: { mood: 'dark' } })
-      .reply(200, { id: SEQUENCE_ID })
+  it('updateSequenceData sends only the given keys, Zou merges them', async () => {
+    fake.reply(200, { id: SEQUENCE_ID })
     await kitsu.shot.updateSequenceData(SEQUENCE_ID, { act: 2 })
-    expect(fake.calls[0].path).toBe(`/data/sequences/${SEQUENCE_ID}`)
-    expect(fake.calls[1]).toMatchObject({
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/entities/${SEQUENCE_ID}`
     })
-    expect(fake.calls[1].body).toEqual({ data: { mood: 'dark', act: 2 } })
+    expect(fake.calls[0].body).toEqual({ data: { act: 2 } })
   })
 
-  it('updateEpisodeData merges the new keys into the stored metadata', async () => {
-    fake
-      .reply(200, { id: EPISODE_ID, data: { air: '2026' } })
-      .reply(200, { id: EPISODE_ID })
+  it('updateEpisodeData sends only the given keys, Zou merges them', async () => {
+    fake.reply(200, { id: EPISODE_ID })
     await kitsu.shot.updateEpisodeData({ id: EPISODE_ID }, { director: 'Ann' })
-    expect(fake.calls[0].path).toBe(`/data/episodes/${EPISODE_ID}`)
-    expect(fake.calls[1]).toMatchObject({
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/entities/${EPISODE_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      data: { air: '2026', director: 'Ann' }
-    })
+    expect(fake.calls[0].body).toEqual({ data: { director: 'Ann' } })
   })
 
   it('removeShot deletes the shot, forcing on demand', async () => {

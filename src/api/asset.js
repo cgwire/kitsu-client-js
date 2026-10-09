@@ -297,18 +297,9 @@ export const assetApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset.
      */
-    updateAssetData: async (asset, data = {}, { signal } = {}) => {
-      // Not getAsset: a missing asset must raise NotFoundError, not be null.
-      const current = await http.get(
-        `data/assets/${idOf(asset)}`,
-        {},
-        { signal }
-      )
-      return updateAsset(
-        { id: current.id, data: { ...(current.data || {}), ...data } },
-        { signal }
-      )
-    },
+    updateAssetData: async (asset, data = {}, { signal } = {}) =>
+      // Only the given keys: Zou merges them into the stored metadata.
+      http.update('entities', idOf(asset), { data: { ...data } }, { signal }),
 
     /**
      * Remove the asset. Without force, an asset that has tasks is only marked
