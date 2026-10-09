@@ -75,6 +75,20 @@ export const withoutNil = data =>
   )
 
 /**
+ * Some reads write a missing id as a placeholder string ('' or 'None') that
+ * Zou refuses on save: each one goes back as the null it stands for.
+ * @param {Record<string, any>} fields
+ * @param {Record<string, string>} placeholders The placeholder of each field.
+ * @returns {Record<string, any>} The fields, copied when one is replaced.
+ */
+export const placeholdersToNull = (fields, placeholders) =>
+  Object.entries(placeholders).reduce(
+    (result, [key, placeholder]) =>
+      result[key] === placeholder ? { ...result, [key]: null } : result,
+    fields
+  )
+
+/**
  * For get* functions built on a plain http.get: null instead of a 404.
  * @template T
  * @param {Promise<T>} promise

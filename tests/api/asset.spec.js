@@ -9,8 +9,10 @@ import {
   ASSET_TYPE_ID,
   EPISODE_ID,
   OTHER_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
-  SHOT_ID
+  SHOT_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const UNSORTED = [{ name: 'tree' }, { name: 'Bunny' }, { name: 'lamp' }]
@@ -200,6 +202,63 @@ describe('asset namespace: assets', () => {
       source_id: EPISODE_ID
     })
     expect(asset).toEqual({ id: ASSET_ID, episode_id: EPISODE_ID })
+  })
+
+  it('updateAsset sends null for the placeholders of getAsset', async () => {
+    // A missing preview, ready_for or episode reads as '', 'None' and '':
+    // Zou answers 400 when they are sent back.
+    fake.reply(200, { id: ASSET_ID })
+    const asset = Object.freeze({
+      id: ASSET_ID,
+      name: 'Chair',
+      description: 'A red chair',
+      preview_file_id: '',
+      ready_for: 'None',
+      episode_id: '',
+      asset_type_name: 'Props'
+    })
+    await kitsu.asset.updateAsset(asset)
+    expect(fake.calls[0].body).toEqual({
+      name: 'Chair',
+      description: 'A red chair',
+      preview_file_id: null,
+      ready_for: null,
+      episode_id: '',
+      source_id: null,
+      asset_type_name: 'Props'
+    })
+  })
+
+  it('updateAsset sends null for the placeholders without mutating', async () => {
+    // Without episode_id, nothing copies the asset to add source_id: the
+    // frozen asset throws if its placeholders are replaced in place.
+    fake.reply(200, { id: ASSET_ID })
+    const asset = Object.freeze({
+      id: ASSET_ID,
+      preview_file_id: '',
+      ready_for: 'None'
+    })
+    await kitsu.asset.updateAsset(asset)
+    expect(fake.calls[0].body).toEqual({
+      preview_file_id: null,
+      ready_for: null
+    })
+  })
+
+  it('updateAsset keeps the ids of a preview, a ready_for and an episode', async () => {
+    fake.reply(200, { id: ASSET_ID })
+    await kitsu.asset.updateAsset({
+      id: ASSET_ID,
+      preview_file_id: PREVIEW_FILE_ID,
+      ready_for: TASK_TYPE_ID,
+      episode_id: EPISODE_ID
+    })
+    expect(fake.calls[0].body).toEqual({
+      preview_file_id: PREVIEW_FILE_ID,
+      ready_for: TASK_TYPE_ID,
+      episode_id: EPISODE_ID,
+      source_id: EPISODE_ID
+    })
   })
 
   it('updateAssetData sends only the given keys, Zou merges them', async () => {
