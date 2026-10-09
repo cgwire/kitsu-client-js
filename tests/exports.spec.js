@@ -46,8 +46,9 @@ const ERRORS = [
   'MissingOtpError'
 ]
 
-// Node resolves a package's own name through its "exports" map, so these
-// imports exercise the map a consumer goes through.
+// Vite resolves a package's own name through its "exports" map like Node
+// does, so these imports exercise the map a consumer goes through. The
+// require() test below goes through the resolver and loader of Node itself.
 describe('package exports', () => {
   it('resolves the root, core, utils and a namespace subpath', async () => {
     const root = await import('@cgwire/kitsu-client')
@@ -89,5 +90,40 @@ describe('package exports', () => {
     const require = createRequire(import.meta.url)
     const pkg = require('@cgwire/kitsu-client/package.json')
     expect(pkg.name).toBe('@cgwire/kitsu-client')
+  })
+
+  it('loads every entry point with require(), as CommonJS code does', async () => {
+    const require = createRequire(import.meta.url)
+    const entries = ['', '/core', '/utils', ...SUBPATHS.map(name => `/${name}`)]
+    for (const entry of entries) {
+      const specifier = `@cgwire/kitsu-client${entry}`
+      expect(Object.keys(require(specifier)).sort()).toEqual(
+        Object.keys(await import(specifier)).sort()
+      )
+    }
+  })
+
+  // The declarations are built at pack time: their presence is checked by
+  // "npm run test:types", their mapping here.
+  it('declares the types of every entry point next to its code', () => {
+    const require = createRequire(import.meta.url)
+    const pkg = require('@cgwire/kitsu-client/package.json')
+    const declarationOf = path =>
+      path.replace(/^\.\/src\//, './types/').replace(/\.js$/, '.d.ts')
+    const entries = Object.entries(pkg.exports).filter(
+      ([, target]) => typeof target === 'object'
+    )
+    expect(entries.map(([subpath]) => subpath)).toEqual([
+      '.',
+      './core',
+      './utils',
+      './*'
+    ])
+    for (const [, target] of entries) {
+      expect(target.types).toBe(declarationOf(target.default))
+    }
+    expect(pkg.main).toBe(pkg.exports['.'].default)
+    expect(pkg.types).toBe(pkg.exports['.'].types)
+    expect(pkg.files).toEqual(expect.arrayContaining(['src', 'types']))
   })
 })
