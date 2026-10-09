@@ -156,25 +156,31 @@ describe('files namespace: preview and attachment files', () => {
     })
   })
 
+  // Same shapes as Kitsu, at 25 fps: frames keyed by a time on the frame
+  // grid, drawing objects by id.
   it('updatePreviewAnnotations only sends the given change lists', async () => {
     fake.reply(200, { id: PREVIEW_FILE_ID }).reply(200, { id: PREVIEW_FILE_ID })
-    const additions = [{ x: 100, y: 200, type: 'drawing' }]
+    const stroke = { id: OTHER_ID, type: 'path', stroke: '#ff3860' }
+    const additions = [
+      { time: 0.48, frame: 13, drawing: { objects: [stroke] } }
+    ]
+    const updates = [
+      { time: 0.48, frame: 13, drawing: { objects: [{ ...stroke, left: 40 }] } }
+    ]
+    const deletions = [{ time: 1.2, frame: 31, objects: [OTHER_ID] }]
     await kitsu.files.updatePreviewAnnotations(
       { id: PREVIEW_FILE_ID },
       { additions }
     )
     await kitsu.files.updatePreviewAnnotations(PREVIEW_FILE_ID, {
-      updates: [{ id: OTHER_ID, x: 150 }],
-      deletions: [OTHER_ID]
+      updates,
+      deletions
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/actions/preview-files/${PREVIEW_FILE_ID}/update-annotations`
     })
     expect(fake.calls[0].body).toEqual({ additions })
-    expect(fake.calls[1].body).toEqual({
-      updates: [{ id: OTHER_ID, x: 150 }],
-      deletions: [OTHER_ID]
-    })
+    expect(fake.calls[1].body).toEqual({ updates, deletions })
   })
 })
