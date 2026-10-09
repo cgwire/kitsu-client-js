@@ -202,6 +202,23 @@ describe('project namespace: Kitsu store coverage', () => {
       await expect(kitsu.project.newStatusAutomation()).rejects.toBeInstanceOf(
         ParameterError
       )
+      // Zou would store an automation that nothing triggers.
+      await expect(
+        kitsu.project.newStatusAutomation(
+          undefined,
+          TASK_STATUS_ID,
+          'ready_for',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.newStatusAutomation(
+          TASK_TYPE_ID,
+          undefined,
+          'ready_for',
+          OTHER_ID
+        )
+      ).rejects.toBeInstanceOf(ParameterError)
       await expect(
         kitsu.project.newStatusAutomation(
           TASK_TYPE_ID,
