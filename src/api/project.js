@@ -1,4 +1,4 @@
-import { KitsuError } from '../core/errors.js'
+import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
   idOf,
@@ -17,6 +17,9 @@ import * as urls from '../utils/urls.js'
  */
 
 const LINK_FIELDS = ['team', 'asset_types', 'task_statuses', 'task_types']
+
+// The choices of the out_field_type column of a status automation.
+const OUT_FIELD_TYPES = ['status', 'ready_for']
 
 // Zou expects model links as lists of ids, while a project read with its
 // relations can carry them as dicts.
@@ -1037,42 +1040,62 @@ export const projectApi = http => ({
     http.fetchOne('status-automations', idOf(automation), { signal }),
 
   /**
+   * When a task of inTaskType gets inTaskStatus, the task of outTaskType on
+   * the same entity gets outTaskStatus, or the asset becomes ready for
+   * outTaskType. The automation only runs in the projects it is linked to
+   * (addStatusAutomation).
+   * @param {Model} inTaskType
+   * @param {Model} inTaskStatus
+   * @param {'status'|'ready_for'} outFieldType
+   * @param {Model} outTaskType
    * @param {{
    *   entityType?: string,
-   *   inTaskType: Model,
-   *   inTaskStatus: Model,
-   *   outFieldType: string,
-   *   outTaskType: Model,
    *   outTaskStatus?: Model,
    *   importLastRevision?: boolean,
    *   signal?: AbortSignal
-   * }} options entityType is asset (default) or shot. outFieldType is status
-   *   (outTaskStatus is then the status to set) or ready_for.
+   * }} [options] entityType is asset (default) or shot. outTaskStatus is
+   *   required with status.
    * @returns {Promise<Entity>} The created status automation.
    */
-  newStatusAutomation: async ({
-    entityType = 'asset',
+  newStatusAutomation: async (
     inTaskType,
     inTaskStatus,
     outFieldType,
     outTaskType,
-    outTaskStatus,
-    importLastRevision = false,
-    signal
-  }) =>
-    http.create(
+    {
+      entityType = 'asset',
+      outTaskStatus,
+      importLastRevision = false,
+      signal
+    } = {}
+  ) => {
+    // Zou would store both: an unknown output type breaks every later read
+    // of the automations, and a status one without its status fails every
+    // comment that triggers it.
+    if (!OUT_FIELD_TYPES.includes(outFieldType)) {
+      throw new ParameterError(
+        `Wrong format: outFieldType must be one of ${OUT_FIELD_TYPES.join(', ')}`
+      )
+    }
+    if (outFieldType === 'status' && outTaskStatus == null) {
+      throw new ParameterError(
+        'Missing parameter: outTaskStatus is required with status'
+      )
+    }
+    return http.create(
       'status-automations',
       withoutNil({
         entity_type: entityType,
         in_task_type_id: idOf(inTaskType),
         in_task_status_id: idOf(inTaskStatus),
-        out_field_type: requiredOf('outFieldType', outFieldType),
+        out_field_type: outFieldType,
         out_task_type_id: idOf(outTaskType),
         out_task_status_id: optionalIdOf(outTaskStatus),
         import_last_revision: importLastRevision
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Entity} automation

@@ -2958,7 +2958,7 @@
     "route": "/data/status-automations",
     "client": "project.newStatusAutomation",
     "status": "added",
-    "note": "Kitsu posts with a trailing slash. Its in_field_type comes from a form value that is never set, so the key never reaches Zou, which has no such column and answers 400 to it: the client does not send it."
+    "note": "The client takes the input task type and status, the output field type and the output task type positionally, the other fields as options (entityType, outTaskStatus, importLastRevision). It rejects an output field type other than status and ready_for, and a status output without outTaskStatus: Zou stores both, then fails to read the first back and fails every comment that triggers the second. Kitsu's form allows neither. Kitsu posts with a trailing slash. Its in_field_type comes from a form value that is never set, so the key never reaches Zou, which has no such column and answers 400 to it: the client does not send it."
   },
   {
     "module": "statusautomation",
