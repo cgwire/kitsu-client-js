@@ -169,7 +169,6 @@ describe('project namespace: Kitsu store coverage', () => {
       })
       expect(fake.calls[0].body).toEqual({
         entity_type: 'asset',
-        in_field_type: 'status',
         in_task_type_id: TASK_TYPE_ID,
         in_task_status_id: TASK_STATUS_ID,
         out_field_type: 'status',
@@ -189,7 +188,6 @@ describe('project namespace: Kitsu store coverage', () => {
       })
       expect(fake.calls[0].body).toEqual({
         entity_type: 'asset',
-        in_field_type: 'status',
         in_task_type_id: TASK_TYPE_ID,
         in_task_status_id: TASK_STATUS_ID,
         out_field_type: 'ready_for',

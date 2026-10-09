@@ -1039,7 +1039,6 @@ export const projectApi = http => ({
   /**
    * @param {{
    *   entityType?: string,
-   *   inFieldType?: string,
    *   inTaskType: Model,
    *   inTaskStatus: Model,
    *   outFieldType: string,
@@ -1053,7 +1052,6 @@ export const projectApi = http => ({
    */
   newStatusAutomation: async ({
     entityType = 'asset',
-    inFieldType = 'status',
     inTaskType,
     inTaskStatus,
     outFieldType,
@@ -1066,7 +1064,6 @@ export const projectApi = http => ({
       'status-automations',
       withoutNil({
         entity_type: entityType,
-        in_field_type: inFieldType,
         in_task_type_id: idOf(inTaskType),
         in_task_status_id: idOf(inTaskStatus),
         out_field_type: requiredOf('outFieldType', outFieldType),

@@ -2958,7 +2958,7 @@
     "route": "/data/status-automations",
     "client": "project.newStatusAutomation",
     "status": "added",
-    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered. Kitsu posts with a trailing slash."
+    "note": "Kitsu posts with a trailing slash. Its in_field_type comes from a form value that is never set, so the key never reaches Zou, which has no such column and answers 400 to it: the client does not send it."
   },
   {
     "module": "statusautomation",
