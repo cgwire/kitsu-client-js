@@ -423,16 +423,12 @@ describe('person namespace', () => {
       .reply(200, { id: PERSON_ID, access_token: 'new-token' })
       .reply(200, { id: PERSON_ID, access_token: 'newer-token' })
       .reply(200, { id: PERSON_ID, access_token: 'newest-token' })
-    expect(await kitsu.person.generateToken({ id: PERSON_ID })).toEqual({
+    expect(await kitsu.person.generateToken({ id: PERSON_ID }, null)).toEqual({
       id: PERSON_ID,
       access_token: 'new-token'
     })
-    await kitsu.person.generateToken(PERSON_ID, {
-      expirationDate: new Date(2027, 0, 31, 12)
-    })
-    await kitsu.person.generateToken(PERSON_ID, {
-      expirationDate: '2027-02-28'
-    })
+    await kitsu.person.generateToken(PERSON_ID, new Date(2027, 0, 31, 12))
+    await kitsu.person.generateToken(PERSON_ID, '2027-02-28')
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/persons/${PERSON_ID}`
@@ -442,6 +438,20 @@ describe('person namespace', () => {
     expect(fake.calls[2].body).toEqual({ expiration_date: '2027-02-28' })
   })
 
+  // Left out, the date would silently become a token that never expires.
+  it('generateToken requires the expiration date, null for no expiry', async () => {
+    await expect(kitsu.person.generateToken(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      kitsu.person.generateToken(PERSON_ID, { expirationDate: '2027-01-31' })
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      kitsu.person.generateToken(PERSON_ID, '31/01/2027')
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   // Zou answers 200 without any token, and changes nothing, when a bot
   // without the admin role asks for its own, or when the date sent is the
   // stored one and already past: the caller would take undefined for its
@@ -449,7 +459,9 @@ describe('person namespace', () => {
   it('generateToken rejects an answer without token', async () => {
     const bot = { id: PERSON_ID, is_bot: true, expiration_date: null }
     fake.reply(200, bot).reply(200, { ...bot, access_token: null })
-    const err = await kitsu.person.generateToken(bot).catch(e => e)
+    const err = await kitsu.person
+      .generateToken(bot, bot.expiration_date)
+      .catch(e => e)
     expect(err).toBeInstanceOf(KitsuError)
     expect(err).toMatchObject({
       status: 200,
@@ -457,16 +469,18 @@ describe('person namespace', () => {
       method: 'PUT',
       body: bot
     })
-    await expect(kitsu.person.generateToken(PERSON_ID)).rejects.toBeInstanceOf(
-      KitsuError
-    )
+    await expect(
+      kitsu.person.generateToken(PERSON_ID, null)
+    ).rejects.toBeInstanceOf(KitsuError)
   })
 
   it('generateToken forwards the caller signal', async () => {
     const controller = new AbortController()
     controller.abort()
     fake.reply(200, { id: PERSON_ID, access_token: 'new-token' })
-    await kitsu.person.generateToken(PERSON_ID, { signal: controller.signal })
+    await kitsu.person.generateToken(PERSON_ID, null, {
+      signal: controller.signal
+    })
     expect(fake.calls[0].signal.aborted).toBe(true)
   })
 
@@ -560,7 +574,7 @@ describe('person namespace', () => {
     await expect(
       kitsu.person.removePersonFromDepartment(PERSON_ID, 'rigging')
     ).rejects.toThrow(ParameterError)
-    await expect(kitsu.person.generateToken('bot')).rejects.toThrow(
+    await expect(kitsu.person.generateToken('bot', null)).rejects.toThrow(
       ParameterError
     )
     expect(fake.calls).toHaveLength(0)

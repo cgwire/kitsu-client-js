@@ -1086,7 +1086,7 @@
     "route": "/data/persons/<id>",
     "client": "person.generateToken",
     "status": "added",
-    "note": "Same route as updatePerson with the body { expiration_date }: Zou issues a new token and revokes the previous one. person.updatePerson and person.updateBot never send expiration_date. An answer without token, which Kitsu takes as is, rejects with a KitsuError."
+    "note": "Same route as updatePerson with the body { expiration_date }: Zou issues a new token and revokes the previous one. Kitsu sends the expiration date of the person; the client takes it as a required argument, null for no expiry. person.updatePerson and person.updateBot never send expiration_date. An answer without token, which Kitsu takes as is, rejects with a KitsuError."
   },
   {
     "module": "people",

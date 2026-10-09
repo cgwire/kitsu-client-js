@@ -438,18 +438,28 @@ export const personApi = http => ({
    * expiration date once past. The call then rejects with a KitsuError
    * carrying that answer, and the current token keeps working.
    * @param {Model} person
-   * @param {{expirationDate?: Date|string|null, signal?: AbortSignal}}
-   *   [options] expirationDate is the last day the token works,
-   *   "YYYY-MM-DD", today or later. Without it the token never expires.
+   * @param {Date|string|null} expirationDate The last day the token works,
+   *   "YYYY-MM-DD", today or later, or null for a token that never expires.
+   *   Pass the expiration_date of the person to keep it.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The person, with the new token in
    *   access_token.
    */
-  generateToken: async (person, { expirationDate = null, signal } = {}) => {
+  generateToken: async (person, expirationDate, { signal } = {}) => {
     const id = idOf(person)
+    // Required, null included: a forgotten date would silently issue a
+    // token that never expires.
+    if (expirationDate === undefined) {
+      throw new ParameterError(
+        'Missing parameter: expirationDate is required, null for no expiry'
+      )
+    }
     const body = await http.update(
       'persons',
       id,
-      { expiration_date: dateOf(expirationDate) },
+      {
+        expiration_date: expirationDate === null ? null : dayOf(expirationDate)
+      },
       { signal }
     )
     // Zou answers 200 when it issues no token: a caller that stores the
