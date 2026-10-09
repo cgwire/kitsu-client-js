@@ -86,6 +86,18 @@ describe('package exports', () => {
     }
   })
 
+  // The exact lists: an internal helper leaking through a new "export *"
+  // must fail here.
+  it('exports nothing else from the root and core entries', async () => {
+    const root = await import('@cgwire/kitsu-client')
+    const core = await import('@cgwire/kitsu-client/core')
+    const utils = await import('@cgwire/kitsu-client/utils')
+    expect(Object.keys(root).sort()).toEqual(
+      ['createClient', ...ERRORS, ...Object.keys(utils)].sort()
+    )
+    expect(Object.keys(core).sort()).toEqual(['createCore', ...ERRORS].sort())
+  })
+
   it('exports package.json', () => {
     const require = createRequire(import.meta.url)
     const pkg = require('@cgwire/kitsu-client/package.json')
