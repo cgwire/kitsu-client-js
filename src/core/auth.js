@@ -33,6 +33,11 @@ import { requiredOf, withoutNil } from './params.js'
  * @property {AbortSignal} [signal]
  */
 
+// The statuses Zou refuses a login with: 400 (wrong credentials, missing or
+// wrong OTP, too many attempts, default password), 401 (inactive user) and
+// 409 (no authentication strategy configured).
+const LOGIN_REFUSALS = [400, 401, 409]
+
 /**
  * @param {TwoFactorOptions} options
  * @returns {Record<string, any>} The two factor payload of Zou.
@@ -71,7 +76,9 @@ export const authApi = (http, session) => {
      * @param {string} password
      * @param {LogInOptions} [options]
      * @returns {Promise<LoginBody>} The login body of Zou (user, tokens, ...).
-     * @throws {import('./errors.js').AuthFailedError} or one of its subclasses.
+     * @throws {import('./errors.js').AuthFailedError} or one of its
+     *   subclasses when Zou refuses the login. Any other failure keeps its
+     *   own error: a ServerError for a 5xx, for instance.
      */
     logIn: async (
       email,
@@ -89,9 +96,10 @@ export const authApi = (http, session) => {
       const body = await http
         .post('auth/login', payload, { skipAuth: true, signal })
         .catch(err => {
-          // Only an error status is a refused login: a page answered with a
-          // 200 (wrong host) is not wrong credentials.
-          throw err instanceof KitsuError && err.status >= 400
+          // Only a refusal of Zou is a failed login: an outage (5xx) or a
+          // host given without "/api" (405, 404, a page answered with a 200)
+          // is not wrong credentials.
+          throw err instanceof KitsuError && LOGIN_REFUSALS.includes(err.status)
             ? loginErrorFrom(err)
             : err
         })

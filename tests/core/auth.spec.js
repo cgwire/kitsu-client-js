@@ -4,7 +4,9 @@ import { createCore } from '../../src/core/index.js'
 import {
   AuthFailedError,
   KitsuError,
-  MissingOtpError
+  MissingOtpError,
+  NotFoundError,
+  ServerError
 } from '../../src/core/errors.js'
 import { createFakeFetch } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
@@ -64,6 +66,44 @@ describe('logIn', () => {
       AuthFailedError
     )
   })
+
+  // 401: inactive user, 409: no authentication strategy configured.
+  it.each([
+    [401, { login: false, unactive: true }],
+    [409, { login: false }]
+  ])(
+    'reports the refusal %i of Zou as a failed login',
+    async (status, body) => {
+      const fake = createFakeFetch().reply(status, body)
+      const kitsu = createCore({ host: HOST, fetch: fake })
+      const err = await kitsu.logIn('a@b.c', 'secret').catch(e => e)
+      expect(err.constructor).toBe(AuthFailedError)
+      expect(err).toMatchObject({ status, body })
+    }
+  )
+
+  // 500: Zou cannot reach its database, 502: proxy while Zou restarts,
+  // 405 and 404: host given without "/api".
+  it.each([
+    [500, ServerError, 'application/json', '{"login": false}'],
+    [502, ServerError, 'text/html', '<html>Bad Gateway</html>'],
+    [405, KitsuError, 'text/html', '<html>Not Allowed</html>'],
+    [404, NotFoundError, 'text/html', '<html>Not Found</html>']
+  ])(
+    'keeps the regular error of a %i',
+    async (status, ErrorClass, type, text) => {
+      const fake = createFakeFetch().on(
+        'POST',
+        '/auth/login',
+        () => new Response(text, { status, headers: { 'Content-Type': type } })
+      )
+      const kitsu = createCore({ host: HOST, fetch: fake })
+      const err = await kitsu.logIn('a@b.c', 'secret').catch(e => e)
+      expect(err.constructor).toBe(ErrorClass)
+      expect(err.status).toBe(status)
+      expect(kitsu.getTokens()).toBeNull()
+    }
+  )
 
   it('does not report a page answered with a 200 as wrong credentials', async () => {
     const page = async () =>

@@ -27,9 +27,13 @@ Every error extends `KitsuError` and carries `status`, `path`, `method` and
 | 404                   | `NotFoundError`                                                                                               |
 | 413                   | `TooBigFileError`                                                                                             |
 | 5xx                   | `ServerError`                                                                                                 |
+| any other status      | `KitsuError` (a 405 usually means a host given without its `/api` suffix)                                     |
 | no answer             | `NetworkError`, `TimeoutError`                                                                                |
 | `signal` or `close()` | the native `AbortError`                                                                                       |
 | 2xx that is not JSON  | `KitsuError` (usually a host given without its `/api` suffix)                                                 |
+
+A refused `logIn` is a 400, 401 or 409 answer of Zou. Any other failure keeps
+its own error: an outage is a `ServerError`, not wrong credentials.
 
 Regular calls are bounded: 60 s to the first byte, 5 min in total
 (`timeout: { response, deadline }`, `0` disables a timer). Uploads are not
