@@ -53,6 +53,9 @@ describe('person namespace transfers', () => {
       send(body) {
         this.body = body
       }
+      getResponseHeader() {
+        return 'application/json'
+      }
     }
     const onProgress = vi.fn()
     const pending = kitsu.person.setAvatar(PERSON_ID, avatar, { onProgress })

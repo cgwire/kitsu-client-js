@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { NotAllowedError, ParameterError } from '../../src/core/errors.js'
+import {
+  KitsuError,
+  NetworkError,
+  NotAllowedError,
+  ParameterError
+} from '../../src/core/errors.js'
 import { createClient } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { createFakeFetch } from '../helpers/fakeFetch.js'
+import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
 import { HOST, TASK_ID } from '../helpers/ids.js'
 
 const PATH = `data/tasks/${TASK_ID}/comments`
@@ -30,9 +35,14 @@ const installFakeXhr = () => {
     abort() {
       this.onabort()
     }
-    respond(status, body) {
+    getResponseHeader(name) {
+      return name === 'Content-Type' ? this.contentType : null
+    }
+    respond(status, body, contentType = 'application/json') {
       this.status = status
-      this.responseText = JSON.stringify(body)
+      this.contentType = contentType
+      this.responseText =
+        contentType === 'application/json' ? JSON.stringify(body) : body
       this.onload()
     }
   }
@@ -129,6 +139,75 @@ describe('http.upload over XHR', () => {
     await vi.waitFor(() => expect(xhrs).toHaveLength(1))
     xhrs[0].respond(403, { message: 'no' })
     expect(await pending).toBeInstanceOf(NotAllowedError)
+  })
+
+  it('refuses a successful answer that is not JSON, like the fetch transport', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu } = makeClient({ globalFetch: true })
+    const html = '<!DOCTYPE html><title>Sign in</title>'
+    const pending = kitsu.http
+      .upload(PATH, { file: blob, onProgress: () => {} })
+      .catch(e => e)
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(200, html, 'text/html')
+    const err = await pending
+    expect(err.constructor).toBe(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: PATH,
+      method: 'POST',
+      body: html
+    })
+  })
+
+  it('refreshes the token on a 401 and sends the upload again', async () => {
+    const xhrs = installFakeXhr()
+    const fake = createFakeFetch().on('GET', '/auth/refresh-token', () =>
+      jsonResponse(200, { access_token: 'new' })
+    )
+    vi.stubGlobal('fetch', fake)
+    const kitsu = createClient({
+      host: HOST,
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const pending = kitsu.http.upload(PATH, {
+      file: blob,
+      onProgress: () => {}
+    })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(401, { msg: 'Token has expired' })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(2))
+    xhrs[1].respond(201, { id: 'c1' })
+    expect(await pending).toEqual({ id: 'c1' })
+    expect(xhrs[0].headers.Authorization).toBe('Bearer old')
+    expect(xhrs[1].headers.Authorization).toBe('Bearer new')
+  })
+
+  it('wraps a network failure', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu } = makeClient({ globalFetch: true })
+    const pending = kitsu.http
+      .upload(PATH, { file: blob, onProgress: () => {} })
+      .catch(e => e)
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].onerror()
+    expect(await pending).toBeInstanceOf(NetworkError)
+  })
+
+  it('sends nothing on a signal already aborted', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu } = makeClient({ globalFetch: true })
+    const controller = new AbortController()
+    controller.abort()
+    const err = await kitsu.http
+      .upload(PATH, {
+        file: blob,
+        onProgress: () => {},
+        signal: controller.signal
+      })
+      .catch(e => e)
+    expect(err.name).toBe('AbortError')
+    expect(xhrs).toHaveLength(0)
   })
 
   it('aborts on the caller signal', async () => {

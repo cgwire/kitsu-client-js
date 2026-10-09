@@ -76,6 +76,9 @@ describe('asset namespace: CSV transfers', () => {
         sent.push({ method, url })
       }
       setRequestHeader() {}
+      getResponseHeader() {
+        return 'application/json'
+      }
       send(form) {
         sent[0].form = form
         this.upload.onprogress({ loaded: 5, total: 10 })

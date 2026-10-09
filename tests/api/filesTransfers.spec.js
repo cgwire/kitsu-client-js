@@ -31,6 +31,9 @@ const installFakeXhr = () => {
     send(body) {
       this.body = body
     }
+    getResponseHeader() {
+      return 'application/json'
+    }
     respond(status, body) {
       this.status = status
       this.responseText = JSON.stringify(body)

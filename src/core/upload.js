@@ -1,4 +1,10 @@
-import { NetworkError, ParameterError, errorFromResponse } from './errors.js'
+import { parseBody } from './body.js'
+import {
+  KitsuError,
+  NetworkError,
+  ParameterError,
+  errorFromResponse
+} from './errors.js'
 import { buildUrl } from './query.js'
 
 /**
@@ -42,12 +48,32 @@ const buildForm = ({ file, fields = {}, fileField = 'file', fileName }) => {
   return form
 }
 
+// Best effort for the body of an error: its status already tells the error.
 const parseText = text => {
   try {
     return text ? JSON.parse(text) : null
   } catch {
     return text
   }
+}
+
+// Read like send() reads a fetch answer in http.js: a page served with a 2xx
+// (host without "/api", SSO portal) must not reach the caller as if it were
+// data.
+const dataOf = (xhr, info) => {
+  const { status, responseText: text } = xhr
+  if (status < 200 || status >= 300) {
+    throw errorFromResponse(status, { ...info, body: parseText(text) || '' })
+  }
+  const type = xhr.getResponseHeader('Content-Type') || ''
+  const { data, isJson } = parseBody(text, type)
+  if (!isJson) {
+    throw new KitsuError(
+      `${info.method} ${info.path} answered ${status} without JSON`,
+      { ...info, status, body: data }
+    )
+  }
+  return data
 }
 
 const abortError = () =>
@@ -81,13 +107,10 @@ const xhrUpload = ({
     )
     xhr.upload.onprogress = ({ loaded, total }) => onProgress({ loaded, total })
     xhr.onload = () => {
-      const body = parseText(xhr.responseText)
-      if (xhr.status >= 200 && xhr.status < 300) settle(resolve, body)
-      else {
-        settle(
-          reject,
-          errorFromResponse(xhr.status, { ...info, body: body || '' })
-        )
+      try {
+        settle(resolve, dataOf(xhr, info))
+      } catch (err) {
+        settle(reject, err)
       }
     }
     xhr.onerror = () =>
