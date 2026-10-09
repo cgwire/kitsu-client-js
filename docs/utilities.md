@@ -29,3 +29,7 @@ const task = taskApi(core.http)
 
 `core.http` is only meant to be handed to these factories: its methods are
 internal and may change in any release.
+
+TypeScript finds the declarations of the subpaths (`/core`, `/utils`, `/task`...)
+with `moduleResolution` set to `node16`, `nodenext` or `bundler`. The older
+`node10` resolution only finds those of the root entry.
