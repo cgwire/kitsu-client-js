@@ -4,12 +4,16 @@ import { NotFoundError, ParameterError } from './errors.js'
  * @typedef {string|{id: string}} Model An entity object or its id.
  * @typedef {{id: string, [field: string]: any}} Entity A raw Zou dict.
  * @typedef {{signal?: AbortSignal}} RequestOptions
- * @typedef {{
- *   fileName?: string,
- *   onProgress?: (progress: {loaded: number, total: number}) => void,
- *   signal?: AbortSignal
- * }} TransferOptions fileName names the uploaded file when it is a plain
- *   Blob. onProgress needs XMLHttpRequest (browsers, webviews).
+ */
+
+/**
+ * @typedef {object} TransferOptions
+ * @property {string} [fileName] Name sent with the file: a bare Blob has none.
+ * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+ *   client given its own fetch (Tauri) uploads through it and never calls
+ *   onProgress.
+ * @property {AbortSignal} [signal]
  */
 
 const UUID =

@@ -47,6 +47,7 @@ describe('files namespace: uploads', () => {
   })
   afterEach(() => {
     delete globalThis.XMLHttpRequest
+    vi.unstubAllGlobals()
   })
 
   it('uploadWorkingFile posts the file as multipart', async () => {
@@ -85,6 +86,7 @@ describe('files namespace: uploads', () => {
   })
 
   it('uploadWorkingFile reports the upload progress', async () => {
+    ;({ kitsu, fake } = makeClient({ globalFetch: true }))
     const xhrs = installFakeXhr()
     const onProgress = vi.fn()
     const pending = kitsu.files.uploadWorkingFile(WORKING_FILE_ID, blob, {
@@ -132,6 +134,7 @@ describe('files namespace: uploads', () => {
   })
 
   it('uploadPersonAvatar reports the upload progress', async () => {
+    ;({ kitsu, fake } = makeClient({ globalFetch: true }))
     const xhrs = installFakeXhr()
     const onProgress = vi.fn()
     const pending = kitsu.files.uploadPersonAvatar(PERSON_ID, blob, {

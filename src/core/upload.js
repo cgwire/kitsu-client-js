@@ -11,7 +11,9 @@ import { buildUrl } from './query.js'
  * @property {string} [fileName] File name of the first file.
  * @property {Record<string, any>} [query] Query parameters of the URL.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
- *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it.
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+ *   client given its own fetch (Tauri) uploads through it and never calls
+ *   onProgress.
  * @property {AbortSignal} [signal]
  */
 
@@ -104,9 +106,10 @@ const xhrUpload = ({
  *   Registers an attempt among the in-flight requests of the instance, so
  *   close() aborts it like any other request.
  * @param {boolean} deps.withCredentials Cookie mode: the XHR sends cookies.
+ * @param {boolean} [deps.globalFetch] The client runs on the global fetch.
  */
 export const createUpload =
-  ({ host, request, withAuthReplay, track, withCredentials }) =>
+  ({ host, request, withAuthReplay, track, withCredentials, globalFetch }) =>
   /**
    * @param {string} path
    * @param {UploadOptions} options
@@ -115,8 +118,13 @@ export const createUpload =
   async (path, options) => {
     const form = buildForm(options)
     const { query, onProgress, signal } = options
+    // XHR goes out through the network stack of the page, like the global
+    // fetch. An injected fetch (the Tauri http plugin, which escapes CORS,
+    // or a wrapper adding headers) must not be bypassed: progress is lost.
     const useXhr =
-      onProgress && typeof globalThis.XMLHttpRequest !== 'undefined'
+      onProgress &&
+      globalFetch &&
+      typeof globalThis.XMLHttpRequest !== 'undefined'
     if (!useXhr) return request('POST', path, { body: form, query, signal })
     return withAuthReplay(headers => {
       const tracked = track(signal)

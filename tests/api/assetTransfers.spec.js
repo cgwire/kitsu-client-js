@@ -66,6 +66,7 @@ describe('asset namespace: CSV transfers', () => {
   })
 
   it('importAssetsWithCsv reports the progress through XMLHttpRequest', async () => {
+    ;({ kitsu, fake } = makeClient({ globalFetch: true }))
     const sent = []
     class FakeXhr {
       constructor() {

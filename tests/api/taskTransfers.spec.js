@@ -35,6 +35,7 @@ describe('task namespace transfers', () => {
 
   afterEach(() => {
     delete globalThis.XMLHttpRequest
+    vi.unstubAllGlobals()
   })
 
   it('addComment posts JSON without attachment', async () => {
@@ -222,6 +223,7 @@ describe('task namespace transfers', () => {
   })
 
   it('uploadPreviewFile reports the upload progress', async () => {
+    ;({ kitsu, fake } = makeClient({ globalFetch: true }))
     const xhrs = []
     globalThis.XMLHttpRequest = class {
       constructor() {
@@ -511,6 +513,29 @@ describe('task namespace transfers', () => {
       path: `/actions/preview-files/${PREVIEW_FILE_ID}/set-main-preview`,
       body: {}
     })
+  })
+
+  // The Tauri setup of docs/files.md: the movie must not leave the injected
+  // fetch for the XMLHttpRequest of the webview, which CORS blocks.
+  it('publishPreview uploads through an injected fetch, without progress', async () => {
+    const xhrs = []
+    globalThis.XMLHttpRequest = class {
+      constructor() {
+        xhrs.push(this)
+      }
+    }
+    fake
+      .reply(201, { id: COMMENT_ID })
+      .reply(201, { id: PREVIEW_FILE_ID })
+      .reply(201, { id: PREVIEW_FILE_ID })
+    const onProgress = vi.fn()
+    await kitsu.task.publishPreview(TASK_ID, TASK_STATUS_ID, movieFile, {
+      onProgress
+    })
+    expect(fake.calls).toHaveLength(3)
+    expect(fake.calls[2]).toMatchObject({ method: 'POST', path: UPLOAD_ROUTE })
+    expect(xhrs).toHaveLength(0)
+    expect(onProgress).not.toHaveBeenCalled()
   })
 
   it('publishPreview comments nothing without a file', async () => {

@@ -41,6 +41,7 @@ const installFakeXhr = () => {
 
 afterEach(() => {
   delete globalThis.XMLHttpRequest
+  vi.unstubAllGlobals()
 })
 
 describe('http.upload over fetch', () => {
@@ -90,7 +91,7 @@ describe('http.upload over fetch', () => {
 describe('http.upload over XHR', () => {
   it('puts the query in the URL', async () => {
     const xhrs = installFakeXhr()
-    const { kitsu } = makeClient()
+    const { kitsu } = makeClient({ globalFetch: true })
     const pending = kitsu.http.upload(PATH, {
       file: blob,
       query: { normalize: false },
@@ -104,7 +105,7 @@ describe('http.upload over XHR', () => {
 
   it('reports progress and resolves with the parsed body', async () => {
     const xhrs = installFakeXhr()
-    const { kitsu } = makeClient()
+    const { kitsu } = makeClient({ globalFetch: true })
     const onProgress = vi.fn()
     const pending = kitsu.http.upload(PATH, { file: blob, onProgress })
     await vi.waitFor(() => expect(xhrs).toHaveLength(1))
@@ -121,7 +122,7 @@ describe('http.upload over XHR', () => {
 
   it('maps an error status to the typed error', async () => {
     const xhrs = installFakeXhr()
-    const { kitsu } = makeClient()
+    const { kitsu } = makeClient({ globalFetch: true })
     const pending = kitsu.http
       .upload(PATH, { file: blob, onProgress: () => {} })
       .catch(e => e)
@@ -132,7 +133,7 @@ describe('http.upload over XHR', () => {
 
   it('aborts on the caller signal', async () => {
     const xhrs = installFakeXhr()
-    const { kitsu } = makeClient()
+    const { kitsu } = makeClient({ globalFetch: true })
     const controller = new AbortController()
     const pending = kitsu.http
       .upload(PATH, {
@@ -150,11 +151,8 @@ describe('http.upload over XHR', () => {
 describe('http.upload over XHR, instance wiring', () => {
   it('sends cookies in cookie mode', async () => {
     const xhrs = installFakeXhr()
-    const kitsu = createClient({
-      host: HOST,
-      fetch: createFakeFetch(),
-      auth: 'cookie'
-    })
+    vi.stubGlobal('fetch', createFakeFetch())
+    const kitsu = createClient({ host: HOST, auth: 'cookie' })
     const pending = kitsu.http.upload(PATH, {
       file: blob,
       onProgress: () => {}
@@ -168,13 +166,28 @@ describe('http.upload over XHR, instance wiring', () => {
 
   it('is aborted by close() like any other request', async () => {
     const xhrs = installFakeXhr()
-    const { kitsu } = makeClient()
+    const { kitsu } = makeClient({ globalFetch: true })
     const pending = kitsu.http
       .upload(PATH, { file: blob, onProgress: () => {} })
       .catch(e => e)
     await vi.waitFor(() => expect(xhrs).toHaveLength(1))
     kitsu.close()
     expect((await pending).name).toBe('AbortError')
+  })
+
+  // The Tauri http plugin escapes CORS, the XHR of the webview does not.
+  it('keeps an injected fetch, without progress', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu, fake } = makeClient()
+    fake.reply(201, { id: 'c1' })
+    const onProgress = vi.fn()
+    expect(await kitsu.http.upload(PATH, { file: blob, onProgress })).toEqual({
+      id: 'c1'
+    })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].body).toBeInstanceOf(FormData)
+    expect(xhrs).toHaveLength(0)
+    expect(onProgress).not.toHaveBeenCalled()
   })
 
   it('names extra files file-1, file-2 like gazu', async () => {

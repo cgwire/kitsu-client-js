@@ -472,8 +472,10 @@ export const userApi = http => ({
    * @param {{attachments?: Blob[],
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal}} [options] With attachments the message goes as
-   *   a multipart form. onProgress needs XMLHttpRequest (browsers,
-   *   webviews) and only applies to attachments.
+   *   a multipart form. onProgress only applies to attachments and needs
+   *   XMLHttpRequest (browsers, webviews): fetch cannot report it. A client
+   *   given its own fetch (Tauri) uploads through it and never calls
+   *   onProgress.
    * @returns {Promise<Entity>} The created message.
    */
   newChatMessage: async (

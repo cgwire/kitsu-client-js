@@ -30,7 +30,9 @@ const { comment, preview_file } = await kitsu.task.publishPreview(
 ```
 
 `onProgress` needs `XMLHttpRequest` (browsers and webviews): `fetch` cannot
-report upload progress. In Node, write a download to disk yourself:
+report upload progress. Without it, or on a client given its own `fetch`, the
+upload goes through `fetch` and `onProgress` is never called. In Node, write a
+download to disk yourself:
 
 ```js
 import { createWriteStream } from 'node:fs'
@@ -42,4 +44,6 @@ await pipeline(Readable.fromWeb(response.body), createWriteStream('shot.mp4'))
 ```
 
 In a Tauri app, pass the `fetch` of the http plugin so requests are not
-subject to CORS: `createClient({ host, fetch })`.
+subject to CORS: `createClient({ host, fetch })`. Uploads go through it too,
+without progress: `XMLHttpRequest` would leave the plugin for the network
+stack of the webview, where CORS applies.
