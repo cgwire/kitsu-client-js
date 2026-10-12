@@ -143,9 +143,9 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
-      path: `/data/user/notifications/${NOTIFICATION_ID}`,
-      body: { id: NOTIFICATION_ID, read: true }
+      path: `/data/user/notifications/${NOTIFICATION_ID}`
     })
+    expect(fake.calls[0].body).toEqual({ read: true })
   })
 
   it('markAllNotificationsAsRead posts an empty body', async () => {

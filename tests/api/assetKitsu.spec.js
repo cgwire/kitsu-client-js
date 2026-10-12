@@ -9,6 +9,24 @@ import {
   PROJECT_ID
 } from '../helpers/ids.js'
 
+// The asset fields of the compact with-tasks rows, as Zou declares them.
+const ASSET_FIELDS = [
+  'id',
+  'name',
+  'preview_file_id',
+  'description',
+  'asset_type_name',
+  'asset_type_id',
+  'canceled',
+  'ready_for',
+  'episode_id',
+  'casting_episode_ids',
+  'is_casting_standby',
+  'is_shared',
+  'data',
+  'tasks'
+]
+
 const ndjsonResponse = lines =>
   new Response(lines.map(line => JSON.stringify(line)).join('\n'), {
     status: 200,
@@ -79,6 +97,43 @@ describe('asset namespace: Kitsu coverage', () => {
       episode_id: EPISODE_ID,
       stream: 'true',
       compact: 'true'
+    })
+  })
+
+  it('updateAsset saves back a row of allAssetsWithTasks', async () => {
+    fake.on('GET', '/data/assets/with-tasks', () =>
+      ndjsonResponse([
+        { compact: true, asset_fields: ASSET_FIELDS, task_fields: ['id'] },
+        [
+          ASSET_ID,
+          'Chair',
+          '',
+          '',
+          'Props',
+          ASSET_TYPE_ID,
+          false,
+          'None',
+          '',
+          [],
+          false,
+          false,
+          {},
+          []
+        ]
+      ])
+    )
+    fake.reply(200, { id: ASSET_ID })
+    const [asset] = await kitsu.asset.allAssetsWithTasks({
+      project: PROJECT_ID
+    })
+    await kitsu.asset.updateAsset(
+      Object.freeze({ ...asset, description: 'A red chair' })
+    )
+    expect(fake.calls[1].body).toMatchObject({
+      description: 'A red chair',
+      preview_file_id: null,
+      ready_for: null,
+      source_id: null
     })
   })
 

@@ -3,6 +3,7 @@ import {
   idOf,
   idsOf,
   optionalIdOf,
+  placeholdersToNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -14,6 +15,14 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// getAsset and allAssetsWithTasks write a missing preview or episode as ''
+// and a missing ready_for as 'None'. The episode is saved as source_id.
+const ASSET_PLACEHOLDERS = {
+  preview_file_id: '',
+  ready_for: 'None',
+  source_id: ''
+}
 
 export const assetApi = http => {
   /**
@@ -55,7 +64,9 @@ export const assetApi = http => {
     http.fetchOne('assets', idOf(asset), { signal })
 
   /**
-   * Save the asset. It must already exist.
+   * Save the asset. It must already exist. An asset read with getAsset or
+   * allAssetsWithTasks can be saved back as it is: the placeholders of its
+   * missing preview, ready_for and episode are sent as null.
    * @param {{id: string, [field: string]: any}} asset
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated asset.
@@ -64,8 +75,13 @@ export const assetApi = http => {
     http.update(
       'entities',
       idOf(asset),
-      // Zou stores the episode of an asset in source_id.
-      'episode_id' in asset ? { ...asset, source_id: asset.episode_id } : asset,
+      placeholdersToNull(
+        // Zou stores the episode of an asset in source_id.
+        'episode_id' in asset
+          ? { ...asset, source_id: asset.episode_id }
+          : asset,
+        ASSET_PLACEHOLDERS
+      ),
       { signal }
     )
 
@@ -297,18 +313,9 @@ export const assetApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset.
      */
-    updateAssetData: async (asset, data = {}, { signal } = {}) => {
-      // Not getAsset: a missing asset must raise NotFoundError, not be null.
-      const current = await http.get(
-        `data/assets/${idOf(asset)}`,
-        {},
-        { signal }
-      )
-      return updateAsset(
-        { id: current.id, data: { ...(current.data || {}), ...data } },
-        { signal }
-      )
-    },
+    updateAssetData: async (asset, data = {}, { signal } = {}) =>
+      // Only the given keys: Zou merges them into the stored metadata.
+      http.update('entities', idOf(asset), { data: { ...data } }, { signal }),
 
     /**
      * Remove the asset. Without force, an asset that has tasks is only marked

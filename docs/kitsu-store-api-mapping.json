@@ -51,7 +51,7 @@
     "route": "/data/entities/<id>",
     "client": "asset.updateAsset",
     "status": "existing",
-    "note": "The client sends the object it is given: Kitsu keeps building its own field list (ready_for, is_casting_standby, source_id)."
+    "note": "The client sends the object it is given, the placeholders of the asset reads ('' for a missing preview or episode, 'None' for a missing ready_for) turned into null: Kitsu keeps building its own field list (ready_for, is_casting_standby, source_id)."
   },
   {
     "module": "assets",

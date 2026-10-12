@@ -51,7 +51,7 @@ export const studioApi = http => ({
 
   /**
    * Save the studio. Its metadata are fully replaced by the given ones.
-   * @param {{id: string}} studio
+   * @param {Entity} studio
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated studio.
    */

@@ -109,12 +109,14 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * @param {{id: string}} projectTemplate
+     * @param {Entity} projectTemplate
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */
     updateProjectTemplate: async (projectTemplate, { signal } = {}) =>
-      http.put(templatePath(projectTemplate), projectTemplate, { signal }),
+      http.update('project-templates', idOf(projectTemplate), projectTemplate, {
+        signal
+      }),
 
     /**
      * @param {Model} projectTemplate

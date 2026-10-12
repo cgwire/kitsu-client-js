@@ -105,7 +105,8 @@ describe('projectTemplate namespace: templates', () => {
       method: 'PUT',
       path: `/data/project-templates/${TEMPLATE_ID}`
     })
-    expect(fake.calls[0].body).toEqual(template)
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
+    expect(template).toEqual({ id: TEMPLATE_ID, name: 'Renamed' })
   })
 
   it('removeProjectTemplate deletes the template', async () => {

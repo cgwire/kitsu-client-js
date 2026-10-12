@@ -82,7 +82,7 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(fake.calls[0].body).toEqual(playlist)
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed', shots: [] })
   })
 
   it('updatePlaylist rejects a playlist without id', async () => {
@@ -192,10 +192,7 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(fake.calls[0].body).toEqual({
-      id: PLAYLIST_ID,
-      shots: [{ entity_id: OTHER_ID }]
-    })
+    expect(fake.calls[0].body).toEqual({ shots: [{ entity_id: OTHER_ID }] })
   })
 
   it('removeEntityFromPlaylist without persist sends nothing', async () => {
@@ -237,7 +234,7 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(fake.calls[0].body).toEqual(updated)
+    expect(fake.calls[0].body).toEqual({ shots: updated.shots })
   })
 
   it('updateEntityPreview without persist sends nothing', async () => {

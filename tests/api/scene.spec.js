@@ -216,7 +216,8 @@ describe('scene namespace: writes', () => {
       method: 'PUT',
       path: `/data/entities/${SCENE_ID}`
     })
-    expect(fake.calls[0].body).toEqual(scene)
+    expect(fake.calls[0].body).toEqual({ name: 'SC011' })
+    expect(scene).toEqual({ id: SCENE_ID, name: 'SC011' })
   })
 
   it('newSceneAssetInstance instantiates an asset in a scene', async () => {

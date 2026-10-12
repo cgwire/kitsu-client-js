@@ -81,9 +81,9 @@ describe('project namespace: Kitsu store coverage', () => {
       })
       expect(fake.calls[0]).toMatchObject({
         method: 'PUT',
-        path: `/data/preview-background-files/${PREVIEW_BACKGROUND_FILE_ID}`,
-        body: { id: PREVIEW_BACKGROUND_FILE_ID, name: 'Sky' }
+        path: `/data/preview-background-files/${PREVIEW_BACKGROUND_FILE_ID}`
       })
+      expect(fake.calls[0].body).toEqual({ name: 'Sky' })
     })
 
     it('deletePreviewBackgroundFile deletes the background', async () => {
@@ -206,9 +206,9 @@ describe('project namespace: Kitsu store coverage', () => {
       })
       expect(fake.calls[0]).toMatchObject({
         method: 'PUT',
-        path: `/data/status-automations/${STATUS_AUTOMATION_ID}`,
-        body: { id: STATUS_AUTOMATION_ID, archived: true }
+        path: `/data/status-automations/${STATUS_AUTOMATION_ID}`
       })
+      expect(fake.calls[0].body).toEqual({ archived: true })
     })
 
     it('deleteStatusAutomation deletes the automation', async () => {
