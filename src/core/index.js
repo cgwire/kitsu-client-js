@@ -28,7 +28,12 @@ const resolveTimeout = (timeout = {}) =>
  * @property {string} host API root, for instance "https://kitsu.studio/api".
  *   A relative host ("/api") suits same-origin web apps.
  * @property {typeof fetch} [fetch] Defaults to the global fetch. Tauri apps
- *   inject the fetch of their http plugin here.
+ *   inject the fetch of their http plugin here. Every request goes through
+ *   it, uploads included: they then report no progress (see xhrUploads).
+ * @property {boolean} [xhrUploads] Send the uploads given an onProgress
+ *   through XMLHttpRequest, the only way to report their progress, which
+ *   skips an injected fetch. Defaults to true without a fetch option, false
+ *   with one.
  * @property {'bearer'|'cookie'} [auth] Defaults to "bearer".
  * @property {import('./session.js').Tokens|null} [tokens] Resume a session.
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]
@@ -58,6 +63,9 @@ export const createCore = options => {
     host: options.host,
     // Wrapped: calling a detached window.fetch throws "Illegal invocation".
     fetch: options.fetch || ((input, init) => globalThis.fetch(input, init)),
+    // Uploads with progress use XHR, which goes out like the global fetch:
+    // an injected fetch carries them instead, unless the app opts back in.
+    xhrUploads: options.xhrUploads ?? !options.fetch,
     timeout: resolveTimeout(options.timeout || undefined),
     // Bearer mode never sends cookies: Zou reads the session cookie before
     // the Authorization header, so a bearer client living in a Kitsu page

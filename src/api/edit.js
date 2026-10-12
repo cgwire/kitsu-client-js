@@ -149,7 +149,9 @@ export const editApi = http => {
      *   signal?: AbortSignal
      * }} [options] update also updates the edits that already exist.
      *   fileName names the uploaded file when it is a plain Blob. onProgress
-     *   needs XMLHttpRequest (browsers, webviews).
+     *   needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+     *   client given its own fetch (Tauri) uploads through it and never calls
+     *   onProgress.
      * @returns {Promise<Entity[]>} The edits created or updated by the import.
      */
     importEditsWithCsv: async (

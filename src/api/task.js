@@ -20,14 +20,6 @@ import * as urls from '../utils/urls.js'
  * @typedef {{forEntity?: string, department?: Model,
  *   signal?: AbortSignal}} TaskTypeFilters
  * @typedef {{
- *   fileName?: string,
- *   onProgress?: (progress: {loaded: number, total: number}) => void,
- *   signal?: AbortSignal
- * }} TransferOptions fileName names the first file sent: a bare Blob has no
- *   name, and a preview needs one, Zou reads the preview type from the
- *   extension of the file name. onProgress needs XMLHttpRequest (browsers,
- *   webviews).
- * @typedef {{
  *   comment?: string,
  *   person?: Model,
  *   checklist?: object[],
@@ -36,6 +28,18 @@ import * as urls from '../utils/urls.js'
  *   links?: string[]
  * }} CommentFields person is the author, checklist holds entries like
  *   {text: "Item 1", checked: false}, createdAt is the comment date.
+ */
+
+/**
+ * @typedef {object} TransferOptions
+ * @property {string} [fileName] Names the first file sent: a bare Blob has no
+ *   name, and a preview needs one, Zou reads the preview type from the
+ *   extension of the file name.
+ * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
+ *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
+ *   client given its own fetch (Tauri) uploads through it and never calls
+ *   onProgress.
+ * @property {AbortSignal} [signal]
  */
 
 const HEX_COLOR = /^#[0-9a-fA-F]*$/
