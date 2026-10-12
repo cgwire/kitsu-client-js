@@ -9,8 +9,9 @@ Pure functions, importable on their own from `@cgwire/kitsu-client/utils`:
   new arrays;
 - frames and timecodes: `frameToSeconds`, `formatToTimecode`, `roundToFrame`...
 - previews: `isMoviePreview`, `isPicturePreview`, `formatRevision`...
-- Kitsu web URLs: `getProjectUrl`, `getShotUrl`, `getTaskUrl`... The
-  namespaces expose the same names, loading what the URL needs:
+- Kitsu web URLs: `getProjectUrl`, `getShotUrl`, `getTaskUrl`... They take
+  the host of the web app, which `webHostOf(apiHost)` derives from the API
+  host. The namespaces expose the same names, loading what the URL needs:
   `await kitsu.shot.getShotUrl(shot)`.
 
 ## Smaller bundles
@@ -25,3 +26,13 @@ import { taskApi } from '@cgwire/kitsu-client/task'
 const core = createCore({ host: '/api', auth: 'cookie' })
 const task = taskApi(core.http)
 ```
+
+`core.http`, also reachable as `kitsu.http`, is only meant to be handed to
+these factories: its methods are internal and may change in any release.
+
+TypeScript finds the declarations of the subpaths (`/core`, `/utils`, `/task`...)
+with `moduleResolution` set to `node16`, `nodenext` or `bundler`. The older
+`node10` resolution only finds those of the root entry. CommonJS TypeScript
+code needs TypeScript 5.9 or later with `module` set to `node20` or
+`nodenext`: with `node16` or `node18`, TypeScript refuses to import an ES
+module (TS1479).
