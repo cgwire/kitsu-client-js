@@ -82,7 +82,7 @@ describe('playlist namespace: reads', () => {
     expect(fake.calls[0].query.get('page')).toBe('3')
   })
 
-  it('allPlaylistsForEpisode uses the project of the episode object', async () => {
+  it('allPlaylistsForEpisode lists the first page, using the project of the episode object', async () => {
     fake.reply(200, [{ name: 'b' }, { name: 'A' }])
     expect(
       await kitsu.playlist.allPlaylistsForEpisode({
@@ -95,6 +95,16 @@ describe('playlist namespace: reads', () => {
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/episodes/${EPISODE_ID}/playlists`
     })
+    expect(fake.calls[0].query.get('page')).toBe('1')
+  })
+
+  it('allPlaylistsForEpisode asks for the given page', async () => {
+    fake.reply(200, [])
+    await kitsu.playlist.allPlaylistsForEpisode(
+      { id: EPISODE_ID, project_id: PROJECT_ID },
+      { page: 3 }
+    )
+    expect(fake.calls[0].query.get('page')).toBe('3')
   })
 
   it('allPlaylistsForEpisode reads the episode given as an id', async () => {

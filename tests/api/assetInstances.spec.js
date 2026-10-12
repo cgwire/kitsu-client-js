@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
@@ -147,5 +148,50 @@ describe('asset namespace: asset instances', () => {
       })
     ).toBeNull()
     expect(fake.calls).toHaveLength(1)
+  })
+
+  // getAsset and allAssetsWithTasks give no source_id and an empty
+  // episode_id for a main pack asset.
+  it('getEpisodeFromAsset returns null without request for an empty episode_id', async () => {
+    expect(
+      await kitsu.asset.getEpisodeFromAsset({ id: ASSET_ID, episode_id: '' })
+    ).toBeNull()
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Neither an id nor a bare reference says whether the asset is in the
+  // main pack.
+  it('getEpisodeFromAsset reads the asset given as an id or without its episode', async () => {
+    fake
+      .reply(200, { id: ASSET_ID, episode_id: EPISODE_ID })
+      .reply(200, { id: EPISODE_ID })
+      .reply(200, { id: ASSET_ID, episode_id: '' })
+    expect(await kitsu.asset.getEpisodeFromAsset(ASSET_ID)).toEqual({
+      id: EPISODE_ID
+    })
+    expect(await kitsu.asset.getEpisodeFromAsset({ id: ASSET_ID })).toBeNull()
+    expect(fake.calls.map(call => call.path)).toEqual([
+      `/data/assets/${ASSET_ID}`,
+      `/data/episodes/${EPISODE_ID}`,
+      `/data/assets/${ASSET_ID}`
+    ])
+  })
+
+  it('getEpisodeFromAsset rejects when the asset is missing', async () => {
+    fake.reply(404, {})
+    await expect(
+      kitsu.asset.getEpisodeFromAsset(ASSET_ID)
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(fake.calls).toHaveLength(1)
+  })
+
+  it('getEpisodeFromAsset rejects a malformed asset without any request', async () => {
+    await expect(kitsu.asset.getEpisodeFromAsset(null)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    await expect(
+      kitsu.asset.getEpisodeFromAsset('Tree')
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 })
