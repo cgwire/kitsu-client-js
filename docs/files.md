@@ -50,3 +50,11 @@ In a Tauri app, pass the `fetch` of the http plugin so requests are not
 subject to CORS: `createClient({ host, fetch })`. Uploads go through it too,
 without progress: `XMLHttpRequest` would leave the plugin for the network
 stack of the webview, where CORS applies.
+
+The plugin reads the whole file into memory and hands it to Rust as an array
+of bytes: fine for pictures and short movies, slow or failing for large ones.
+For those, add the origin of the app (`tauri://localhost` on macOS and Linux,
+`http://tauri.localhost` on Windows) to `CORS_ALLOWED_ORIGINS` in the
+configuration of Zou, and create the client with `xhrUploads: true`: uploads
+then go through the `XMLHttpRequest` of the webview, which streams the file
+and reports the progress.
