@@ -98,24 +98,31 @@ export const entityApi = http => ({
     http.remove('entity-types', idOf(entityType), {}, { signal }),
 
   /**
+   * Delete the entity through the generic route. Zou refuses it (400) while
+   * tasks or other records still point to the entity, but deletes its
+   * casting and concept links before refusing. To delete an entity with its
+   * tasks, use removeEntities or the remove function of its type, such as
+   * removeShot or removeAsset, with force.
+   *
+   * gazu's force is not ported: Zou never reads it on this route.
    * @param {Model} entity
-   * @param {{force?: boolean, signal?: AbortSignal}} [options] force also
-   *   deletes the data linked to the entity.
+   * @param {RequestOptions} [options]
    * @returns {Promise<null>}
    */
-  removeEntity: async (entity, { force = false, signal } = {}) =>
-    http.remove(
-      'entities',
-      idOf(entity),
-      { force: force ? true : null },
-      { signal }
-    ),
+  removeEntity: async (entity, { signal } = {}) =>
+    http.remove('entities', idOf(entity), {}, { signal }),
 
   /**
+   * Delete assets, shots, edits and concepts of the project: Zou skips the
+   * entities of other types. Without force, an asset, a shot or an edit that
+   * has tasks is only marked as canceled. One that is already canceled, and
+   * every concept, is deleted with its tasks (removeConcept without force
+   * only cancels a concept that has tasks).
    * @param {Model} project
    * @param {Model[]} entities
-   * @param {{force?: boolean, signal?: AbortSignal}} [options]
-   * @returns {Promise<string[]>} Ids of the deleted entities.
+   * @param {{force?: boolean, signal?: AbortSignal}} [options] force also
+   *   deletes the tasks of the entities.
+   * @returns {Promise<string[]>} Ids of the entities deleted or canceled.
    */
   removeEntities: async (project, entities, { force = false, signal } = {}) =>
     http.request('POST', `actions/projects/${idOf(project)}/delete-entities`, {

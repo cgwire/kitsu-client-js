@@ -59,17 +59,14 @@ export const studioApi = http => ({
     http.update('studios', idOf(studio), studio, { signal }),
 
   /**
-   * Without force, the deletion fails when records are linked to the studio.
+   * Zou refuses (400) to delete a studio that people still belong to: change
+   * their studio_id first.
+   *
+   * gazu's force is not ported: Zou never reads it on this route.
    * @param {Model} studio
-   * @param {{force?: boolean, signal?: AbortSignal}} [options] force also
-   * deletes the linked records.
-   * @returns {Promise<any>}
+   * @param {RequestOptions} [options]
+   * @returns {Promise<null>}
    */
-  removeStudio: async (studio, { force = false, signal } = {}) =>
-    http.remove(
-      'studios',
-      idOf(studio),
-      { force: force ? true : null },
-      { signal }
-    )
+  removeStudio: async (studio, { signal } = {}) =>
+    http.remove('studios', idOf(studio), {}, { signal })
 })

@@ -26,6 +26,15 @@ const shareTokenOf = token => {
 
 const entriesOf = playlist => playlist.shots || []
 
+// Zou replaces the entries of a playlist with the shots of a PUT. List rows
+// and ids carry no shots: the entries are read instead of being taken as an
+// empty list, which a save would turn into an empty playlist. shots: null is
+// a playlist with no entry yet.
+const carriesEntries = playlist =>
+  playlist !== null &&
+  typeof playlist === 'object' &&
+  (playlist.shots === null || Array.isArray(playlist.shots))
+
 // An entry is an entity, or an (entity, preview file) couple.
 const coupleOf = entry => {
   const isCouple =
@@ -68,6 +77,14 @@ export const playlistApi = http => {
 
   const savePlaylist = (playlist, signal) =>
     http.update('playlists', idOf(playlist), playlist, { signal })
+
+  // The given playlist, with its stored entries when it carries none.
+  const withEntries = async (playlist, signal) => {
+    if (carriesEntries(playlist)) return playlist
+    const id = idOf(playlist)
+    const { shots } = await http.get(`data/playlists/${id}`, {}, { signal })
+    return { ...(typeof playlist === 'object' ? playlist : { id }), shots }
+  }
 
   // gazu returns the playlist it built, not the answer of the API.
   const saveEntries = async (playlist, shots, persist, signal) => {
@@ -208,8 +225,9 @@ export const playlistApi = http => {
     /**
      * Add an entity to the playlist, with its most recent preview as the
      * revision to review.
-     * @param {Model} playlist The playlist object is needed when persist is
-     *   false. It is never mutated: use the returned playlist.
+     * @param {Model|Entity} playlist Never mutated: use the returned
+     *   playlist. Without persist, a playlist that carries no shots array (a
+     *   row of allPlaylistsForProject, an id) is read first.
      * @param {Model} entity
      * @param {{
      *   previewFile?: Model|null,
@@ -239,13 +257,15 @@ export const playlistApi = http => {
           signal
         })
       }
-      const current = typeof playlist === 'object' ? playlist : { id: playlist }
+      const current = await withEntries(playlist, signal)
       return { ...current, shots: [...entriesOf(current), entry] }
     },
 
     /**
      * Remove every occurrence of the entity from the playlist.
-     * @param {Entity} playlist Never mutated: use the returned playlist.
+     * @param {Model|Entity} playlist Never mutated: use the returned
+     *   playlist. A playlist that carries no shots array (a row of
+     *   allPlaylistsForProject, an id) is read first.
      * @param {Model} entity
      * @param {{persist?: boolean, signal?: AbortSignal}} [options] With
      *   persist set to false nothing is saved.
@@ -257,15 +277,18 @@ export const playlistApi = http => {
       { persist = true, signal } = {}
     ) => {
       const entityId = idOf(entity)
-      const shots = entriesOf(playlist).filter(
+      const current = await withEntries(playlist, signal)
+      const shots = entriesOf(current).filter(
         entry => entry.entity_id !== entityId
       )
-      return saveEntries(playlist, shots, persist, signal)
+      return saveEntries(current, shots, persist, signal)
     },
 
     /**
      * Change the preview file reviewed for the entity in the playlist.
-     * @param {Entity} playlist Never mutated: use the returned playlist.
+     * @param {Model|Entity} playlist Never mutated: use the returned
+     *   playlist. A playlist that carries no shots array (a row of
+     *   allPlaylistsForProject, an id) is read first.
      * @param {Model} entity
      * @param {Model} previewFile
      * @param {{persist?: boolean, signal?: AbortSignal}} [options] With
@@ -280,12 +303,13 @@ export const playlistApi = http => {
     ) => {
       const entityId = idOf(entity)
       const previewFileId = idOf(previewFile)
-      const shots = entriesOf(playlist).map(entry =>
+      const current = await withEntries(playlist, signal)
+      const shots = entriesOf(current).map(entry =>
         entry.entity_id === entityId
           ? { ...entry, preview_file_id: previewFileId }
           : entry
       )
-      return saveEntries(playlist, shots, persist, signal)
+      return saveEntries(current, shots, persist, signal)
     },
 
     /**
