@@ -1018,7 +1018,8 @@ export const taskApi = http => {
 
     /**
      * Create a task type, or return the one that already has this name for
-     * this entity type.
+     * this entity type. Names are unique across entity types, whatever their
+     * case: a name another entity type uses is refused (ParameterError).
      * @param {string} name
      * @param {{color?: string, forEntity?: string, signal?: AbortSignal}}
      *   [options] color is hexadecimal with a leading # ("#00FF00").
