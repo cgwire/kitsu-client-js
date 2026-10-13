@@ -97,24 +97,26 @@ export const createEvents = ({
     return loading
   }
 
-  // Failures that happen behind the back of the app (one of its lifecycle
-  // handlers, a socket reopened after a session change) have no caller to
-  // reject: they surface as uncaught errors, and never break the session
-  // change or the socket.io emit loop they happened in.
+  // Failures that happen behind the back of the app (one of its handlers, a
+  // socket reopened after a session change) have no caller to reject: they
+  // surface as uncaught errors, and never break the session change or the
+  // socket.io emit loop they happened in, where the next handlers wait.
   const throwOutOfBand = err => {
     setTimeout(() => {
       throw err
     })
   }
 
+  const callApp = (handler, args) => {
+    try {
+      handler(...args)
+    } catch (err) {
+      throwOutOfBand(err)
+    }
+  }
+
   const notify = (handlers, ...args) =>
-    [...handlers].forEach(handler => {
-      try {
-        handler(...args)
-      } catch (err) {
-        throwOutOfBand(err)
-      }
-    })
+    [...handlers].forEach(handler => callApp(handler, args))
 
   const wire = (opened, headers) => {
     let sent = headers.Authorization
@@ -247,7 +249,7 @@ export const createEvents = ({
       const target = handlerOf('events.on', handler)
       // One relay per registration: the same handler can be registered
       // twice, and each off() removes its own registration only.
-      const registration = { name, relay: (...args) => target(...args) }
+      const registration = { name, relay: (...args) => callApp(target, args) }
       const off = () => {
         if (registrations.delete(registration) && socket) {
           socket.off(name, registration.relay)

@@ -537,7 +537,7 @@ describe('events', () => {
 
   // An exception of the app must not break the session, the socket or the
   // other handlers: it is rethrown out of band, from a timer.
-  describe('lifecycle handler that throws', () => {
+  describe('handler that throws', () => {
     const bug = () => {
       throw new Error('handler bug')
     }
@@ -596,6 +596,19 @@ describe('events', () => {
 
       expect(sockets[0].disconnect).toHaveBeenCalledTimes(1)
       expect(abortAll).toHaveBeenCalledTimes(1)
+      expect(() => vi.runAllTimers()).toThrow('handler bug')
+    })
+
+    it('does not stop the other handlers of the same event', async () => {
+      const { io, sockets } = createFakeIo()
+      const { events } = makeCore(io)
+      const handler = vi.fn()
+      await events.on('task:update', bug)
+      await events.on('task:update', handler)
+
+      expect(() => sockets[0].fromServer('task:update', 1)).not.toThrow()
+
+      expect(handler).toHaveBeenCalledWith(1)
       expect(() => vi.runAllTimers()).toThrow('handler bug')
     })
 
