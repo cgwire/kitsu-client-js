@@ -178,5 +178,5 @@ export const createUpload =
         withCredentials,
         info: { path, method: 'POST' }
       }).finally(tracked.release)
-    })
+    }, signal)
   }
