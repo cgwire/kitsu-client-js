@@ -415,6 +415,52 @@ describe('events', () => {
       expect(sockets).toHaveLength(2)
     })
 
+    // Zou refuses a socket without session cookie, and the browser sends
+    // the cookie of the current user only.
+    it('in cookie mode reopens at logIn a socket Zou refused', async () => {
+      const { io, sockets } = createFakeIo()
+      const fetch = createFakeFetch().reply(200, { user: { id: 'u' } })
+      const kitsu = makeCore(io, { fetch, auth: 'cookie', tokens: null })
+      const handler = vi.fn()
+      await kitsu.events.on('x', handler)
+      sockets[0].drops(CLOSED_BY_SERVER)
+
+      await kitsu.logIn('user@kitsu.test', 'password')
+
+      expect(sockets).toHaveLength(2)
+      expect(sockets[1].opts.extraHeaders).toEqual({})
+      sockets[1].fromServer('x', 1)
+      expect(handler.mock.calls).toEqual([[1]])
+    })
+
+    it('in cookie mode replaces at logIn the socket of the former user', async () => {
+      const { io, sockets } = createFakeIo()
+      const fetch = createFakeFetch().reply(200, { user: { id: 'u' } })
+      const kitsu = makeCore(io, { fetch, auth: 'cookie', tokens: null })
+      await kitsu.events.on('x', () => {})
+      sockets[0].connects()
+
+      await kitsu.logIn('other@kitsu.test', 'password')
+
+      expect(sockets[0].disconnect).toHaveBeenCalledTimes(1)
+      expect(sockets).toHaveLength(2)
+    })
+
+    it('in cookie mode closes on logOut and reopens at the next logIn', async () => {
+      const { io, sockets } = createFakeIo()
+      const fetch = createFakeFetch()
+        .reply(200, { logout: true })
+        .reply(200, { user: { id: 'u' } })
+      const kitsu = makeCore(io, { fetch, auth: 'cookie', tokens: null })
+      await kitsu.events.on('x', () => {})
+      await kitsu.logOut()
+      expect(sockets).toHaveLength(1)
+
+      await kitsu.logIn('user@kitsu.test', 'password')
+
+      expect(sockets).toHaveLength(2)
+    })
+
     it('in cookie mode closes on logOut and reconnects at the next on()', async () => {
       const { io, sockets } = createFakeIo()
       const fetch = createFakeFetch().reply(200, { logout: true })

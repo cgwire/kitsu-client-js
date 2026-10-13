@@ -12,5 +12,9 @@ off()
 The socket opens on the first `on()`. Handlers stay registered until their
 `off()`: after `disconnect()` or a network loss they are attached again to the
 next socket. Zou does not replay the events missed while offline, hence
-`onConnect`. `logIn`, `logOut` and `setToken` replace the socket, so it never
-outlives the session it was opened for.
+`onConnect`.
+
+`logIn`, `logOut` and `setToken` replace the socket, in cookie mode too, so it
+never outlives the session it was opened for. A socket that `on()` asked for
+opens again as soon as the new session can authenticate it: a `logIn` reopens
+a socket that Zou refused or that `logOut` closed.
