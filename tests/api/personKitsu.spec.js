@@ -99,10 +99,18 @@ describe('person namespace, Kitsu store coverage', () => {
     })
   })
 
-  it('allDayOffs rejects a year without a month', async () => {
-    await expect(kitsu.person.allDayOffs({ year: 2026 })).rejects.toThrow(
-      ParameterError
-    )
+  it('allDayOffs narrows the day offs to a year', async () => {
+    fake.reply(200, [{ id: OTHER_ID }])
+    expect(await kitsu.person.allDayOffs({ year: 2026 })).toEqual([
+      { id: OTHER_ID }
+    ])
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/persons/day-offs/2026'
+    })
+  })
+
+  it('allDayOffs rejects a month without a year', async () => {
     await expect(kitsu.person.allDayOffs({ month: 9 })).rejects.toThrow(
       ParameterError
     )
@@ -300,6 +308,9 @@ describe('person namespace, Kitsu store coverage', () => {
     await expect(
       person.allDayOffs({ year: 2026, month: '../9' })
     ).rejects.toThrow(ParameterError)
+    await expect(person.allDayOffs({ year: '2026/..' })).rejects.toThrow(
+      ParameterError
+    )
     expect(fake.calls).toHaveLength(0)
   })
 

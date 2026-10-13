@@ -793,22 +793,24 @@ export const personApi = http => ({
     ),
 
   /**
-   * The API narrows the day offs to a month only: year and month go together.
+   * The whole history is for admins only. A year or a month holds the day
+   * offs the user may read: all of them for an admin, else their own and
+   * those of the teams of the productions they manage, or supervise (dates
+   * only, without description).
    * @param {{year?: number, month?: number, signal?: AbortSignal}} [options]
-   *   month goes from 1 (January) to 12.
-   * @returns {Promise<Entity[]>} The day offs of everyone, of the whole
-   *   history or of one month.
+   *   month goes from 1 (January) to 12 and needs a year.
+   * @returns {Promise<Entity[]>} The day offs of the whole history, of a
+   *   year or of a month.
    */
   allDayOffs: async ({ year, month, signal } = {}) => {
     if (year == null && month == null)
       return http.fetchAll('day-offs', {}, { signal })
-    if (year == null || month == null)
-      throw new ParameterError('year and month must be given together')
-    return http.get(
-      `data/persons/day-offs/${intOf(year)}/${intOf(month)}`,
-      {},
-      { signal }
-    )
+    if (year == null) {
+      throw new ParameterError('Missing parameter: year is required with month')
+    }
+    const period =
+      month == null ? intOf(year) : `${intOf(year)}/${intOf(month)}`
+    return http.get(`data/persons/day-offs/${period}`, {}, { signal })
   },
 
   /**
