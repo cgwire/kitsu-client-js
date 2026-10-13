@@ -20,6 +20,8 @@ import * as urls from '../utils/urls.js'
  * @typedef {{relations?: boolean, signal?: AbortSignal}} RelationsOptions
  * @typedef {{forEntity?: string, department?: Model,
  *   signal?: AbortSignal}} TaskTypeFilters
+ * @typedef {{total: number, [personId: string]: Entity[]|number}}
+ *   TaskTimeSpents
  */
 
 /**
@@ -1220,8 +1222,9 @@ export const taskApi = http => {
      * @param {Model} task
      * @param {{date?: Date|string, signal?: AbortSignal}} [options] date is a
      *   Date or "YYYY-MM-DD".
-     * @returns {Promise<Entity|null>} Time spent per person id, in minutes,
-     *   with the total. Null when the task does not exist.
+     * @returns {Promise<TaskTimeSpents|null>} The time spent entries of each
+     *   person id, and total, the sum of their durations in minutes. Null
+     *   when the task does not exist.
      */
     getTimeSpent: async (task, { date, signal } = {}) => {
       const path = `actions/tasks/${idOf(task)}/time-spents`
@@ -1234,7 +1237,9 @@ export const taskApi = http => {
      * @param {Model} task
      * @param {Date|string} date A Date or "YYYY-MM-DD".
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} Time spent on the task at this date.
+     * @returns {Promise<TaskTimeSpents|null>} The time spent entries of each
+     *   person id at this date, and total, the sum of their durations in
+     *   minutes. Null when the task does not exist.
      */
     getTaskTimeSpentForDate: async (task, date, { signal } = {}) =>
       orNull(
