@@ -729,7 +729,9 @@ export const taskApi = http => {
      *   limit?: number,
      *   signal?: AbortSignal
      * }} [options] persons is a list, or "unassigned" for the tasks nobody
-     *   is assigned to. page starts at 1, limit is 100 by default.
+     *   is assigned to. priority is the one of the task type, its rank in
+     *   the order reorderTaskTypes sets, not the priority of the task. page
+     *   starts at 1, limit is 100 by default.
      * @returns {Promise<{data: Entity[], stats: object, is_more: boolean,
      *   limit: number, page: number}>} The page of Zou.
      */
