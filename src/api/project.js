@@ -17,6 +17,17 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+/**
+ * @typedef {object} QuotaOptions
+ * @property {string} [countMode] weighted (the default), weighteddone,
+ *   feedback or done. The weighted modes spread the frames of a shot over
+ *   the days spent on it, the others count them on one day. The done modes
+ *   date a shot by its approval, the others by its first feedback request.
+ * @property {Model} [studio] Keeps the shots assigned to members of that
+ *   studio.
+ * @property {AbortSignal} [signal]
+ */
+
 const LINK_FIELDS = ['team', 'asset_types', 'task_statuses', 'task_types']
 
 // The choices of the out_field_type column of a status automation.
@@ -771,29 +782,37 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {Model} taskType
-   * @param {RequestOptions} [options]
+   * @param {QuotaOptions} [options]
    * @returns {Promise<Record<string, any>>} The quotas of the task type by
    *   person id, plus a "total" key: frames, seconds, drawings and shot
    *   counts by day, week, month and year.
    */
-  getProjectQuotas: async (project, taskType, { signal } = {}) =>
+  getProjectQuotas: async (
+    project,
+    taskType,
+    { countMode, studio, signal } = {}
+  ) =>
     http.fetchAll(
       `projects/${idOf(project)}/quotas/${idOf(taskType)}`,
-      {},
+      { count_mode: countMode, studio_id: optionalIdOf(studio) },
       { signal }
     ),
 
   /**
    * @param {Model} project
    * @param {Model} person
-   * @param {RequestOptions} [options]
+   * @param {QuotaOptions} [options]
    * @returns {Promise<Record<string, any>>} The quotas of the person by task
    *   type id, plus a "total" key, in the shape of getProjectQuotas.
    */
-  getProjectPersonQuotas: async (project, person, { signal } = {}) =>
+  getProjectPersonQuotas: async (
+    project,
+    person,
+    { countMode, studio, signal } = {}
+  ) =>
     http.fetchAll(
       `projects/${idOf(project)}/quotas/persons/${idOf(person)}`,
-      {},
+      { count_mode: countMode, studio_id: optionalIdOf(studio) },
       { signal }
     ),
 

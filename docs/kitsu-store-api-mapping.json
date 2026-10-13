@@ -2922,7 +2922,7 @@
     "route": "/data/projects/<id>/quotas/persons/<id> | /data/projects/<id>/quotas/<id>",
     "client": "project.getProjectPersonQuotas | project.getProjectQuotas",
     "status": "existing",
-    "note": "Person route (used when a person is given): project.getProjectPersonQuotas. Task type route: project.getProjectQuotas. Kitsu sends the detail and count_mode query parameters, which neither client function accepts yet: to add as options in Task 26."
+    "note": "Person route (used when a person is given): project.getProjectPersonQuotas. Task type route: project.getProjectQuotas. Kitsu sends count_mode, the countMode option of both functions, and detail, which Zou does not read. Their studio option sends the studio_id filter of Zou."
   },
   {
     "module": "shots",

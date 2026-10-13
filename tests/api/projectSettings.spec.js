@@ -7,6 +7,7 @@ import {
   ASSET_ID,
   PERSON_ID,
   PROJECT_ID,
+  STUDIO_ID,
   TASK_STATUS_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
@@ -359,6 +360,23 @@ describe('project namespace: team, milestones and quotas', () => {
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/quotas/${TASK_TYPE_ID}`
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('quota reads send the count mode and the studio', async () => {
+    fake.reply(200, {}).reply(200, {})
+    await kitsu.project.getProjectQuotas(PROJECT_ID, TASK_TYPE_ID, {
+      countMode: 'done',
+      studio: { id: STUDIO_ID }
+    })
+    await kitsu.project.getProjectPersonQuotas(PROJECT_ID, PERSON_ID, {
+      countMode: 'weighteddone',
+      studio: STUDIO_ID
+    })
+    expect(fake.calls[0].query.get('count_mode')).toBe('done')
+    expect(fake.calls[0].query.get('studio_id')).toBe(STUDIO_ID)
+    expect(fake.calls[1].query.get('count_mode')).toBe('weighteddone')
+    expect(fake.calls[1].query.get('studio_id')).toBe(STUDIO_ID)
   })
 
   it('getProjectPersonQuotas reads the quotas of a person', async () => {
