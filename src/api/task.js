@@ -1764,7 +1764,8 @@ export const taskApi = http => {
      * @param {Blob} csvFile
      * @param {TransferOptions & {episode?: Model}} [options] episode is
      *   needed on a TV show: entity names are looked up inside it.
-     * @returns {Promise<Entity[]>} The updated tasks.
+     * @returns {Promise<null[]>} One null per imported row: Zou answers no
+     *   task.
      */
     importTaskTypeEstimationsWithCsv: async (
       project,
