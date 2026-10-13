@@ -35,6 +35,34 @@ import * as urls from '../utils/urls.js'
  */
 
 /**
+ * @typedef {object} OpenTasksFilters
+ * @property {Model} [project]
+ * @property {Model} [taskType] Without it, the tasks of the concepts are
+ *   left out.
+ * @property {Model} [taskStatus]
+ * @property {Model[]|'unassigned'} [persons] Tasks assigned to one of the
+ *   persons, or "unassigned" for the tasks nobody is assigned to.
+ * @property {Model} [department] Tasks with an assignee of the department.
+ * @property {Model} [studio] Tasks with an assignee of the studio.
+ * @property {Date|string} [startDate] Tasks starting on that day or later.
+ * @property {Date|string} [dueDate] Tasks due on that day or earlier.
+ * @property {number} [priority] The one of the task type, its rank in the
+ *   order reorderTaskTypes sets, not the priority of the task.
+ * @property {AbortSignal} [signal]
+ */
+
+/**
+ * @typedef {object} OpenTasksBurndown
+ * @property {number} total Number of tasks matching the filters.
+ * @property {number} total_estimation Sum of their estimations, in minutes.
+ * @property {string|null} start_date First day of the chart: the first start
+ *   date of the tasks, else of their projects.
+ * @property {string|null} end_date Last day of the chart.
+ * @property {{date: string, done: number, done_estimation: number}[]}
+ *   done_by_day Number of tasks done each day, with their estimations.
+ */
+
+/**
  * @typedef {object} TransferOptions
  * @property {string} [fileName] Names the first file sent: a bare Blob has no
  *   name, and a preview needs one, Zou reads the preview type from the
@@ -102,6 +130,44 @@ const selectionOf = (label, models) => {
   throw new ParameterError(
     `Missing parameter: ${label} must be a non-empty list`
   )
+}
+
+/**
+ * The list of the open tasks and its burndown read the same filters.
+ * @param {OpenTasksFilters & {filters?: any}} options
+ * @returns {Record<string, any>} The query.
+ */
+const openTasksQuery = ({
+  filters,
+  project,
+  taskType,
+  taskStatus,
+  persons,
+  department,
+  studio,
+  startDate,
+  dueDate,
+  priority
+}) => {
+  // The filters object of 0.2 would be dropped without a word, and the
+  // answer would cover every production.
+  if (filters !== undefined) {
+    throw new ParameterError(
+      'Wrong format: the filters are named options (project, taskType...)'
+    )
+  }
+  return {
+    project_id: optionalIdOf(project),
+    task_type_id: optionalIdOf(taskType),
+    task_status_id: optionalIdOf(taskStatus),
+    person_id:
+      persons === 'unassigned' ? persons : persons && idsOf(persons).join(','),
+    department_id: optionalIdOf(department),
+    studio_id: optionalIdOf(studio),
+    start_date: dateOf(startDate),
+    due_date: dateOf(dueDate),
+    priority
+  }
 }
 
 export const taskApi = http => {
@@ -715,58 +781,15 @@ export const taskApi = http => {
 
     /**
      * One page of the open tasks, the same way the Kitsu task list reads it.
-     * @param {{
-     *   project?: Model,
-     *   taskType?: Model,
-     *   taskStatus?: Model,
-     *   persons?: Model[]|'unassigned',
-     *   department?: Model,
-     *   studio?: Model,
-     *   startDate?: Date|string,
-     *   dueDate?: Date|string,
-     *   priority?: number,
-     *   page?: number,
-     *   limit?: number,
-     *   signal?: AbortSignal
-     * }} [options] persons is a list, or "unassigned" for the tasks nobody
-     *   is assigned to. priority is the one of the task type, its rank in
-     *   the order reorderTaskTypes sets, not the priority of the task. page
-     *   starts at 1, limit is 100 by default.
+     * @param {OpenTasksFilters & {page?: number, limit?: number}} [options]
+     *   page starts at 1, limit is 100 by default.
      * @returns {Promise<{data: Entity[], stats: object, is_more: boolean,
      *   limit: number, page: number}>} The page of Zou.
      */
-    allOpenTasks: async ({
-      project,
-      taskType,
-      taskStatus,
-      persons,
-      department,
-      studio,
-      startDate,
-      dueDate,
-      priority,
-      page,
-      limit,
-      signal
-    } = {}) =>
+    allOpenTasks: async ({ page, limit, signal, ...filters } = {}) =>
       http.get(
         'data/tasks/open-tasks',
-        {
-          project_id: optionalIdOf(project),
-          task_type_id: optionalIdOf(taskType),
-          task_status_id: optionalIdOf(taskStatus),
-          person_id:
-            persons === 'unassigned'
-              ? persons
-              : persons && idsOf(persons).join(','),
-          department_id: optionalIdOf(department),
-          studio_id: optionalIdOf(studio),
-          start_date: dateOf(startDate),
-          due_date: dateOf(dueDate),
-          priority,
-          page,
-          limit
-        },
+        { ...openTasksQuery(filters), page, limit },
         { signal }
       ),
 
@@ -1559,16 +1582,15 @@ export const taskApi = http => {
       http.fetchAll('tasks', filters, { signal }),
 
     /**
-     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
-     *   filters are the ones of the open tasks list: project_id,
-     *   task_type_id, task_status_id, person_id (ids joined by commas, or
-     *   "unassigned"), studio_id, department_id, start_date, due_date,
-     *   priority.
-     * @returns {Promise<Entity[]>} Burndown of the open tasks matching the
-     *   filters.
+     * Burndown of the open tasks that allOpenTasks lists with the same
+     * filters, as the Kitsu task list charts it.
+     * @param {OpenTasksFilters} [options]
+     * @returns {Promise<OpenTasksBurndown>} The burndown of Zou.
      */
-    getOpenTasksBurndown: async ({ filters = {}, signal } = {}) =>
-      http.get('data/tasks/open-tasks/burndown', filters, { signal }),
+    getOpenTasksBurndown: async ({ signal, ...filters } = {}) =>
+      http.get('data/tasks/open-tasks/burndown', openTasksQuery(filters), {
+        signal
+      }),
 
     /**
      * Delete the comment through its task: the task status and the last
