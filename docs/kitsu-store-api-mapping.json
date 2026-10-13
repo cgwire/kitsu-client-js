@@ -1527,7 +1527,7 @@
     "route": "/data/day-offs/<id>",
     "client": "person.updateDayOff",
     "status": "existing",
-    "note": "Kitsu rebuilds the body (person_id, date, end_date, description), the client sends the day off object."
+    "note": "Kitsu rebuilds the body (person_id, date, end_date, description), the client sends the day off object, its Date values as local days (YYYY-MM-DD)."
   },
   {
     "module": "people",

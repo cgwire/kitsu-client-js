@@ -293,6 +293,32 @@ describe('person namespace: day offs', () => {
     })
   })
 
+  // JSON would send a Date as its UTC instant: the day before east of
+  // Greenwich, and Zou would wipe the time spents of that day.
+  it('updateDayOff sends Date values as local days, without mutating', async () => {
+    fake.reply(200, { id: DAY_OFF_ID })
+    const dayOff = Object.freeze({
+      id: DAY_OFF_ID,
+      date: new Date(2026, 3, 10),
+      end_date: new Date(2026, 3, 12),
+      description: 'Holidays'
+    })
+    await kitsu.person.updateDayOff(dayOff)
+    expect(fake.calls[0].body).toEqual({
+      date: '2026-04-10',
+      end_date: '2026-04-12',
+      description: 'Holidays'
+    })
+    expect(dayOff.date).toEqual(new Date(2026, 3, 10))
+  })
+
+  it('updateDayOff rejects a day off given by its id alone', async () => {
+    await expect(kitsu.person.updateDayOff(DAY_OFF_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeDayOff deletes the day off', async () => {
     fake.reply(204).reply(204)
     await kitsu.person.removeDayOff({ id: DAY_OFF_ID })
