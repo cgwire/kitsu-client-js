@@ -7,7 +7,9 @@ import {
   NOTIFICATION_ID,
   OTHER_ID,
   PERSON_ID,
-  TASK_ID
+  TASK_ID,
+  TASK_STATUS_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const LOG_ID = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
@@ -167,25 +169,39 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
       method: 'GET',
       path: '/data/user/notifications'
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
-  it('allNotifications sends the filters as Zou reads them', async () => {
-    fake.reply(200, [])
+  // Zou answers the 100 latest ones: before pages back to the older ones.
+  it('allNotifications filters the notifications and pages back', async () => {
+    fake.reply(200, []).reply(200, [])
     await kitsu.user.allNotifications({
-      filters: {
-        before: '2026-10-15T10:00:00',
-        task_type_id: TASK_ID,
-        type: 'mention',
-        read: false,
-        watching: true
-      }
+      after: new Date('2026-09-01T08:00:00.250Z'),
+      before: '2026-09-19T10:30:00.123456',
+      type: 'mention',
+      taskType: { id: TASK_TYPE_ID },
+      taskStatus: TASK_STATUS_ID,
+      read: false,
+      watching: true
     })
-    const { query } = fake.calls[0]
-    expect(query.get('before')).toBe('2026-10-15T10:00:00')
-    expect(query.get('task_type_id')).toBe(TASK_ID)
-    expect(query.get('type')).toBe('mention')
-    expect(query.get('read')).toBe('false')
-    expect(query.get('watching')).toBe('true')
+    await kitsu.user.allNotifications({ read: true })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      after: '2026-09-01T08:00:00',
+      before: '2026-09-19T10:30:00.123456',
+      type: 'mention',
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      read: 'false',
+      watching: 'true'
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({ read: 'true' })
+  })
+
+  it('allNotifications rejects a malformed task type before any request', async () => {
+    await expect(
+      kitsu.user.allNotifications({ taskType: 'Animation' })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getNotification returns the notification, null on 404', async () => {
