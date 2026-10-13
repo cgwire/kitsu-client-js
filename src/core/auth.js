@@ -10,6 +10,7 @@ import { requiredOf, withoutNil } from './params.js'
  * @typedef {import('./params.js').Entity} Entity
  * @typedef {import('./params.js').RequestOptions} RequestOptions
  * @typedef {{user: Entity, access_token?: string, refresh_token?: string,
+ *   two_factor_authentication_required?: boolean,
  *   [field: string]: any}} LoginBody
  */
 
@@ -153,6 +154,9 @@ export const authApi = (http, session) => {
      * @param {string} password
      * @param {LogInOptions} [options]
      * @returns {Promise<LoginBody>} The login body of Zou (user, tokens, ...).
+     *   two_factor_authentication_required: the tokens only open the
+     *   two-factor setup (enableTotp, ...), logOut and getCurrentUser until
+     *   the user sets up a second factor.
      * @throws {import('./errors.js').AuthFailedError} or one of its
      *   subclasses when Zou refuses the login. Any other failure keeps its
      *   own error: a ServerError for a 5xx, for instance.
