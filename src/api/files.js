@@ -1092,19 +1092,13 @@ export const filesApi = http => {
      * @returns {Promise<Response>} Raw response holding the attached file.
      */
     downloadAttachmentFile: async (attachmentFile, { signal } = {}) => {
-      // Not getAttachmentFile: a missing attachment must raise NotFoundError,
-      // not be null.
-      const { id, name } = await http.get(
-        `data/attachment-files/${idOf(attachmentFile)}`,
-        {},
-        { signal }
-      )
-      // The name is free text typed by a user: left as is, a "#", a "?" or a
-      // "/" would cut or reshape the route.
-      return http.download(
-        `data/attachment-files/${id}/file/${encodeURIComponent(name)}`,
-        { signal }
-      )
+      const id = idOf(attachmentFile)
+      // Zou never reads the file name of the route, it names the download
+      // from its record: the id stands there, where a stored name holding a
+      // "/" or made of dots would no longer match the route.
+      return http.download(`data/attachment-files/${id}/file/${id}`, {
+        signal
+      })
     },
 
     /**
