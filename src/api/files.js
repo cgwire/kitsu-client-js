@@ -1,5 +1,11 @@
 import { ParameterError } from '../core/errors.js'
-import { idOf, optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
+import {
+  idOf,
+  optionalIdOf,
+  orNull,
+  requiredOf,
+  withoutNil
+} from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
 /**
@@ -119,18 +125,21 @@ export const filesApi = http => {
 
   /**
    * Zou filters a name with ILIKE: escaped, "%" and "_" only match
-   * themselves. The case is still ignored.
+   * themselves. The case is still ignored, so the exact spelling wins over
+   * a name that only differs by its case, which Zou keeps apart.
    * @param {string} model
    * @param {string} name
    * @param {AbortSignal} [signal]
    * @returns {Promise<Entity|null>}
    */
-  const firstByName = (model, name, signal) =>
-    http.fetchFirst(
-      model,
-      { name: likeEscaped(requiredOf('name', name)) },
-      { signal }
+  const byName = async (model, name, signal) => {
+    const wanted = requiredOf('name', name)
+    const entries = await orNull(
+      http.fetchAll(model, { name: likeEscaped(wanted) }, { signal })
     )
+    if (!Array.isArray(entries)) return null
+    return entries.find(entry => entry.name === wanted) || entries[0] || null
+  }
 
   /**
    * @param {string} path
@@ -378,11 +387,11 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The output type of this name, case
-     *   ignored, null when there is none.
+     * @returns {Promise<Entity|null>} The output type of this name, the case
+     *   ignored but an exact match first, null when there is none.
      */
     getOutputTypeByName: async (name, { signal } = {}) =>
-      firstByName('output-types', name, signal),
+      byName('output-types', name, signal),
 
     /**
      * Create an output type, or return the one that already has this name, case
@@ -393,7 +402,7 @@ export const filesApi = http => {
      * @returns {Promise<Entity>} The created or existing output type.
      */
     newOutputType: async (name, shortName, { signal } = {}) =>
-      (await firstByName('output-types', name, signal)) ||
+      (await byName('output-types', name, signal)) ||
       http.create('output-types', { name, short_name: shortName }, { signal }),
 
     /**
@@ -539,11 +548,11 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The software of this name, case
-     *   ignored, null when there is none.
+     * @returns {Promise<Entity|null>} The software of this name, the case
+     *   ignored but an exact match first, null when there is none.
      */
     getSoftwareByName: async (name, { signal } = {}) =>
-      firstByName('softwares', name, signal),
+      byName('softwares', name, signal),
 
     /**
      * Create a software, or return the one that already has this name, case
@@ -574,7 +583,7 @@ export const filesApi = http => {
         signal
       } = {}
     ) =>
-      (await firstByName('softwares', name, signal)) ||
+      (await byName('softwares', name, signal)) ||
       http.create(
         'softwares',
         withoutNil({
@@ -1357,7 +1366,7 @@ export const filesApi = http => {
      * @returns {Promise<Entity>} The created or existing file status.
      */
     newFileStatus: async (name, color, { signal } = {}) =>
-      (await firstByName('file-status', name, signal)) ||
+      (await byName('file-status', name, signal)) ||
       http.create('file-status', { name, color }, { signal }),
 
     /**
@@ -1371,11 +1380,11 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The file status of this name, case
-     *   ignored, null when there is none.
+     * @returns {Promise<Entity|null>} The file status of this name, the case
+     *   ignored but an exact match first, null when there is none.
      */
     getFileStatusByName: async (name, { signal } = {}) =>
-      firstByName('file-status', name, signal),
+      byName('file-status', name, signal),
 
     /**
      * @param {Model} previewFile Loaded for its extension, like gazu.

@@ -240,6 +240,19 @@ describe('files namespace: output types, softwares and file status', () => {
     ])
   })
 
+  // Zou keeps "Maya" and "maya" apart, and its ILIKE filter finds both.
+  it('name lookups prefer the exact spelling over another case', async () => {
+    const both = [
+      { id: OTHER_ID, name: 'Maya' },
+      { id: SOFTWARE_ID, name: 'maya' }
+    ]
+    fake.reply(200, both).reply(200, [both[0]]).reply(200, both)
+    expect(await kitsu.files.getSoftwareByName('maya')).toEqual(both[1])
+    expect(await kitsu.files.getSoftwareByName('maya')).toEqual(both[0])
+    expect(await kitsu.files.newSoftware('Maya', 'maya', 'ma')).toEqual(both[0])
+    expect(fake.calls).toHaveLength(3)
+  })
+
   it('new* functions create the record under its raw name', async () => {
     fake
       .reply(200, [])
