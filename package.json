@@ -37,9 +37,89 @@
       "default": "./src/utils/index.js"
     },
     "./package.json": "./package.json",
-    "./*": {
-      "types": "./types/api/*.d.ts",
-      "default": "./src/api/*.js"
+    "./asset": {
+      "types": "./types/api/asset.d.ts",
+      "default": "./src/api/asset.js"
+    },
+    "./casting": {
+      "types": "./types/api/casting.d.ts",
+      "default": "./src/api/casting.js"
+    },
+    "./concept": {
+      "types": "./types/api/concept.d.ts",
+      "default": "./src/api/concept.js"
+    },
+    "./customAction": {
+      "types": "./types/api/customAction.d.ts",
+      "default": "./src/api/customAction.js"
+    },
+    "./edit": {
+      "types": "./types/api/edit.d.ts",
+      "default": "./src/api/edit.js"
+    },
+    "./entity": {
+      "types": "./types/api/entity.d.ts",
+      "default": "./src/api/entity.js"
+    },
+    "./event": {
+      "types": "./types/api/event.d.ts",
+      "default": "./src/api/event.js"
+    },
+    "./files": {
+      "types": "./types/api/files.d.ts",
+      "default": "./src/api/files.js"
+    },
+    "./hardware": {
+      "types": "./types/api/hardware.d.ts",
+      "default": "./src/api/hardware.js"
+    },
+    "./news": {
+      "types": "./types/api/news.d.ts",
+      "default": "./src/api/news.js"
+    },
+    "./person": {
+      "types": "./types/api/person.d.ts",
+      "default": "./src/api/person.js"
+    },
+    "./playlist": {
+      "types": "./types/api/playlist.d.ts",
+      "default": "./src/api/playlist.js"
+    },
+    "./project": {
+      "types": "./types/api/project.d.ts",
+      "default": "./src/api/project.js"
+    },
+    "./projectTemplate": {
+      "types": "./types/api/projectTemplate.d.ts",
+      "default": "./src/api/projectTemplate.js"
+    },
+    "./scene": {
+      "types": "./types/api/scene.d.ts",
+      "default": "./src/api/scene.js"
+    },
+    "./schedule": {
+      "types": "./types/api/schedule.d.ts",
+      "default": "./src/api/schedule.js"
+    },
+    "./search": {
+      "types": "./types/api/search.d.ts",
+      "default": "./src/api/search.js"
+    },
+    "./shot": {
+      "types": "./types/api/shot.d.ts",
+      "default": "./src/api/shot.js"
+    },
+    "./studio": {
+      "types": "./types/api/studio.d.ts",
+      "default": "./src/api/studio.js"
+    },
+    "./task": {
+      "types": "./types/api/task.d.ts",
+      "default": "./src/api/task.js"
+    },
+    "./user": {
+      "types": "./types/api/user.d.ts",
+      "default": "./src/api/user.js"
     }
   },
   "files": [
