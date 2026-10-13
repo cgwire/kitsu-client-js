@@ -432,11 +432,12 @@ export const projectApi = http => ({
     http.create(
       descriptorsOf(project),
       withoutNil({
-        name,
+        name: requiredOf('name', name),
         data_type: dataType,
         choices,
         for_client: forClient,
-        entity_type: entityType,
+        // Zou would create an Asset descriptor without it.
+        entity_type: requiredOf('entityType', entityType),
         departments: idsOf(departments),
         task_type_id: optionalIdOf(taskType)
       }),
@@ -612,13 +613,20 @@ export const projectApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The team link: project_id, person_id, role.
    */
-  updateTeamMemberRole: async (project, person, role, { signal } = {}) =>
-    http.update(
+  updateTeamMemberRole: async (project, person, role, { signal } = {}) => {
+    // A forgotten role would go out as none, which restores the global one.
+    if (role === undefined) {
+      throw new ParameterError(
+        'Missing parameter: role is required, null restores the global role'
+      )
+    }
+    return http.update(
       `projects/${idOf(project)}/team`,
       idOf(person),
       { role },
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Model} project
