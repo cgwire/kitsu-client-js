@@ -147,13 +147,15 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it.each([
-    ['getTimeSpentsDayTable', [2026, 9], 'day-table/2026/9'],
-    ['getTimeSpentsWeekTable', [2026], 'week-table/2026'],
-    ['getTimeSpentsMonthTable', [2026], 'month-table/2026'],
-    ['getTimeSpentsYearTable', [], 'year-table']
-  ])('%s reads the table, narrowed or not', async (name, args, suffix) => {
-    fake.reply(200, { 9: {} }).reply(200, { 9: {} })
-    expect(await kitsu.person[name](...args)).toEqual({ 9: {} })
+    ['getTimeSpentsDayTable', [2026, 9], 'day-table/2026/9', '19'],
+    ['getTimeSpentsWeekTable', [2026], 'week-table/2026', '38'],
+    ['getTimeSpentsMonthTable', [2026], 'month-table/2026', '9'],
+    ['getTimeSpentsYearTable', [], 'year-table', '2026']
+  ])('%s reads the table, narrowed or not', async (name, args, suffix, key) => {
+    // Minutes keyed by period, then by person id.
+    const table = { [key]: { [PERSON_ID]: 480, [OTHER_ID]: 240 } }
+    fake.reply(200, table).reply(200, {})
+    expect(await kitsu.person[name](...args)).toEqual(table)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/time-spents/${suffix}`
@@ -176,10 +178,22 @@ describe('person namespace, Kitsu store coverage', () => {
     ['getWeekTimeSpents', [2026, 38], 'week/2026/38'],
     ['getDayTimeSpents', [2026, 9, 19], 'day/2026/9/19']
   ])('%s reads the aggregate, narrowed or not', async (name, args, suffix) => {
-    fake.reply(200, [{ duration: 60 }]).reply(200, [])
-    expect(await kitsu.person[name]({ id: PERSON_ID }, ...args)).toEqual([
-      { duration: 60 }
-    ])
+    // One total per task, without id or date: not time spent rows.
+    const totals = [
+      {
+        task_id: OTHER_ID,
+        task_type_id: TASK_TYPE_ID,
+        project_id: PROJECT_ID,
+        project_name: 'Agent 327',
+        entity_name: 'SH010',
+        entity_type_name: 'Shot',
+        sequence_name: 'SQ01',
+        episode_name: null,
+        duration: 60
+      }
+    ]
+    fake.reply(200, totals).reply(200, [])
+    expect(await kitsu.person[name]({ id: PERSON_ID }, ...args)).toEqual(totals)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/${PERSON_ID}/time-spents/${suffix}`
