@@ -914,10 +914,13 @@ export const taskApi = http => {
     getTaskStatusByShortName,
 
     /**
+     * Delete the task type. A type still used by tasks, or by other records
+     * like playlists, cannot be deleted, force or not: delete its tasks first
+     * (removeTasksForType).
      * @param {Model} taskType
-     * @param {{force?: boolean, signal?: AbortSignal}} [options] force deletes
-     *   the type even when tasks use it. A type attached to a project must be
-     *   detached first.
+     * @param {{force?: boolean, signal?: AbortSignal}} [options] force
+     *   detaches the type from every project and deletes its schedule items.
+     *   Without it, a type attached to a project or scheduled is refused.
      * @returns {Promise<null>}
      */
     removeTaskType: async (taskType, { force = false, signal } = {}) =>
