@@ -93,9 +93,11 @@ describe('customAction namespace', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Publish' })
   })
 
-  it('removeCustomAction deletes the action', async () => {
+  it('removeCustomAction deletes the action and resolves null', async () => {
     fake.reply(204).reply(204)
-    await kitsu.customAction.removeCustomAction(CUSTOM_ACTION_ID)
+    expect(
+      await kitsu.customAction.removeCustomAction(CUSTOM_ACTION_ID)
+    ).toBeNull()
     await kitsu.customAction.removeCustomAction({ id: CUSTOM_ACTION_ID })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',

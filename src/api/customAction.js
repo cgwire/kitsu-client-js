@@ -62,7 +62,7 @@ export const customActionApi = http => ({
   /**
    * @param {Model} customAction
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeCustomAction: async (customAction, { signal } = {}) =>
     http.remove('custom-actions', idOf(customAction), {}, { signal })
