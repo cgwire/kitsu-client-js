@@ -1225,7 +1225,8 @@ export const filesApi = http => {
      *   of the revision: Zou keeps the order as it is for a position past
      *   the last one.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The updated preview file.
+     * @returns {Promise<Entity[]>} Every preview file of the revision, in its
+     *   new order.
      */
     updatePreviewPosition: async (previewFile, position, { signal } = {}) =>
       http.put(
