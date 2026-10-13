@@ -56,4 +56,6 @@ otherwise.
 Regular calls are bounded: 60 s to the first byte, 5 min in total
 (`timeout: { response, deadline }`, `0` disables a timer). Uploads are not
 bounded at all and downloads only to the first byte: multi-GB movies are
-legitimate. Cancel them with a `signal`.
+legitimate. Cancel them with a `signal`. A download holds its connection
+until its body is read to the end: cancel the body you do not read
+(`response.body.cancel()`).
