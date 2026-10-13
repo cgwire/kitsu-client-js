@@ -3021,7 +3021,7 @@
     "route": "/data/status-automations/<id>",
     "client": "project.updateStatusAutomation",
     "status": "added",
-    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered."
+    "note": "The client sends the automation it is given and refuses the output fields newStatusAutomation refuses: an unknown out_field_type, a status output without out_task_status_id, a ready_for output outside the assets. Zou would store them, then fail on later reads or on the comments that trigger the automation."
   },
   {
     "module": "statusautomation",

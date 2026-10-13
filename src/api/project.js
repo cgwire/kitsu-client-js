@@ -49,6 +49,37 @@ const boardRolesOf = roles => {
   )
 }
 
+// The checks of newStatusAutomation, on the output fields an update gives.
+// Zou stores them as they are: an unknown type breaks every later read of
+// the automations, a status output without its status every comment that
+// triggers it.
+const checkOutputOf = automation => {
+  if (typeof automation !== 'object' || automation === null) return
+  const has = key => key in automation
+  const { out_field_type: type, out_task_status_id: status } = automation
+  if (has('out_field_type') && !OUT_FIELD_TYPES.includes(type)) {
+    throw new ParameterError(
+      `Wrong format: out_field_type must be one of ${OUT_FIELD_TYPES.join(', ')}`
+    )
+  }
+  // The stored type is unknown here: a status cleared without a ready_for
+  // type next to it could leave a status output without its status.
+  const needsStatus =
+    type === 'status' || (!has('out_field_type') && has('out_task_status_id'))
+  if (needsStatus && (status === null || status === undefined)) {
+    throw new ParameterError(
+      'Missing parameter: out_task_status_id is required with status'
+    )
+  }
+  if (
+    type === 'ready_for' &&
+    has('entity_type') &&
+    automation.entity_type !== 'asset'
+  ) {
+    throw new ParameterError('Wrong format: ready_for only works on assets')
+  }
+}
+
 // Zou expects model links as lists of ids, while a project read with its
 // relations can carry them as dicts.
 const withLinkIds = project =>
@@ -1217,14 +1248,19 @@ export const projectApi = http => ({
   },
 
   /**
+   * Save the automation. The output fields it carries are checked like
+   * newStatusAutomation checks them: out_field_type is status or ready_for,
+   * a status output comes with its out_task_status_id, and ready_for only
+   * works on assets.
    * @param {Entity} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated status automation.
    */
-  updateStatusAutomation: async (automation, { signal } = {}) =>
-    http.update('status-automations', idOf(automation), automation, {
-      signal
-    }),
+  updateStatusAutomation: async (automation, { signal } = {}) => {
+    const id = idOf(automation)
+    checkOutputOf(automation)
+    return http.update('status-automations', id, automation, { signal })
+  },
 
   /**
    * Delete the automation itself. removeStatusAutomation only unlinks it
