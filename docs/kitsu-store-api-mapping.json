@@ -357,7 +357,7 @@
     "route": "/data/projects/<id>/budgets/<id>/entries/<id>",
     "client": "project.updateBudgetEntry",
     "status": "existing",
-    "note": "Kitsu also sends exceptions: the client passes data through."
+    "note": "Kitsu sends the whole entry, exceptions included. Zou writes every field, null for a missing one: the client reads the entry first and sends it whole with the given fields merged in."
   },
   {
     "module": "budget",

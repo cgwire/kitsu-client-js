@@ -799,15 +799,41 @@ export const projectApi = http => ({
     http.fetchOne(entriesOf(project, budget), idOf(entry), { signal }),
 
   /**
+   * Change fields of the budget entry. The others keep their value: the
+   * entry is read first and saved whole with the given fields merged in.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} entry
-   * @param {object} data The fields to change.
+   * @param {object} data The fields to change: department_id, person_id,
+   *   start_date (a Date object or a YYYY-MM-DD string), months_duration,
+   *   daily_salary, position, seniority and exceptions (the whole map).
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated budget entry.
    */
-  updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) =>
-    http.update(entriesOf(project, budget), idOf(entry), data, { signal }),
+  updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) => {
+    const entries = entriesOf(project, budget)
+    const id = idOf(entry)
+    const current = await http.get(`data/${entries}/${id}`, {}, { signal })
+    // Zou writes every field of the entry, null for a missing one: a partial
+    // body would fail on the required ones and clear the person, the
+    // position, the seniority and the exceptions.
+    const merged = { ...current, ...data }
+    return http.update(
+      entries,
+      id,
+      {
+        department_id: merged.department_id,
+        person_id: merged.person_id,
+        start_date: dateOf(merged.start_date),
+        months_duration: merged.months_duration,
+        daily_salary: merged.daily_salary,
+        position: merged.position,
+        seniority: merged.seniority,
+        exceptions: merged.exceptions
+      },
+      { signal }
+    )
+  },
 
   /**
    * @param {Model} project
