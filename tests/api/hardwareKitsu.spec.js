@@ -56,10 +56,28 @@ describe('hardware namespace: Kitsu parity', () => {
     })
   })
 
-  it('newHardwareItem leaves the unset options out of the body', async () => {
+  // short_name is NOT NULL in Zou: without it, the item is refused (400).
+  it('newHardwareItem sends an empty short name when none is given', async () => {
+    fake
+      .reply(201, { id: HARDWARE_ITEM_ID })
+      .reply(201, { id: HARDWARE_ITEM_ID })
+    await kitsu.hardware.newHardwareItem('Workstation')
+    await kitsu.hardware.newHardwareItem('Tablet', { shortName: null })
+    expect(fake.calls[0].body).toEqual({ name: 'Workstation', short_name: '' })
+    expect(fake.calls[1].body).toEqual({ name: 'Tablet', short_name: '' })
+  })
+
+  it('newHardwareItem leaves the other unset options out of the body', async () => {
     fake.reply(201, { id: HARDWARE_ITEM_ID })
-    await kitsu.hardware.newHardwareItem('Workstation', { monthlyCost: 0 })
-    expect(fake.calls[0].body).toEqual({ name: 'Workstation', monthly_cost: 0 })
+    await kitsu.hardware.newHardwareItem('Workstation', {
+      shortName: 'WS',
+      monthlyCost: 0
+    })
+    expect(fake.calls[0].body).toEqual({
+      name: 'Workstation',
+      short_name: 'WS',
+      monthly_cost: 0
+    })
   })
 
   it('newHardwareItem rejects a blank name', async () => {

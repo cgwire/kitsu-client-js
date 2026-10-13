@@ -27,7 +27,8 @@ export const hardwareApi = http => ({
   /**
    * @param {string} name
    * @param {{shortName?: string, monthlyCost?: number,
-   * inventoryAmount?: number, signal?: AbortSignal}} [options]
+   * inventoryAmount?: number, signal?: AbortSignal}} [options] Zou needs a
+   *   short name: shortName is "" by default, as in the Kitsu form.
    * @returns {Promise<Entity>} The created hardware item.
    */
   newHardwareItem: async (
@@ -38,7 +39,7 @@ export const hardwareApi = http => ({
       'hardware-items',
       withoutNil({
         name: requiredOf('name', name),
-        short_name: shortName,
+        short_name: shortName ?? '',
         monthly_cost: monthlyCost,
         inventory_amount: inventoryAmount
       }),
