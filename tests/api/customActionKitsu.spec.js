@@ -93,6 +93,13 @@ describe('customAction namespace', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Publish' })
   })
 
+  it('updateCustomAction rejects an id given in place of the action', async () => {
+    await expect(
+      kitsu.customAction.updateCustomAction(CUSTOM_ACTION_ID)
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeCustomAction deletes the action and resolves null', async () => {
     fake.reply(204).reply(204)
     expect(
