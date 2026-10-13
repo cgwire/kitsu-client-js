@@ -697,6 +697,16 @@ describe('timeouts and cancellation', () => {
     expect(signals[0].aborted).toBe(false)
   })
 
+  // undici cancels the body of a response garbage collected unread, unless
+  // something locked it.
+  it('leaves the body of an unread download unlocked', async () => {
+    const answer = new Response('movie', { status: 200 })
+    const http = makeHttp(async () => answer)
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    expect(answer.body.locked).toBe(false)
+    expect(await response.text()).toBe('movie')
+  })
+
   it('releases a raw response whose body fails midway', async () => {
     withoutTransformerCancel()
     const signals = []

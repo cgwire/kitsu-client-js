@@ -81,14 +81,17 @@ const retryAfterOf = response => {
 
 // The answer with a body that calls release once it ends, fails or is
 // cancelled. A stream source of its own: browsers ignore the cancel hook of
-// a transformer. The Response constructor keeps the status and the headers
-// only: the url, redirected and type are copied over.
+// a transformer. The body of the answer is locked on the first read only:
+// undici cancels an unlocked body once its response is garbage collected.
+// The Response constructor keeps the status and the headers only: the url,
+// redirected and type are copied over.
 const releasing = (response, release) => {
-  const reader = response.body.getReader()
+  let reader = null
   const body = new ReadableStream(
     {
-      pull: stream =>
-        reader.read().then(
+      pull: stream => {
+        reader = reader || response.body.getReader()
+        return reader.read().then(
           ({ done, value }) => {
             if (!done) return stream.enqueue(value)
             release()
@@ -98,10 +101,11 @@ const releasing = (response, release) => {
             release()
             throw err
           }
-        ),
+        )
+      },
       cancel: reason => {
         release()
-        return reader.cancel(reason)
+        return (reader || response.body).cancel(reason)
       }
     },
     { highWaterMark: 0 }
