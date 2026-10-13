@@ -260,7 +260,7 @@ export const authApi = (http, session) => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The person matching the current session.
      */
-    getCurrentUser: ({ signal } = {}) =>
+    getCurrentUser: async ({ signal } = {}) =>
       http.get('auth/authenticated', {}, { signal }).then(body => body.user),
 
     /**
@@ -270,7 +270,7 @@ export const authApi = (http, session) => {
      * @param {RequestOptions} [options]
      * @returns {Promise<boolean>}
      */
-    isAuthenticated: ({ signal } = {}) =>
+    isAuthenticated: async ({ signal } = {}) =>
       http
         .get(
           'auth/authenticated',

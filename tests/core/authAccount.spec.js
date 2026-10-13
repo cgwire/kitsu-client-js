@@ -250,6 +250,20 @@ describe('newRecoveryCodes', () => {
 })
 
 describe('bad arguments', () => {
+  it('null options reject, except for logOut which still logs out', async () => {
+    fake.reply(200, { logout: true })
+    const results = [
+      kitsu.getCurrentUser(null),
+      kitsu.isAuthenticated(null),
+      kitsu.logOut(null)
+    ]
+    results.forEach(result => expect(result).toBeInstanceOf(Promise))
+    await expect(results[0]).rejects.toThrow(TypeError)
+    await expect(results[1]).rejects.toThrow(TypeError)
+    expect(await results[2]).toEqual({ logout: true })
+    expect(kitsu.getTokens()).toBeNull()
+  })
+
   it('reject instead of throwing', async () => {
     const names = [
       'changePassword',
