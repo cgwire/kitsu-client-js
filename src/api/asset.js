@@ -412,7 +412,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Instances of the asset inside shots.
+     * @returns {Promise<Record<string, Entity[]>>} The instances of the asset
+     *   linked to shots, keyed by shot id.
      */
     allShotAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
@@ -450,7 +451,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Instances of the asset inside scenes.
+     * @returns {Promise<Record<string, Entity[]>>} The instances of the asset
+     *   inside scenes, keyed by scene id.
      */
     allSceneAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
@@ -462,7 +464,8 @@ export const assetApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     allAssetInstancesForShot: async (shot, { signal } = {}) =>
       http.fetchAll(`shots/${idOf(shot)}/asset-instances`, {}, { signal }),
@@ -470,8 +473,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Asset instances instantiated inside the
-     *   asset.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances inside
+     *   the asset, keyed by the id of the asset they instantiate.
      */
     allAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
