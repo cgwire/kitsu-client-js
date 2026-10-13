@@ -71,6 +71,22 @@ describe('session', () => {
     session.setTokens(null)
     expect(onTokensChange.mock.calls).toEqual([[{ access_token: 'a' }], [null]])
   })
+
+  it('opens a cookie session without token to persist', () => {
+    const onChange = vi.fn()
+    const onTokensChange = vi.fn()
+    const session = createSession({ auth: 'cookie', onChange, onTokensChange })
+    expect(session.canAuthenticate()).toBe(false)
+
+    session.startCookieSession()
+
+    expect(session.generation()).toBe(1)
+    expect(session.canAuthenticate()).toBe(true)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onTokensChange).not.toHaveBeenCalled()
+    session.setTokens(null)
+    expect(session.canAuthenticate()).toBe(false)
+  })
 })
 
 describe('401 handling', () => {

@@ -206,6 +206,8 @@ export const authApi = (http, session) => {
           access_token: body.access_token,
           refresh_token: body.refresh_token
         })
+      } else {
+        session.startCookieSession()
       }
       return body
     },

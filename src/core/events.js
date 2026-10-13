@@ -146,11 +146,11 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
     openedIn = session.generation()
   }
 
-  // Behind the back of the app, which takes a bearer token: in cookie mode
-  // nothing tells a login, so the next on() does it. Same after a failed
-  // opening: retrying on every token change would fail the same way.
+  // Behind the back of the app, only with credentials: a bearer token, or
+  // in cookie mode the cookie of a logIn. Not after a failed opening either:
+  // retrying on every session change would fail the same way.
   const reopen = () => {
-    if (wanted && !failed && ioImpl && session.headers().Authorization) {
+    if (wanted && !failed && ioImpl && session.canAuthenticate()) {
       try {
         open()
       } catch (err) {
@@ -249,11 +249,11 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
     },
 
     /**
-     * For the core, on every token change. A socket never outlives the
-     * session it was opened under (logIn, logOut and setToken replace it);
-     * a token refresh keeps the session, so it keeps the socket too. A
-     * wanted socket reopens as soon as there is a bearer token to open it
-     * with.
+     * For the core, on every change of the session or of its tokens. A
+     * socket never outlives the session it was opened under (logIn, logOut
+     * and setToken replace it, in cookie mode too); a token refresh keeps the
+     * session, so it keeps the socket too. A wanted socket reopens as soon as
+     * the session can authenticate it.
      */
     syncSession: () => {
       if (socket && openedIn !== session.generation()) drop()

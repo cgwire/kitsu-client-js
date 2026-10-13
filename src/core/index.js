@@ -72,19 +72,11 @@ export const createCore = options => {
     // would act as the logged-in user.
     credentials: auth === 'cookie' ? 'same-origin' : 'omit'
   })
-  const persistTokens = options.onTokensChange || (() => {})
   const session = createSession({
     auth,
     tokens: options.tokens,
-    onTokensChange: tokens => {
-      // The socket follows the session first. The app hook persists the
-      // tokens: it runs whatever happens to the socket.
-      try {
-        syncSession()
-      } finally {
-        persistTokens(tokens)
-      }
-    },
+    onChange: () => syncSession(),
+    onTokensChange: options.onTokensChange || (() => {}),
     onUnauthorized: options.onUnauthorized
   })
   const http = createHttp(config, session)
