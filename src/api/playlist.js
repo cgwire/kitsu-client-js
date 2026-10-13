@@ -98,12 +98,27 @@ const latestPreviewOf = previewFiles =>
     )
 
 export const playlistApi = http => {
-  const playlistByName = (project, name, signal) =>
-    http.fetchFirst(
+  // Zou keeps one playlist per name, project and episode. Its name filter is
+  // case insensitive and reads % and _ as wildcards, and it cannot ask for
+  // the playlists without episode: both are checked on the rows.
+  const playlistByName = async (project, name, episode, signal) => {
+    const episodeId = optionalIdOf(episode)
+    const playlists = await http.fetchAll(
       'playlists',
-      { project_id: idOf(project), name: requiredOf('name', name) },
+      {
+        project_id: idOf(project),
+        name: requiredOf('name', name),
+        episode_id: episodeId
+      },
       { signal }
     )
+    return (
+      playlists.find(
+        playlist =>
+          playlist.name === name && (episodeId !== null || !playlist.episode_id)
+      ) || null
+    )
+  }
 
   const entityPreviewFiles = (entity, signal) =>
     http.get(
@@ -203,18 +218,23 @@ export const playlistApi = http => {
       http.fetchOne('playlists', idOf(playlist), { signal }),
 
     /**
+     * The playlist of this exact name (case included) in the episode, or in
+     * the project itself without episode: Zou keeps one playlist per name,
+     * project and episode. gazu takes the first playlist of the project
+     * whose name is alike, whatever its episode.
      * @param {Model} project
      * @param {string} name
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} Null when no playlist of the project
-     *   has this name.
+     * @param {{episode?: Model|null, signal?: AbortSignal}} [options]
+     * @returns {Promise<Entity|null>} Null when no playlist there has this
+     *   name.
      */
-    getPlaylistByName: async (project, name, { signal } = {}) =>
-      playlistByName(project, name, signal),
+    getPlaylistByName: async (project, name, { episode = null, signal } = {}) =>
+      playlistByName(project, name, episode, signal),
 
     /**
-     * Create a playlist, or return the playlist of the project that already
-     * has this name.
+     * Create a playlist, or return the playlist that already has this name
+     * in the episode (in the project itself without episode), as
+     * getPlaylistByName finds it.
      * @param {Model} project
      * @param {string} name
      * @param {{
@@ -247,7 +267,7 @@ export const playlistApi = http => {
         is_for_all: isForAll,
         episode_id: optionalIdOf(episode)
       })
-      const existing = await playlistByName(project, name, signal)
+      const existing = await playlistByName(project, name, episode, signal)
       return existing || http.create('playlists', data, { signal })
     },
 

@@ -89,6 +89,7 @@ describe('playlist namespace: writes', () => {
       forClient: true,
       isForAll: true
     })
+    expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
     expect(fake.calls[1].body).toEqual({
       name: 'Dailies',
       project_id: PROJECT_ID,
@@ -100,12 +101,29 @@ describe('playlist namespace: writes', () => {
   })
 
   it('newPlaylist returns the existing playlist instead of creating', async () => {
-    fake.reply(200, [{ id: PLAYLIST_ID, name: 'Dailies' }])
+    const playlist = { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    fake.reply(200, [playlist])
+    expect(await kitsu.playlist.newPlaylist(PROJECT_ID, 'Dailies')).toEqual(
+      playlist
+    )
+    expect(fake.calls).toHaveLength(1)
+  })
+
+  // What Zou answers to the name filter without episode filter: the
+  // playlists of every episode, the name taken case insensitively.
+  it.each([
+    [{ id: OTHER_ID, name: 'Dailies', episode_id: EPISODE_ID }],
+    [{ id: OTHER_ID, name: 'dailies', episode_id: null }]
+  ])('newPlaylist creates the playlist next to %j', async row => {
+    fake.reply(200, [row]).reply(201, { id: PLAYLIST_ID, name: 'Dailies' })
     expect(await kitsu.playlist.newPlaylist(PROJECT_ID, 'Dailies')).toEqual({
       id: PLAYLIST_ID,
       name: 'Dailies'
     })
-    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/playlists'
+    })
   })
 
   it('updatePlaylist saves the playlist', async () => {
