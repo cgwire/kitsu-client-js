@@ -7,6 +7,7 @@ import {
   PERSON_ID,
   PREVIEW_FILE_ID,
   PROJECT_ID,
+  SHOT_ID,
   TASK_ID,
   TASK_STATUS_ID
 } from '../helpers/ids.js'
@@ -546,7 +547,7 @@ describe('task namespace transfers', () => {
       .reply(201, { id: COMMENT_ID })
       .reply(201, { id: PREVIEW_FILE_ID })
       .reply(201, { id: PREVIEW_FILE_ID })
-      .reply(200, { id: PREVIEW_FILE_ID })
+      .reply(200, { id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID })
     await kitsu.task.publishPreview(TASK_ID, TASK_STATUS_ID, movieFile, {
       setThumbnail: true
     })

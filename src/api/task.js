@@ -481,7 +481,8 @@ export const taskApi = http => {
    * @param {Model} previewFile
    * @param {{frameNumber?: number, signal?: AbortSignal}} [options]
    *   frameNumber picks the frame of a movie preview.
-   * @returns {Promise<Entity>} The preview file.
+   * @returns {Promise<Entity>} The updated entity (asset, shot...), with the
+   *   preview_file_status of the preview.
    */
   const setMainPreview = async (previewFile, { frameNumber, signal } = {}) =>
     http.put(
