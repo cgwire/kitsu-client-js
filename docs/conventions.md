@@ -29,7 +29,9 @@
 - **Functions never throw synchronously**: a wrong argument is a rejected
   promise. They never mutate their arguments. The pure helpers of
   `@cgwire/kitsu-client/utils` throw instead (see
-  [Utilities](./utilities.md)).
+  [Utilities](./utilities.md)), and so do `createClient` and
+  `events.onConnect`, `onDisconnect` and `onConnectError`, which answer at
+  once.
 - **Public types come from the root entry**: `ClientOptions`, `Tokens`,
   `KitsuClient`, `ErrorInfo`, `Entity` and `Model`. Other type names in the
   declarations of a subpath are internal and may change in any release.
@@ -55,7 +57,7 @@ cannot be loaded.
 | 5xx                   | `ServerError`                                                                                                 |
 | any other status      | `KitsuError` (a 405 usually means a host given without its `/api` suffix)                                     |
 | no answer             | `NetworkError`, `TimeoutError`                                                                                |
-| `signal` or `close()` | the native `AbortError`                                                                                       |
+| `signal` or `close()` | the native `AbortError`, also for a `logIn` overtaken by a later session change                               |
 | 2xx that is not JSON  | `KitsuError` (usually a host given without its `/api` suffix)                                                 |
 | 202 to a download     | `KitsuError`: Zou still builds the file, ask again after `error.retryAfter` seconds                           |
 
