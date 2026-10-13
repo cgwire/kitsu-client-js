@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { STUDIO_ID } from '../helpers/ids.js'
+import { OTHER_ID, STUDIO_ID } from '../helpers/ids.js'
 
 describe('studio namespace', () => {
   let kitsu, fake
@@ -54,6 +54,17 @@ describe('studio namespace', () => {
     fake.reply(200, [])
     await kitsu.studio.getStudioByName('Studio_A 100%')
     expect(fake.calls[0].query.get('name')).toBe('Studio\\_A 100\\%')
+  })
+
+  // Zou keeps "Paris" and "paris" apart, and its ILIKE filter finds both.
+  it('getStudioByName prefers the exact spelling over another case', async () => {
+    const both = [
+      { id: OTHER_ID, name: 'Paris' },
+      { id: STUDIO_ID, name: 'paris' }
+    ]
+    fake.reply(200, both).reply(200, [both[0]])
+    expect(await kitsu.studio.getStudioByName('paris')).toEqual(both[1])
+    expect(await kitsu.studio.getStudioByName('paris')).toEqual(both[0])
   })
 
   it('getStudioByName rejects a blank name', async () => {
