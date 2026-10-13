@@ -123,6 +123,31 @@ describe('projectTemplate namespace: links', () => {
     })
   })
 
+  // Zou writes both bitrates as soon as one is given: null resets one to the
+  // bitrate of the project.
+  it('addTaskTypeToProjectTemplate sends the bitrates given, null included', async () => {
+    fake.reply(201, {}).reply(201, {})
+    await kitsu.projectTemplate.addTaskTypeToProjectTemplate(
+      TEMPLATE_ID,
+      TASK_TYPE_ID,
+      { priority: 2 }
+    )
+    await kitsu.projectTemplate.addTaskTypeToProjectTemplate(
+      TEMPLATE_ID,
+      TASK_TYPE_ID,
+      { hdBitrateCompression: null, ldBitrateCompression: 8 }
+    )
+    expect(fake.calls[0].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      priority: 2
+    })
+    expect(fake.calls[1].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      hd_bitrate_compression: null,
+      ld_bitrate_compression: 8
+    })
+  })
+
   it('addTaskStatusToProjectTemplate sends priority and board roles', async () => {
     fake.reply(201, {})
     await kitsu.projectTemplate.addTaskStatusToProjectTemplate(

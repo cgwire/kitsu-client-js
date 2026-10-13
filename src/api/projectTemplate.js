@@ -206,10 +206,12 @@ export const projectTemplateApi = http => {
      * @param {Model} taskType
      * @param {{
      *   priority?: number,
-     *   hdBitrateCompression?: number,
-     *   ldBitrateCompression?: number,
+     *   hdBitrateCompression?: number|null,
+     *   ldBitrateCompression?: number|null,
      *   signal?: AbortSignal
      * }} [options] Bitrates are movie bitrates in Mbit/s for that task type.
+     *   Zou writes both as soon as one is given: a missing one goes back to
+     *   null, which inherits the bitrate of the project. null resets one.
      * @returns {Promise<Entity>} The created link.
      */
     addTaskTypeToProjectTemplate: async (
@@ -220,12 +222,12 @@ export const projectTemplateApi = http => {
       addLink(
         projectTemplate,
         'task-types',
-        withoutNil({
-          task_type_id: idOf(taskType),
-          priority,
+        {
+          ...withoutNil({ task_type_id: idOf(taskType), priority }),
+          // JSON leaves an undefined bitrate out, and sends a null one.
           hd_bitrate_compression: hdBitrateCompression,
           ld_bitrate_compression: ldBitrateCompression
-        }),
+        },
         signal
       ),
 
