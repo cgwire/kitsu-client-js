@@ -1094,9 +1094,11 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Create the descriptor on every open project.
+   * Create the descriptor on every open project the user manages (all of
+   * them for an admin) that does not have the field yet.
    * @param {string} name
-   * @param {string} entityType Asset, Shot, Edit, Episode or Sequence.
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {{
    *   dataType?: string,
    *   choices?: string[],
@@ -1131,7 +1133,8 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Update the descriptors sharing a field name on every open project.
+   * Update the descriptors sharing a field name on every open project the
+   * user manages (all of them for an admin).
    * @param {string} fieldName
    * @param {{entity_type: string, [field: string]: any}} data The full
    *   descriptor, not a partial change: entity_type selects the descriptors
@@ -1163,9 +1166,13 @@ export const projectApi = http => ({
   },
 
   /**
-   * Remove the descriptors sharing a field name from every open project.
+   * Remove the descriptors sharing a field name from every open project the
+   * user manages (all of them for an admin). Zou also erases the values of
+   * the field from every entity of that type in those projects (from the
+   * projects themselves for Project).
    * @param {string} fieldName
-   * @param {string} entityType
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {RequestOptions} [options]
    * @returns {Promise<string[]>} The ids of the removed descriptors.
    */
@@ -1183,8 +1190,10 @@ export const projectApi = http => ({
 
   /**
    * Set the position of the descriptors of an entity type on every open
-   * project from the order of the given field names.
-   * @param {string} entityType
+   * project the user manages (all of them for an admin) from the order of
+   * the given field names.
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {string[]} fieldNames
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>} The reordered metadata descriptors.
