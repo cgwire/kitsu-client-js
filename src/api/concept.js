@@ -1,6 +1,7 @@
 import {
   idOf,
   idsOf,
+  orNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -12,13 +13,30 @@ import {
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+// Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
+// gazu the case is ignored, but the name must match, and the exact spelling
+// wins over another case.
+const findByName = (entries, name) => {
+  const wanted = String(name)
+  const matches = (Array.isArray(entries) ? entries : []).filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase()
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
+
 export const conceptApi = http => {
-  const conceptByName = (project, name, signal) =>
-    http.fetchFirst(
-      'concepts',
-      { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+  const conceptByName = async (project, name, signal) => {
+    const concepts = await orNull(
+      http.fetchAll(
+        'concepts',
+        { project_id: idOf(project), name: requiredOf('name', name) },
+        { signal }
+      )
     )
+    return findByName(concepts, name)
+  }
 
   return {
     /**
@@ -88,13 +106,15 @@ export const conceptApi = http => {
      * @param {Model} project
      * @param {string} conceptName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The concept of the project with that name.
+     * @returns {Promise<Entity|null>} The concept of the project with that
+     *   name (case-insensitive), null when there is none.
      */
     getConceptByName: async (project, conceptName, { signal } = {}) =>
       conceptByName(project, conceptName, signal),
 
     /**
-     * Create a concept in the project, unless one already has that name.
+     * Create a concept in the project, unless one already has that name
+     * (case-insensitive).
      * @param {Model} project
      * @param {string} name
      * @param {{
