@@ -100,6 +100,32 @@ describe('concept namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Castle')
   })
 
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getConceptByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'Castle-1' }
+    const concept = { id: CONCEPT_ID, name: 'Castle_1' }
+    fake.reply(200, [nearName, concept]).reply(200, [nearName])
+    expect(
+      await kitsu.concept.getConceptByName(PROJECT_ID, 'castle_1')
+    ).toEqual(concept)
+    expect(
+      await kitsu.concept.getConceptByName(PROJECT_ID, 'Castle_1')
+    ).toBeNull()
+  })
+
+  it('newConcept creates the concept when only a close name exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'Castle-1' }])
+      .reply(201, { id: CONCEPT_ID, name: 'Castle_1' })
+    expect(
+      await kitsu.concept.newConcept(PROJECT_ID, 'Castle_1')
+    ).toMatchObject({ id: CONCEPT_ID })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: `/data/projects/${PROJECT_ID}/concepts`
+    })
+  })
+
   it('getConceptByName rejects a blank name before any request', async () => {
     await expect(
       kitsu.concept.getConceptByName(PROJECT_ID, '')
