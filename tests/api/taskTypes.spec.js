@@ -92,14 +92,15 @@ describe('task namespace: task types and task statuses', () => {
     expect(fake.calls[1].query.get('force')).toBe('true')
   })
 
-  it('removeTaskStatus always forces the deletion', async () => {
+  // Zou never reads force on this route.
+  it('removeTaskStatus deletes the status without any query', async () => {
     fake.reply(204)
     await kitsu.task.removeTaskStatus({ id: TASK_STATUS_ID })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/task-status/${TASK_STATUS_ID}`
     })
-    expect(fake.calls[0].query.get('force')).toBe('true')
+    expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
   it.each([

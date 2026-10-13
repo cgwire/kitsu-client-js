@@ -3543,7 +3543,7 @@
     "route": "/data/task-status/<id>",
     "client": "task.removeTaskStatus",
     "status": "existing",
-    "note": "Client always sends force=true; Kitsu sends no query."
+    "note": "Neither sends a query: Zou reads no force on this route."
   },
   {
     "module": "tasktypes",

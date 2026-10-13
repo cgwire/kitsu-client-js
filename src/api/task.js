@@ -932,12 +932,16 @@ export const taskApi = http => {
       ),
 
     /**
+     * Delete the task status. Zou refuses a status still used by tasks or
+     * comments.
+     *
+     * gazu's force is not sent: Zou never reads it on this route.
      * @param {Model} taskStatus
      * @param {RequestOptions} [options]
      * @returns {Promise<null>}
      */
     removeTaskStatus: async (taskStatus, { signal } = {}) =>
-      http.remove('task-status', idOf(taskStatus), { force: true }, { signal }),
+      http.remove('task-status', idOf(taskStatus), {}, { signal }),
 
     /**
      * @param {Entity} taskType
