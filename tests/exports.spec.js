@@ -46,6 +46,67 @@ const ERRORS = [
   'MissingOtpError'
 ]
 
+// The helpers of the utils entry, also exported from the root. Listed here
+// rather than read from the entry: a re-export that vanishes must fail.
+const UTILS = [
+  // frames
+  'DEFAULT_FPS',
+  'ceilToFrame',
+  'floorToFrame',
+  'formatFrame',
+  'formatTime',
+  'formatToTimecode',
+  'frameToSeconds',
+  'getEntityFrameStart',
+  'roundToFrame',
+  // preview
+  'formatRevision',
+  'isDiffPreview',
+  'isFilePreview',
+  'isMarkdownPreview',
+  'isModelPreview',
+  'isMoviePreview',
+  'isPdfPreview',
+  'isPicturePreview',
+  'isSoundPreview',
+  'isTransparentPicturePreview',
+  // sorting
+  'compareBy',
+  'sortAssets',
+  'sortByDate',
+  'sortByName',
+  'sortByPersonName',
+  'sortByValue',
+  'sortComments',
+  'sortEdits',
+  'sortPeople',
+  'sortProductions',
+  'sortRevisionPreviewFiles',
+  'sortSequences',
+  'sortShots',
+  'sortTaskNames',
+  'sortTaskStatuses',
+  'sortTaskTypes',
+  'sortTasks',
+  // urls
+  'getAllAssetsUrl',
+  'getAllEpisodesUrl',
+  'getAllSequencesUrl',
+  'getAssetTypeUrl',
+  'getAssetUrl',
+  'getAttachmentThumbnailPath',
+  'getEditUrl',
+  'getEpisodeUrl',
+  'getPersonUrl',
+  'getPreviewFilePath',
+  'getPreviewMoviePath',
+  'getProjectUrl',
+  'getSequenceUrl',
+  'getShotUrl',
+  'getTaskUrl',
+  'webHostOf'
+]
+
 // Vite resolves a package's own name through its "exports" map like Node
 // does, so these imports exercise the map a consumer goes through. The
 // require() test below goes through the resolver and loader of Node itself.
@@ -90,14 +151,15 @@ describe('package exports', () => {
 
   // The exact lists: an internal helper leaking through a new "export *"
   // must fail here.
-  it('exports nothing else from the root and core entries', async () => {
+  it('exports nothing else from the root, core and utils entries', async () => {
     const root = await import('@cgwire/kitsu-client')
     const core = await import('@cgwire/kitsu-client/core')
     const utils = await import('@cgwire/kitsu-client/utils')
     expect(Object.keys(root).sort()).toEqual(
-      ['createClient', ...ERRORS, ...Object.keys(utils)].sort()
+      ['createClient', ...ERRORS, ...UTILS].sort()
     )
     expect(Object.keys(core).sort()).toEqual(['createCore', ...ERRORS].sort())
+    expect(Object.keys(utils).sort()).toEqual([...UTILS].sort())
   })
 
   it('exports package.json', () => {
