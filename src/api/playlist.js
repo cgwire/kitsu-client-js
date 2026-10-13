@@ -503,12 +503,20 @@ export const playlistApi = http => {
     /**
      * @param {Model} project
      * @param {Record<string, any>} data Playlist generation data.
-     * @param {RequestOptions} [options]
+     * @param {{sort?: boolean, signal?: AbortSignal}} [options] sort orders
+     *   the entries by episode, sequence, asset type and name. Without it
+     *   they keep the order of the given ids.
      * @returns {Promise<Record<string, any>[]>} The entries of the generated
      *   temporary playlist.
      */
-    generateTempPlaylist: async (project, data, { signal } = {}) =>
-      http.post(`data/projects/${idOf(project)}/playlists/temp`, data, {
+    generateTempPlaylist: async (
+      project,
+      data,
+      { sort = false, signal } = {}
+    ) =>
+      http.request('POST', `data/projects/${idOf(project)}/playlists/temp`, {
+        body: data,
+        query: { sort: sort ? true : null },
         signal
       }),
 
