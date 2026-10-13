@@ -726,11 +726,13 @@ describe('project namespace: Kitsu store coverage', () => {
     })
 
     it('removeMetadataDescriptorOnAllProjects sends the entity type as a query', async () => {
-      fake.reply(204, '')
-      await kitsu.project.removeMetadataDescriptorOnAllProjects(
-        'difficulty',
-        'Asset'
-      )
+      fake.reply(200, [OTHER_ID])
+      expect(
+        await kitsu.project.removeMetadataDescriptorOnAllProjects(
+          'difficulty',
+          'Asset'
+        )
+      ).toEqual([OTHER_ID])
       expect(fake.calls[0]).toMatchObject({
         method: 'DELETE',
         path: '/data/metadata-descriptors/all-projects/difficulty'

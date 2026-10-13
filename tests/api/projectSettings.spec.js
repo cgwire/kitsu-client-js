@@ -14,6 +14,21 @@ import {
 const AUTOMATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const BACKGROUND_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
+// A quota entry of Zou: one 48 frame shot of 2 seconds at 24 fps, done on
+// Monday 2 March 2026.
+const counters = key => ({
+  frames: { [key]: 48 },
+  seconds: { [key]: 2 },
+  count: { [key]: 1 },
+  drawings: { [key]: 0 }
+})
+const QUOTA = {
+  day: { ...counters('2026-03-02'), entries: { '2026-03': 1 } },
+  week: { ...counters('2026-10'), entries: { 2026: 1 } },
+  month: { ...counters('2026-03'), entries: { 2026: 1 } },
+  year: counters('2026')
+}
+
 describe('project namespace: settings', () => {
   let kitsu, fake
   beforeEach(() => {
@@ -335,10 +350,11 @@ describe('project namespace: team, milestones and quotas', () => {
   })
 
   it('getProjectQuotas reads the quotas of a task type', async () => {
-    fake.reply(200, { [PERSON_ID]: {} })
+    const quotas = { [PERSON_ID]: QUOTA, total: QUOTA }
+    fake.reply(200, quotas)
     expect(
       await kitsu.project.getProjectQuotas(PROJECT_ID, { id: TASK_TYPE_ID })
-    ).toEqual({ [PERSON_ID]: {} })
+    ).toEqual(quotas)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/quotas/${TASK_TYPE_ID}`
@@ -346,10 +362,11 @@ describe('project namespace: team, milestones and quotas', () => {
   })
 
   it('getProjectPersonQuotas reads the quotas of a person', async () => {
-    fake.reply(200, { [TASK_TYPE_ID]: {} })
+    const quotas = { [TASK_TYPE_ID]: QUOTA, total: QUOTA }
+    fake.reply(200, quotas)
     expect(
       await kitsu.project.getProjectPersonQuotas({ id: PROJECT_ID }, PERSON_ID)
-    ).toEqual({ [TASK_TYPE_ID]: {} })
+    ).toEqual(quotas)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/quotas/persons/${PERSON_ID}`
