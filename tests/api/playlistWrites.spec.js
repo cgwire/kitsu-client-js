@@ -16,6 +16,7 @@ import {
 } from '../helpers/ids.js'
 
 const NEWER_PREVIEW_ID = 'c4c4c4c4-c4c4-4c4c-8c4c-c4c4c4c4c4c4'
+const MODELING_PREVIEW_ID = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0'
 const TOKEN = 'c5c5c5c5-c5c5-4c5c-8c5c-c5c5c5c5c5c5'
 
 // A row of allPlaylistsForProject or allPlaylistsForEpisode: the list routes
@@ -372,6 +373,71 @@ describe('playlist namespace: writes', () => {
       shots: [{ entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }]
     })
     expect(fake.calls).toHaveLength(0)
+  })
+
+  // An entity reviewed under two task types: one entry per preview.
+  const REVIEWED_TWICE = {
+    id: PLAYLIST_ID,
+    shots: [
+      { entity_id: SHOT_ID, preview_file_id: MODELING_PREVIEW_ID },
+      { entity_id: OTHER_ID, preview_file_id: MODELING_PREVIEW_ID },
+      { entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID },
+      { entity_id: SHOT_ID }
+    ]
+  }
+
+  it('updateEntityPreview gives the new preview to every entry of the entity', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updateEntityPreview(
+      REVIEWED_TWICE,
+      SHOT_ID,
+      NEWER_PREVIEW_ID
+    )
+    expect(fake.calls[0].body).toEqual({
+      shots: [
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID },
+        { entity_id: OTHER_ID, preview_file_id: MODELING_PREVIEW_ID },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    })
+  })
+
+  it.each([
+    [{ id: PREVIEW_FILE_ID }, 2],
+    [MODELING_PREVIEW_ID, 0],
+    [null, 3]
+  ])(
+    'updateEntityPreview changes the entry of the previous preview %j only',
+    async (previousPreviewFile, index) => {
+      fake.reply(200, { id: PLAYLIST_ID })
+      const updated = await kitsu.playlist.updateEntityPreview(
+        REVIEWED_TWICE,
+        { id: SHOT_ID },
+        NEWER_PREVIEW_ID,
+        { previousPreviewFile }
+      )
+      const shots = REVIEWED_TWICE.shots.map((entry, position) =>
+        position === index
+          ? { ...entry, preview_file_id: NEWER_PREVIEW_ID }
+          : entry
+      )
+      expect(updated).toEqual({ ...REVIEWED_TWICE, shots })
+      expect(fake.calls[0].body.shots[index]).toEqual({
+        entity_id: SHOT_ID,
+        preview_file_id: NEWER_PREVIEW_ID
+      })
+    }
+  )
+
+  it('updateEntityPreview changes nothing when no entry has the previous preview', async () => {
+    const updated = await kitsu.playlist.updateEntityPreview(
+      REVIEWED_TWICE,
+      OTHER_ID,
+      NEWER_PREVIEW_ID,
+      { previousPreviewFile: PREVIEW_FILE_ID, persist: false }
+    )
+    expect(updated).toEqual(REVIEWED_TWICE)
   })
 
   it('removeEntityFromPlaylist keeps the stored entries of a list row', async () => {
