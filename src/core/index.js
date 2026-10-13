@@ -33,7 +33,9 @@ const resolveTimeout = (timeout = {}) =>
  * @property {boolean} [xhrUploads] Send the uploads given an onProgress
  *   through XMLHttpRequest, the only way to report their progress, which
  *   skips an injected fetch. Defaults to true without a fetch option, false
- *   with one.
+ *   with one. In bearer mode an upload to the origin of the page goes
+ *   through fetch anyway: XMLHttpRequest would send the Kitsu session cookie
+ *   of the page, which Zou reads before the token.
  * @property {'bearer'|'cookie'} [auth] Defaults to "bearer".
  * @property {import('./session.js').Tokens|null} [tokens] Resume a session.
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]

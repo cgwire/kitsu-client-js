@@ -243,6 +243,55 @@ describe('http.upload over XHR, instance wiring', () => {
     expect(xhrs[0].headers.Authorization).toBeUndefined()
   })
 
+  // XHR sends the cookies of the page to its origin, withCredentials or not,
+  // and Zou reads the Kitsu session cookie before the Authorization header.
+  it('sends a bearer upload to the origin of the page through fetch', async () => {
+    const xhrs = installFakeXhr()
+    vi.stubGlobal('location', new URL('http://kitsu.test/plugins/tool/'))
+    const { kitsu, fake } = makeClient({ globalFetch: true })
+    fake.reply(201, { id: 'c1' })
+    const onProgress = vi.fn()
+
+    expect(await kitsu.http.upload(PATH, { file: blob, onProgress })).toEqual({
+      id: 'c1'
+    })
+
+    expect(xhrs).toHaveLength(0)
+    expect(fake.calls[0].body).toBeInstanceOf(FormData)
+    expect(fake.calls[0].headers.Authorization).toBe('Bearer token')
+    expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  it('keeps XHR for a bearer upload to another origin', async () => {
+    const xhrs = installFakeXhr()
+    vi.stubGlobal('location', new URL('http://app.test/'))
+    const { kitsu } = makeClient({ globalFetch: true })
+    const pending = kitsu.http.upload(PATH, {
+      file: blob,
+      onProgress: () => {}
+    })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(201, {})
+    await pending
+    expect(xhrs[0].withCredentials).toBeUndefined()
+    expect(xhrs[0].headers.Authorization).toBe('Bearer token')
+  })
+
+  it('keeps XHR for a cookie-mode upload to the origin of the page', async () => {
+    const xhrs = installFakeXhr()
+    vi.stubGlobal('location', new URL('http://kitsu.test/'))
+    vi.stubGlobal('fetch', createFakeFetch())
+    const kitsu = createClient({ host: '/api', auth: 'cookie' })
+    const pending = kitsu.http.upload(PATH, {
+      file: blob,
+      onProgress: () => {}
+    })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(201, {})
+    await pending
+    expect(xhrs[0].url).toBe(`/api/${PATH}`)
+  })
+
   it('is aborted by close() like any other request', async () => {
     const xhrs = installFakeXhr()
     const { kitsu } = makeClient({ globalFetch: true })
