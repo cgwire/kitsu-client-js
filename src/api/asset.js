@@ -3,6 +3,7 @@ import {
   idOf,
   idsOf,
   optionalIdOf,
+  orNull,
   placeholdersToNull,
   requiredOf,
   sortedByName,
@@ -24,6 +25,19 @@ const ASSET_PLACEHOLDERS = {
   source_id: ''
 }
 
+// Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
+// gazu the case is ignored, but the name must match, and the exact spelling
+// wins over another case.
+const findByName = (entries, name) => {
+  const wanted = String(name)
+  const matches = (Array.isArray(entries) ? entries : []).filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase()
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
+
 export const assetApi = http => {
   // The public functions are documented on the returned object: the
   // declarations keep the JSDoc of a property, not the one of a constant.
@@ -34,26 +48,36 @@ export const assetApi = http => {
     return http.fetchAll(path, {}, { signal }).then(sortedByName)
   }
 
-  const assetByName = async (project, name, assetType, signal) =>
-    http.fetchFirst(
-      'assets/all',
-      {
-        project_id: idOf(project),
-        name: requiredOf('name', name),
-        entity_type_id: optionalIdOf(assetType)
-      },
-      { signal }
+  const assetByName = async (project, name, assetType, signal) => {
+    const assets = await orNull(
+      http.fetchAll(
+        'assets/all',
+        {
+          project_id: idOf(project),
+          name: requiredOf('name', name),
+          entity_type_id: optionalIdOf(assetType)
+        },
+        { signal }
+      )
     )
+    return findByName(assets, name)
+  }
 
   const assetTypeOf = async (assetType, signal) =>
     http.fetchOne('asset-types', idOf(assetType), { signal })
 
-  const assetTypeByName = async (name, signal) =>
-    http.fetchFirst(
-      'entity-types',
-      { name: requiredOf('name', name) },
-      { signal }
+  // The asset types only: the entity types also hold the types of the
+  // shots, sequences, episodes, edits, scenes and concepts.
+  const assetTypeByName = async (name, signal) => {
+    const assetTypes = await orNull(
+      http.fetchAll(
+        'asset-types',
+        { name: requiredOf('name', name) },
+        { signal }
+      )
     )
+    return findByName(assetTypes, name)
+  }
 
   return {
     /**
@@ -219,8 +243,9 @@ export const assetApi = http => {
      * @param {Model} project
      * @param {string} name
      * @param {{assetType?: Model, signal?: AbortSignal}} [options]
-     * @returns {Promise<Entity|null>} First asset of the project matching the
-     *   name (and the asset type when given), null when there is none.
+     * @returns {Promise<Entity|null>} The asset of the project with that name
+     *   (case-insensitive) and of the asset type when given, null when there
+     *   is none.
      */
     getAssetByName: async (project, name, { assetType, signal } = {}) =>
       assetByName(project, name, assetType, signal),
@@ -234,8 +259,8 @@ export const assetApi = http => {
       http.fetchOne('assets', idOf(asset), { signal }),
 
     /**
-     * Create an asset, or return the asset of that name and type when the
-     * project already has one.
+     * Create an asset, or return the asset of that name (case-insensitive)
+     * and type when the project already has one.
      * @param {Model} project
      * @param {Model} assetType
      * @param {string} name
@@ -357,13 +382,16 @@ export const assetApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First asset type matching the name.
+     * @returns {Promise<Entity|null>} The asset type with that name
+     *   (case-insensitive), null when there is none.
      */
     getAssetTypeByName: async (name, { signal } = {}) =>
       assetTypeByName(name, signal),
 
     /**
-     * Create an asset type, or return the one that already has that name.
+     * Create an asset type, or return the one that already has that name
+     * (case-insensitive). Zou refuses a name taken by another entity type,
+     * such as Shot or Concept (ParameterError).
      * @param {string} name
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The created (or already existing) asset type.
