@@ -43,6 +43,8 @@ import { shotApi } from '@cgwire/kitsu-client/shot'
 import { studioApi } from '@cgwire/kitsu-client/studio'
 import { taskApi } from '@cgwire/kitsu-client/task'
 import { userApi } from '@cgwire/kitsu-client/user'
+// @ts-expect-error a subpath in another casing is not exported
+import { projectTemplateApi as miscased } from '@cgwire/kitsu-client/projecttemplate'
 
 // any would let every mistake through: the public types must not be any.
 type IsAny<T> = 0 extends 1 & T ? true : false

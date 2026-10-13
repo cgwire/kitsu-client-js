@@ -69,7 +69,9 @@ describe('package exports', () => {
       .map(file => file.slice(0, -3))
     expect(modules.sort()).toEqual([...SUBPATHS].sort())
     for (const name of SUBPATHS) {
-      const namespace = await import(`@cgwire/kitsu-client/${name}`)
+      // A template literal in import() makes Vite resolve it as a pattern.
+      const specifier = `@cgwire/kitsu-client/${name}`
+      const namespace = await import(specifier)
       expect(Object.keys(namespace)).toEqual([`${name}Api`])
     }
   })
@@ -104,6 +106,29 @@ describe('package exports', () => {
     expect(pkg.name).toBe('@cgwire/kitsu-client')
   })
 
+  // A "./*" pattern would map any casing to a file: macOS and Windows find
+  // it, Linux does not.
+  it('lists every subpath as an exact key, whatever the file system', () => {
+    const require = createRequire(import.meta.url)
+    const pkg = require('@cgwire/kitsu-client/package.json')
+    expect(Object.keys(pkg.exports).sort()).toEqual(
+      [
+        '.',
+        './core',
+        './utils',
+        './package.json',
+        ...SUBPATHS.map(name => `./${name}`)
+      ].sort()
+    )
+    for (const specifier of ['projecttemplate', 'Task', 'core/index']) {
+      expect(() =>
+        require.resolve(`@cgwire/kitsu-client/${specifier}`)
+      ).toThrow(
+        expect.objectContaining({ code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' })
+      )
+    }
+  })
+
   it('loads every entry point with require(), as CommonJS code does', async () => {
     const require = createRequire(import.meta.url)
     const entries = ['', '/core', '/utils', ...SUBPATHS.map(name => `/${name}`)]
@@ -129,7 +154,7 @@ describe('package exports', () => {
       '.',
       './core',
       './utils',
-      './*'
+      ...SUBPATHS.map(name => `./${name}`)
     ])
     for (const [, target] of entries) {
       expect(target.types).toBe(declarationOf(target.default))
