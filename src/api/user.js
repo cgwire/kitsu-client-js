@@ -539,28 +539,32 @@ export const userApi = http => ({
    * chat first.
    * @param {Model} entity The entity the chat is about (see joinChat).
    * @param {string} message May be empty when attachments are given.
-   * @param {{attachments?: Blob[],
+   * @param {{attachments?: Blob|Blob[],
+   *   fileName?: string,
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
-   *   signal?: AbortSignal}} [options] With attachments the message goes as
-   *   a multipart form. onProgress only applies to attachments and needs
-   *   XMLHttpRequest (browsers, webviews): fetch cannot report it. A client
-   *   given its own fetch (Tauri) uploads through it and never calls
-   *   onProgress.
+   *   signal?: AbortSignal}} [options] attachments is one file or a list of
+   *   files: with them the message goes as a multipart form. fileName names
+   *   the first file: Zou stores a bare Blob as "blob". onProgress only
+   *   applies to attachments and needs XMLHttpRequest (browsers, webviews):
+   *   fetch cannot report it. A client given its own fetch (Tauri) uploads
+   *   through it and never calls onProgress.
    * @returns {Promise<Entity>} The created message.
    */
   newChatMessage: async (
     entity,
     message,
-    { attachments = [], onProgress, signal } = {}
+    { attachments, fileName, onProgress, signal } = {}
   ) => {
     const path = `data/entities/${idOf(entity)}/chat/messages`
+    // A single file has no length: listed, it is sent instead of dropped.
+    const files = [].concat(attachments || [])
     // Kitsu and Zou accept a message made of attachments only.
-    const isFileOnly = attachments.length > 0 && message === ''
+    const isFileOnly = files.length > 0 && message === ''
     const fields = {
       message: isFileOnly ? '' : requiredOf('message', message)
     }
-    return attachments.length
-      ? http.upload(path, { file: attachments, fields, onProgress, signal })
+    return files.length
+      ? http.upload(path, { file: files, fileName, fields, onProgress, signal })
       : http.post(path, fields, { signal })
   },
 

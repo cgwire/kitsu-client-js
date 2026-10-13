@@ -85,6 +85,24 @@ describe('user namespace: Kitsu coverage', () => {
     expect(await body.get('file-1').text()).toBe('two')
   })
 
+  // A single File or Blob has no length: it used to be dropped silently.
+  it('newChatMessage sends a single attachment, named on demand', async () => {
+    fake.reply(201, { id: CHAT_MESSAGE_ID }).reply(201, { id: CHAT_MESSAGE_ID })
+    await kitsu.user.newChatMessage(ENTITY_ID, 'Look', {
+      attachments: new Blob(['one'])
+    })
+    await kitsu.user.newChatMessage(ENTITY_ID, '', {
+      attachments: new Blob(['two'], { type: 'image/png' }),
+      fileName: 'ref.png'
+    })
+    const [first, second] = fake.calls.map(call => call.body)
+    expect(first).toBeInstanceOf(FormData)
+    expect(first.get('message')).toBe('Look')
+    expect(await first.get('file').text()).toBe('one')
+    expect(second.get('message')).toBe('')
+    expect(second.get('file').name).toBe('ref.png')
+  })
+
   it('newChatMessage forwards the caller signal with attachments', async () => {
     const controller = new AbortController()
     controller.abort()
