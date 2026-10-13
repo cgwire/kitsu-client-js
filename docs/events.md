@@ -3,12 +3,16 @@
 ```js
 import { io } from 'socket.io-client'
 
-const kitsu = createClient({ host, io }) // or let the client import it
+const kitsu = createClient({ host, io })
 const off = await kitsu.events.on('task:update', ({ task_id }) => {})
 kitsu.events.onConnect(() => reloadWhatMayHaveChanged())
 kitsu.events.onConnectError(err => console.warn(err.message))
 off()
 ```
+
+Pass the `io` function of `socket.io-client`. Left out, the first `on()`
+imports the package itself, which only works in Node without a bundler: a
+bundled app, in a browser or not, must pass `io`.
 
 The socket opens on the first `on()`. Handlers stay registered until their
 `off()`: after `disconnect()` or a network loss they are attached again to the

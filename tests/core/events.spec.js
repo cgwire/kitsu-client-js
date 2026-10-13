@@ -986,7 +986,10 @@ describe('events', () => {
       ])
       failures.forEach(failure => {
         expect(failure).toBeInstanceOf(Error)
-        expect(failure.message).toContain('npm i socket.io-client')
+        // A bundle cannot import it whatever is installed: io comes first.
+        expect(failure.message).toMatch(
+          /createClient\(\{ io \}\).*npm i socket\.io-client/
+        )
         expect(failure.message).toContain('Cannot find package')
       })
     })

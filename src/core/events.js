@@ -9,11 +9,15 @@ import { KitsuError, NotAuthenticatedError, ParameterError } from './errors.js'
 // connection that way when it rejects the token.
 const CLOSED_BY_SERVER = 'io server disconnect'
 
-// The specifier is a variable so bundlers do not try to resolve an optional
-// peer dependency at build time.
+// The specifier is a variable, and the comments tell webpack and Vite to
+// leave the import alone: an optional peer dependency must not break the
+// build of an app that skips it. Left as it is, the import only resolves in
+// Node: a bundled app passes io.
 const importIo = async () => {
   const specifier = 'socket.io-client'
-  const module = await import(/* @vite-ignore */ specifier)
+  const module = await import(
+    /* webpackIgnore: true */ /* @vite-ignore */ specifier
+  )
   return module.io || module.default
 }
 
@@ -88,9 +92,9 @@ export const createEvents = ({
         .catch(err => {
           loading = null
           throw new Error(
-            'Kitsu events need socket.io-client: run ' +
-              '"npm i socket.io-client" or pass its io function to ' +
-              `createClient({ io }) (${err.message})`
+            'Kitsu events need socket.io-client: pass its io function to ' +
+              'createClient({ io }), as a bundled app must, or in Node run ' +
+              `"npm i socket.io-client" (${err.message})`
           )
         })
     }
