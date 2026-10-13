@@ -276,6 +276,18 @@ describe('person namespace', () => {
     expect(fake.calls).toHaveLength(5)
   })
 
+  // The lookup by email returns early: checked after it, a malformed
+  // department would only be refused for a new person, after a request.
+  it('newPerson rejects a malformed department before any request', async () => {
+    fake.reply(200, [{ id: PERSON_ID, email: 'john@doe.com' }])
+    await expect(
+      kitsu.person.newPerson('John', 'Doe', 'john@doe.com', {
+        departments: ['rigging']
+      })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updatePerson puts the person with its departments as ids', async () => {
     fake.reply(200, { id: PERSON_ID }).reply(200, { id: PERSON_ID })
     const person = {

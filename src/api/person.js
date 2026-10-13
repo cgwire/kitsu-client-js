@@ -387,24 +387,29 @@ export const personApi = http => ({
       contractType = 'open-ended',
       signal
     } = {}
-  ) =>
-    (await getPersonByEmail(http, email, { signal })) ||
-    http.post(
-      'data/persons',
-      {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        role,
-        desktop_login: desktopLogin,
-        departments: idsOf(departments),
-        password,
-        active,
-        contract_type: contractType
-      },
-      { signal }
-    ),
+  ) => {
+    // Checked before the lookup, which skips the body when the email exists.
+    const departmentIds = idsOf(departments)
+    return (
+      (await getPersonByEmail(http, email, { signal })) ||
+      http.post(
+        'data/persons',
+        {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+          role,
+          desktop_login: desktopLogin,
+          departments: departmentIds,
+          password,
+          active,
+          contract_type: contractType
+        },
+        { signal }
+      )
+    )
+  },
 
   /**
    * Save the person. Its expiration_date is left out: Zou takes it as a
