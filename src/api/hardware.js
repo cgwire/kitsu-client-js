@@ -71,7 +71,7 @@ export const hardwareApi = http => ({
   /**
    * @param {Model} hardwareItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeHardwareItem: async (hardwareItem, { signal } = {}) =>
     http.remove('hardware-items', idOf(hardwareItem), {}, { signal }),
@@ -105,7 +105,7 @@ export const hardwareApi = http => ({
    * @param {Model} department
    * @param {Model} hardwareItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeHardwareItemFromDepartment: async (
     department,

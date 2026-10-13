@@ -121,9 +121,11 @@ describe('hardware namespace: Kitsu parity', () => {
     expect(fake.calls[0].body).toEqual({ archived: false })
   })
 
-  it('removeHardwareItem deletes the item', async () => {
+  it('removeHardwareItem deletes the item and resolves null', async () => {
     fake.reply(204)
-    await kitsu.hardware.removeHardwareItem({ id: HARDWARE_ITEM_ID })
+    expect(
+      await kitsu.hardware.removeHardwareItem({ id: HARDWARE_ITEM_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/hardware-items/${HARDWARE_ITEM_ID}`
@@ -156,12 +158,14 @@ describe('hardware namespace: Kitsu parity', () => {
     expect(fake.calls[0].body).toEqual({ hardware_item_id: HARDWARE_ITEM_ID })
   })
 
-  it('removeHardwareItemFromDepartment unlinks the item', async () => {
+  it('removeHardwareItemFromDepartment unlinks the item and resolves null', async () => {
     fake.reply(204)
-    await kitsu.hardware.removeHardwareItemFromDepartment(
-      DEPARTMENT_ID,
-      HARDWARE_ITEM_ID
-    )
+    expect(
+      await kitsu.hardware.removeHardwareItemFromDepartment(
+        DEPARTMENT_ID,
+        HARDWARE_ITEM_ID
+      )
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/departments/${DEPARTMENT_ID}/hardware-items/${HARDWARE_ITEM_ID}`
