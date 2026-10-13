@@ -293,7 +293,8 @@ export const scheduleApi = http => ({
    * Fill the task links of a version from the tasks of its production.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The task links.
+   * @returns {Promise<{success: boolean, task_link_count: number}>} The
+   *   number of task links set.
    */
   setTaskLinksFromProduction: async (version, { signal } = {}) =>
     http.post(
@@ -307,7 +308,8 @@ export const scheduleApi = http => ({
    * @param {Model} version
    * @param {Model} fromVersion The source version.
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The task links.
+   * @returns {Promise<{success: boolean, task_link_count: number}>} The
+   *   number of task links set.
    */
   setTaskLinksFromScheduleVersion: async (
     version,
@@ -325,7 +327,8 @@ export const scheduleApi = http => ({
    * its production.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The updated tasks.
+   * @returns {Promise<{success: boolean, task_count: number}>} The number of
+   *   tasks updated.
    */
   applyScheduleVersionToProduction: async (version, { signal } = {}) =>
     http.post(

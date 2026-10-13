@@ -398,10 +398,10 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('setTaskLinksFromProduction copies the production tasks', async () => {
-    fake.reply(200, [{ id: LINK_ID }])
+    fake.reply(200, { success: true, task_link_count: 12 })
     expect(
       await kitsu.schedule.setTaskLinksFromProduction({ id: VERSION_ID })
-    ).toEqual([{ id: LINK_ID }])
+    ).toEqual({ success: true, task_link_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/set-task-links-from-production`
@@ -409,11 +409,13 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('setTaskLinksFromScheduleVersion copies another version', async () => {
-    fake.reply(200, [{ id: LINK_ID }])
-    await kitsu.schedule.setTaskLinksFromScheduleVersion(
-      { id: VERSION_ID },
-      { id: OTHER_ID }
-    )
+    fake.reply(200, { success: true, task_link_count: 12 })
+    expect(
+      await kitsu.schedule.setTaskLinksFromScheduleVersion(
+        { id: VERSION_ID },
+        { id: OTHER_ID }
+      )
+    ).toEqual({ success: true, task_link_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/set-task-links-from-production-schedule-version`
@@ -424,8 +426,10 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('applyScheduleVersionToProduction applies the version', async () => {
-    fake.reply(200, [{ id: TASK_ID }])
-    await kitsu.schedule.applyScheduleVersionToProduction({ id: VERSION_ID })
+    fake.reply(200, { success: true, task_count: 12 })
+    expect(
+      await kitsu.schedule.applyScheduleVersionToProduction({ id: VERSION_ID })
+    ).toEqual({ success: true, task_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/apply-to-production`
