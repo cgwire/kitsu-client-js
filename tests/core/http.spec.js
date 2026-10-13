@@ -5,6 +5,7 @@ import {
   NetworkError,
   NotAuthenticatedError,
   NotFoundError,
+  ParameterError,
   ServerError,
   TimeoutError
 } from '../../src/core/errors.js'
@@ -506,6 +507,18 @@ describe('gazu helpers', () => {
     expect(fake.calls[1].body).toEqual({ priority: 3 })
     expect(task).toEqual({ id: TASK_ID, priority: 2 })
   })
+
+  // An id given in place of the entity would be sent as a meaningless body.
+  it.each([[TASK_ID], [null], [undefined], [[{ priority: 2 }]]])(
+    'update refuses %o as its fields, before any request',
+    async data => {
+      const fake = createFakeFetch()
+      await expect(
+        makeHttp(fake).update('tasks', TASK_ID, data)
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
 
   it('does not swallow a 404 outside get helpers', async () => {
     const fake = createFakeFetch().reply(404, {})
