@@ -9,6 +9,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job runs the whole devDependency toolchain: give it a token that can
+# only read, and keep that token out of the checkout.
+permissions:
+  contents: read
+
 env:
   HUSKY: 0
 
@@ -23,6 +28,8 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -42,6 +49,8 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -61,6 +70,8 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
