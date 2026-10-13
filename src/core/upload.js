@@ -18,8 +18,8 @@ import { buildUrl } from './query.js'
  * @property {Record<string, any>} [query] Query parameters of the URL.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
- *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress, nor does a bearer client uploading to the origin of its page.
+ *   client given its own fetch (Tauri) calls it only with xhrUploads: true,
+ *   and a bearer client never for an upload to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 
@@ -115,7 +115,10 @@ const xhrUpload = ({
     Object.entries({ Accept: 'application/json', ...headers }).forEach(
       ([name, value]) => xhr.setRequestHeader(name, value)
     )
-    xhr.upload.onprogress = ({ loaded, total }) => onProgress({ loaded, total })
+    if (onProgress) {
+      xhr.upload.onprogress = ({ loaded, total }) =>
+        onProgress({ loaded, total })
+    }
     xhr.onload = () => {
       try {
         settle(resolve, dataOf(xhr, info))
@@ -139,7 +142,8 @@ const xhrUpload = ({
  *   Registers an attempt among the in-flight requests of the instance, so
  *   close() aborts it like any other request.
  * @param {boolean} deps.withCredentials Cookie mode: the XHR sends cookies.
- * @param {boolean} [deps.xhrUploads] Uploads with progress go through XHR.
+ * @param {'all'|'progress'|'none'} [deps.xhrUploads] The uploads that go
+ *   through XHR: all of them, those given an onProgress, or none.
  */
 export const createUpload =
   ({ host, request, withAuthReplay, track, withCredentials, xhrUploads }) =>
@@ -159,8 +163,7 @@ export const createUpload =
     // the Kitsu session cookie before the Authorization header: an upload to
     // the origin of the page goes through fetch.
     const useXhr =
-      onProgress &&
-      xhrUploads &&
+      (xhrUploads === 'all' || (xhrUploads === 'progress' && onProgress)) &&
       typeof globalThis.XMLHttpRequest !== 'undefined' &&
       (withCredentials || !toPageOrigin(url))
     if (!useXhr) return request('POST', path, { body: form, query, signal })
