@@ -61,6 +61,21 @@ after that cannot revoke it on the server.
 Web apps served by Kitsu itself use the session cookie instead:
 `createClient({ host: '/api', auth: 'cookie' })`.
 
+When Zou enforces two-factor authentication (`ENFORCE_2FA`), a user without a
+second factor still logs in, but with tokens that only open the two-factor
+setup, `logOut` and `getCurrentUser`: every other call is refused with a
+`NotAllowedError`. The login body says so, and the setup replaces those tokens
+in bearer mode:
+
+```js
+const body = await kitsu.logIn(email, password)
+if (body.two_factor_authentication_required) {
+  const { totp_provisionning_uri } = await kitsu.preEnableTotp()
+  // show it as a QR code, then:
+  const recoveryCodes = await kitsu.enableTotp(await askForCode())
+}
+```
+
 ## One client, one session
 
 Nothing is shared between two clients: tokens, in-flight requests and the
