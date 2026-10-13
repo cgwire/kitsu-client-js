@@ -15,6 +15,7 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
 // getAsset and allAssetsWithTasks write a missing preview or episode as ''
@@ -635,16 +636,12 @@ export const assetApi = http => {
      * the project.
      * @param {Model} project
      * @param {Blob} csvFile
-     * @param {{
-     *   update?: boolean,
-     *   fileName?: string,
-     *   onProgress?: (progress: {loaded: number, total: number}) => void,
-     *   signal?: AbortSignal
-     * }} [options] update also updates the assets that already exist.
-     *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
-     *   report it. A client given its own fetch (Tauri) uploads through it
-     *   and never calls onProgress.
-     * @returns {Promise<Entity[]>} The assets created by the import.
+     * @param {TransferOptions & {update?: boolean}} [options] update also
+     *   updates the assets that already exist.
+     * @returns {Promise<Entity[]>} The asset of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importAssetsWithCsv: async (
       project,
