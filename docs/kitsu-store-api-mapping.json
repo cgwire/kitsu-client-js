@@ -2067,7 +2067,7 @@
     "route": "/data/projects/<id>/settings/preview-background-files",
     "client": "project.addPreviewBackgroundFile",
     "status": "existing",
-    "note": ""
+    "note": "Same body: the client takes the background or its id and sends { preview_background_file_id }"
   },
   {
     "module": "productions",
@@ -2139,7 +2139,7 @@
     "route": "/data/projects/<id>/settings/status-automations",
     "client": "project.addStatusAutomation",
     "status": "existing",
-    "note": "Same body: the client takes the { status_automation_id } payload and sends it as given"
+    "note": "Same body: the client takes the automation or its id and sends { status_automation_id }"
   },
   {
     "module": "productions",

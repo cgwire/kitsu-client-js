@@ -656,16 +656,18 @@ export const projectApi = http => ({
     http.fetchAll(settingsOf(project, 'status-automations'), {}, { signal }),
 
   /**
+   * Link a status automation to the project, where it then runs.
    * @param {Model} project
-   * @param {{status_automation_id: string}} automation The payload Zou
-   *   expects, sent as given.
+   * @param {Model} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
   addStatusAutomation: async (project, automation, { signal } = {}) =>
-    http.create(settingsOf(project, 'status-automations'), automation, {
-      signal
-    }),
+    http.create(
+      settingsOf(project, 'status-automations'),
+      { status_automation_id: idOf(automation) },
+      { signal }
+    ),
 
   /**
    * @param {Model} project
@@ -695,19 +697,18 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Links an existing preview background file to the project. This is a JSON
-   * call, not an upload: the file itself is sent when the background is
-   * created.
+   * Link an existing preview background file to the project. This is a JSON
+   * call, not an upload: the file itself is sent with
+   * uploadPreviewBackgroundFile.
    * @param {Model} project
-   * @param {{preview_background_file_id: string}} backgroundFile The payload
-   *   Zou expects, sent as given.
+   * @param {Model} backgroundFile
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
   addPreviewBackgroundFile: async (project, backgroundFile, { signal } = {}) =>
     http.create(
       settingsOf(project, 'preview-background-files'),
-      backgroundFile,
+      { preview_background_file_id: idOf(backgroundFile) },
       { signal }
     ),
 
