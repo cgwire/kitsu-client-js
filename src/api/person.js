@@ -33,6 +33,30 @@ const intOf = value => {
 const twoDigits = value => String(intOf(value)).padStart(2, '0')
 
 /**
+ * An update needs the object to save: its id alone holds nothing to send.
+ * @param {Entity} entity
+ * @returns {Entity}
+ */
+const fieldsOf = entity => {
+  if (entity && typeof entity === 'object') return entity
+  throw new ParameterError('Wrong format: expected the object to save')
+}
+
+/**
+ * A Date goes out as its local day, the way newDayOff sends it: JSON would
+ * write its UTC instant, the day before for anyone east of Greenwich.
+ * @param {Record<string, any>} fields
+ * @param {string[]} keys
+ * @returns {Record<string, any>} The fields, copied when a date is given.
+ */
+const withLocalDays = (fields, keys) =>
+  keys.reduce(
+    (result, key) =>
+      key in result ? { ...result, [key]: dateOf(result[key]) } : result,
+    fields
+  )
+
+/**
  * @typedef {{project?: Model, studio?: Model, signal?: AbortSignal}}
  *   TimeSpentOptions project and studio keep the time spent on that project
  *   or by the people of that studio.
@@ -858,13 +882,22 @@ export const personApi = http => ({
     ),
 
   /**
-   * @param {Entity} dayOff The fields that can change are date, end_date,
-   *   description and person_id.
+   * Zou rejects a period overlapping another day off of the person, and
+   * removes the time spents that fall within the new period.
+   * @param {Entity} dayOff The fields that can change are date and end_date
+   *   (Date or "YYYY-MM-DD"), description and person_id.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated day off.
    */
   updateDayOff: async (dayOff, { signal } = {}) =>
-    http.update('day-offs', idOf(dayOff), dayOff, { signal }),
+    http.update(
+      'day-offs',
+      idOf(dayOff),
+      // Shifted by a day, the period would wipe the time spents of a
+      // working day.
+      withLocalDays(fieldsOf(dayOff), ['date', 'end_date']),
+      { signal }
+    ),
 
   /**
    * @param {Model} dayOff
