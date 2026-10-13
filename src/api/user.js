@@ -1,6 +1,5 @@
 import { ParameterError } from '../core/errors.js'
 import {
-  dateOf,
   dayOf,
   idOf,
   idsOf,
@@ -201,7 +200,8 @@ export const userApi = http => ({
     orNull(
       http.get(
         'data/user/time-spents',
-        { start_date: dateOf(startDate), end_date: dateOf(endDate) },
+        // Both are required: without them, Zou answers an empty list.
+        { start_date: dayOf(startDate), end_date: dayOf(endDate) },
         { signal }
       )
     ),
