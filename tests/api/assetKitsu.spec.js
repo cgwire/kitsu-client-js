@@ -82,10 +82,10 @@ describe('asset namespace: Kitsu coverage', () => {
       ])
     )
     expect(
-      await kitsu.asset.allAssetsWithTasks({
-        project: { id: PROJECT_ID },
-        episode: { id: EPISODE_ID }
-      })
+      await kitsu.asset.allAssetsWithTasks(
+        { id: PROJECT_ID },
+        { episode: { id: EPISODE_ID } }
+      )
     ).toEqual([{ id: ASSET_ID, tasks: [] }])
     expect(fake.calls).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
@@ -123,9 +123,7 @@ describe('asset namespace: Kitsu coverage', () => {
       ])
     )
     fake.reply(200, { id: ASSET_ID })
-    const [asset] = await kitsu.asset.allAssetsWithTasks({
-      project: PROJECT_ID
-    })
+    const [asset] = await kitsu.asset.allAssetsWithTasks(PROJECT_ID)
     await kitsu.asset.updateAsset(
       Object.freeze({ ...asset, description: 'A red chair' })
     )
@@ -137,17 +135,31 @@ describe('asset namespace: Kitsu coverage', () => {
     })
   })
 
-  it('allAssetsWithTasks works without any filter', async () => {
+  it('allAssetsWithTasks works without an episode', async () => {
     fake.on('GET', '/data/assets/with-tasks', () =>
       ndjsonResponse([{ compact: false }, { id: ASSET_ID, tasks: [] }])
     )
-    expect(await kitsu.asset.allAssetsWithTasks()).toEqual([
+    expect(await kitsu.asset.allAssetsWithTasks(PROJECT_ID)).toEqual([
       { id: ASSET_ID, tasks: [] }
     ])
     expect([...fake.calls[0].query.keys()].sort()).toEqual([
       'compact',
+      'project_id',
       'stream'
     ])
+  })
+
+  // Without a project, Zou lists every production to an admin.
+  it('allAssetsWithTasks rejects a missing project before any request', async () => {
+    const errors = await Promise.all(
+      [
+        kitsu.asset.allAssetsWithTasks(),
+        // The options of the former call shape are not a project.
+        kitsu.asset.allAssetsWithTasks({ project: PROJECT_ID })
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('allSharedAssetsUsedInProject lists the shared assets used in the project', async () => {
