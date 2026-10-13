@@ -1,6 +1,7 @@
 import {
   idOf,
   optionalIdOf,
+  orNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -13,13 +14,40 @@ import { getEditUrl, webHostOf } from '../utils/urls.js'
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+const idKey = id => (id ? String(id).toLowerCase() : null)
+
+// Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
+// gazu the case is ignored, but the name must match, and the exact spelling
+// wins over another case.
+const findByName = (entries, name, inParent) => {
+  const wanted = String(name)
+  const matches = (Array.isArray(entries) ? entries : []).filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase() &&
+      inParent(entry)
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
+
 export const editApi = http => {
-  const editByName = (project, name, signal) =>
-    http.fetchFirst(
-      'edits/all',
-      { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+  // Before creating an edit, Zou looks for the same name in the same
+  // episode, or outside any episode: the lookup keeps that parent.
+  const editByName = async (project, name, episode, signal) => {
+    const episodeId = optionalIdOf(episode)
+    const entries = await orNull(
+      http.fetchAll(
+        'edits/all',
+        { project_id: idOf(project), name: requiredOf('name', name) },
+        { signal }
+      )
     )
+    return findByName(
+      entries,
+      name,
+      entry => idKey(entry.parent_id) === idKey(episodeId)
+    )
+  }
 
   // A plain get, not fetchOne: a missing edit must raise instead of giving
   // a broken URL.
@@ -50,11 +78,14 @@ export const editApi = http => {
     /**
      * @param {Model} project
      * @param {string} editName
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The edit of the project with that name.
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] With an
+     *   episode, the lookup is scoped to it. Without one, only an edit of the
+     *   project outside any episode matches.
+     * @returns {Promise<Entity|null>} The edit with that name
+     *   (case-insensitive), null when there is none.
      */
-    getEditByName: async (project, editName, { signal } = {}) =>
-      editByName(project, editName, signal),
+    getEditByName: async (project, editName, { episode, signal } = {}) =>
+      editByName(project, editName, episode, signal),
 
     /**
      * @param {Model} edit
@@ -109,8 +140,9 @@ export const editApi = http => {
       http.fetchAll(`edits/${idOf(edit)}/preview-files`, {}, { signal }),
 
     /**
-     * Create an edit, unless one already has that name in the project: the
-     * existing edit is then returned.
+     * Create an edit, unless the episode, or the project outside any episode,
+     * already has one with that name (case-insensitive): the existing edit
+     * is then returned.
      * @param {Model} project
      * @param {string} name
      * @param {{
@@ -135,7 +167,7 @@ export const editApi = http => {
         })
       }
       const path = `data/projects/${idOf(project)}/edits`
-      const existing = await editByName(project, name, signal)
+      const existing = await editByName(project, name, episode, signal)
       return existing || http.post(path, body, { signal })
     },
 

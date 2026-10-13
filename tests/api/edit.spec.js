@@ -11,6 +11,7 @@ import {
 } from '../helpers/ids.js'
 
 const WEB_HOST = 'http://kitsu.test'
+const OTHER_EPISODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
 describe('edit namespace', () => {
   let kitsu, fake
@@ -29,10 +30,11 @@ describe('edit namespace', () => {
   })
 
   it('getEditByName filters by project and name', async () => {
-    fake.reply(200, [{ id: EDIT_ID, name: 'Trailer' }]).reply(200, [])
+    const edit = { id: EDIT_ID, name: 'Trailer', parent_id: null }
+    fake.reply(200, [edit]).reply(200, [])
     expect(
       await kitsu.edit.getEditByName({ id: PROJECT_ID }, 'Trailer')
-    ).toEqual({ id: EDIT_ID, name: 'Trailer' })
+    ).toEqual(edit)
     expect(await kitsu.edit.getEditByName(PROJECT_ID, 'Missing')).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
@@ -40,6 +42,30 @@ describe('edit namespace', () => {
     })
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[0].query.get('name')).toBe('Trailer')
+  })
+
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getEditByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'EP01-cut', parent_id: null }
+    const edit = { id: EDIT_ID, name: 'EP01_cut', parent_id: null }
+    fake.reply(200, [nearName, edit]).reply(200, [nearName])
+    expect(await kitsu.edit.getEditByName(PROJECT_ID, 'EP01_cut')).toEqual(edit)
+    expect(await kitsu.edit.getEditByName(PROJECT_ID, 'EP01_cut')).toBeNull()
+  })
+
+  it('getEditByName keeps the edit of the given episode', async () => {
+    const edits = [
+      { id: OTHER_ID, name: 'Animatic', parent_id: OTHER_EPISODE_ID },
+      { id: EDIT_ID, name: 'Animatic', parent_id: EPISODE_ID }
+    ]
+    fake.reply(200, edits).reply(200, edits)
+    expect(
+      await kitsu.edit.getEditByName(PROJECT_ID, 'Animatic', {
+        episode: { id: EPISODE_ID }
+      })
+    ).toEqual(edits[1])
+    // Without an episode, only an edit outside any episode matches.
+    expect(await kitsu.edit.getEditByName(PROJECT_ID, 'Animatic')).toBeNull()
   })
 
   it('getEditByName rejects a blank name without any request', async () => {
@@ -138,11 +164,40 @@ describe('edit namespace', () => {
   })
 
   it('newEdit returns the existing edit instead of creating', async () => {
-    fake.reply(200, [{ id: EDIT_ID, name: 'Trailer' }])
-    expect(await kitsu.edit.newEdit(PROJECT_ID, 'Trailer')).toEqual({
-      id: EDIT_ID,
-      name: 'Trailer'
+    const edit = { id: EDIT_ID, name: 'Trailer', parent_id: null }
+    fake.reply(200, [edit])
+    expect(await kitsu.edit.newEdit(PROJECT_ID, 'Trailer')).toEqual(edit)
+    expect(fake.calls).toHaveLength(1)
+  })
+
+  // Zou creates the edit in its episode when another episode has that name.
+  it('newEdit creates the edit of an episode when another one has that name', async () => {
+    fake
+      .reply(200, [
+        { id: OTHER_ID, name: 'Animatic', parent_id: OTHER_EPISODE_ID }
+      ])
+      .reply(201, { id: EDIT_ID, name: 'Animatic', parent_id: EPISODE_ID })
+    expect(
+      await kitsu.edit.newEdit(PROJECT_ID, 'Animatic', { episode: EPISODE_ID })
+    ).toMatchObject({ id: EDIT_ID })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: `/data/projects/${PROJECT_ID}/edits`,
+      body: { name: 'Animatic', data: {}, episode_id: EPISODE_ID }
     })
+  })
+
+  it('newEdit returns the edit of its episode', async () => {
+    const edit = { id: EDIT_ID, name: 'Animatic', parent_id: EPISODE_ID }
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'Animatic', parent_id: OTHER_EPISODE_ID },
+      edit
+    ])
+    expect(
+      await kitsu.edit.newEdit(PROJECT_ID, 'Animatic', {
+        episode: { id: EPISODE_ID }
+      })
+    ).toEqual(edit)
     expect(fake.calls).toHaveLength(1)
   })
 
