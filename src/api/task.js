@@ -1117,7 +1117,8 @@ export const taskApi = http => {
      * @param {Model} project
      * @param {Model[]} tasks
      * @param {RequestOptions} [options]
-     * @returns {Promise<string[]>} Ids of the deleted tasks.
+     * @returns {Promise<string[]>} The ids given, deleted or not: the tasks
+     *   of another project are skipped.
      */
     removeTasksBatch: async (project, tasks, { signal } = {}) =>
       http.post(

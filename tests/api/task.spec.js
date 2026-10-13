@@ -594,9 +594,13 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('removeTasksBatch deletes a batch of tasks of a project', async () => {
+    // Zou answers the ids it was given, whether it deleted them or not.
     fake.reply(200, [TASK_ID, OTHER_ID])
     const tasks = [{ id: TASK_ID }, OTHER_ID]
-    await kitsu.task.removeTasksBatch(PROJECT_ID, tasks)
+    expect(await kitsu.task.removeTasksBatch(PROJECT_ID, tasks)).toEqual([
+      TASK_ID,
+      OTHER_ID
+    ])
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/projects/${PROJECT_ID}/delete-tasks`,
