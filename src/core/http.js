@@ -51,6 +51,15 @@ const notData = (info, status, detail, body, cause) =>
     cause && { cause }
   )
 
+// undici rejects with "fetch failed" and keeps the reason (DNS, TLS, a
+// refused connection) in its cause; the Tauri http plugin rejects with a
+// string.
+const reasonOf = err => {
+  if (typeof err?.message !== 'string') return String(err)
+  const cause = err.cause?.message
+  return typeof cause === 'string' ? `${err.message}: ${cause}` : err.message
+}
+
 const NOT_STREAMED = Symbol('not streamed')
 
 const isAuthFailure = err =>
@@ -140,7 +149,7 @@ export const createHttp = (config, session) => {
       // Decided from the controller, not from the shape of the rejection:
       // injected fetches (Tauri) do not all reject with an AbortError.
       if (controller.signal.aborted) {
-        throw err.name === 'AbortError'
+        throw err?.name === 'AbortError'
           ? err
           : new DOMException('The operation was aborted', 'AbortError')
       }
@@ -150,7 +159,10 @@ export const createHttp = (config, session) => {
       if (err instanceof SyntaxError) {
         throw notData(info, status, 'with a malformed body', '', err)
       }
-      throw new NetworkError(`${method} ${path} failed: ${err.message}`, info)
+      throw Object.assign(
+        new NetworkError(`${method} ${path} failed: ${reasonOf(err)}`, info),
+        { cause: err }
+      )
     } finally {
       clearTimeout(responseTimer)
       clearTimeout(deadlineTimer)
