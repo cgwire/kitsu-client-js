@@ -113,7 +113,8 @@ export const sceneApi = http => {
     /**
      * @param {Model} scene
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances of the scene.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances of the
+     *   scene, keyed by the id of their asset.
      */
     allAssetInstancesForScene: async (scene, { signal } = {}) =>
       http.get(`data/scenes/${idOf(scene)}/asset-instances`, {}, { signal }),
@@ -135,7 +136,8 @@ export const sceneApi = http => {
     /**
      * @param {Model} scene
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The camera instances of the scene.
+     * @returns {Promise<Record<string, Entity[]>>} The camera instances of the
+     *   scene, keyed by the id of their camera asset.
      */
     allCameraInstancesForScene: async (scene, { signal } = {}) =>
       http.get(`data/scenes/${idOf(scene)}/camera-instances`, {}, { signal }),
