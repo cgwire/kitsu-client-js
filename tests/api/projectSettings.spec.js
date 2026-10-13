@@ -291,6 +291,14 @@ describe('project namespace: team, milestones and quotas', () => {
     expect(fake.calls[1].body).toEqual({ role: null })
   })
 
+  // Sent without a role, the call would restore the global role.
+  it('updateTeamMemberRole rejects a missing role', async () => {
+    await expect(
+      kitsu.project.updateTeamMemberRole(PROJECT_ID, PERSON_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removePersonFromTeam removes the person from the team', async () => {
     fake.reply(204)
     await kitsu.project.removePersonFromTeam(PROJECT_ID, { id: PERSON_ID })

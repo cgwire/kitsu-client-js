@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { NotFoundError } from '../../src/core/errors.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   DEPARTMENT_ID,
@@ -76,6 +77,17 @@ describe('project namespace: metadata descriptors', () => {
       departments: [DEPARTMENT_ID, OTHER_ID],
       task_type_id: TASK_TYPE_ID
     })
+  })
+
+  // Zou would create an Asset descriptor without an entity type.
+  it('addMetadataDescriptor rejects a missing name or entity type', async () => {
+    await expect(
+      kitsu.project.addMetadataDescriptor(PROJECT_ID, 'Difficulty')
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.project.addMetadataDescriptor(PROJECT_ID, '', 'Shot')
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getMetadataDescriptor returns the descriptor, null on 404', async () => {
