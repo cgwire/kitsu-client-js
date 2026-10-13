@@ -11,8 +11,8 @@ const CLOSED_BY_SERVER = 'io server disconnect'
 // socket.io double. It models what the events rely on: a lost connection and
 // disconnect() only fire "disconnect" on a connected socket, whereas the
 // server can close one that is still in its handshake; and a socket closed by
-// disconnect() or by the server is destroyed: it receives nothing more and
-// never reconnects.
+// disconnect() or by the server, or refused by the server, is destroyed: it
+// receives nothing more and never reconnects.
 const createFakeIo = () => {
   const sockets = []
   const io = vi.fn((url, opts) => {
@@ -39,12 +39,21 @@ const createFakeIo = () => {
         ),
       listenerCount: name => (listeners.get(name) || []).length,
       isOpen: () => !state.destroyed,
+      get active() {
+        return !state.destroyed
+      },
       disconnect: vi.fn(() => close('io client disconnect', true)),
       connects: () => {
         state.connected = true
         emit('connect')
       },
       drops: reason => close(reason, reason === CLOSED_BY_SERVER),
+      // A refusal of the server (CONNECT_ERROR) destroys the socket, any
+      // other failure leaves it to the reconnections of socket.io.
+      failsToConnect: (message, refused = false) => {
+        state.destroyed = state.destroyed || refused
+        emit('connect_error', new Error(message))
+      },
       fromServer: (name, ...args) => {
         if (!state.destroyed) emit(name, ...args)
       },
@@ -193,6 +202,7 @@ describe('events', () => {
       expect(io).not.toHaveBeenCalled()
       expect(() => events.onConnect(null)).toThrow(ParameterError)
       expect(() => events.onDisconnect('handler')).toThrow(ParameterError)
+      expect(() => events.onConnectError()).toThrow(ParameterError)
     })
 
     it('notifies connect and disconnect, even when registered before connecting', async () => {
@@ -209,6 +219,41 @@ describe('events', () => {
       sockets[0].connects()
       expect(onConnect).toHaveBeenCalledTimes(1)
       expect(onDisconnect.mock.calls).toEqual([['transport close']])
+    })
+
+    it('reports every failed connection attempt, and keeps the socket that retries', async () => {
+      const { io, sockets } = createFakeIo()
+      const kitsu = makeCore(io)
+      const onConnectError = vi.fn()
+      const off = kitsu.events.onConnectError(onConnectError)
+      await kitsu.events.on('x', () => {})
+
+      sockets[0].failsToConnect('xhr poll error')
+      sockets[0].failsToConnect('xhr poll error')
+      off()
+      sockets[0].failsToConnect('xhr poll error')
+      await kitsu.events.on('y', () => {})
+
+      expect(onConnectError).toHaveBeenCalledTimes(2)
+      expect(onConnectError.mock.calls[0][0].message).toBe('xhr poll error')
+      expect(io).toHaveBeenCalledTimes(1)
+    })
+
+    it('forgets a socket the server refused: the next on() opens another', async () => {
+      const { io, sockets } = createFakeIo()
+      const kitsu = makeCore(io)
+      const onConnectError = vi.fn()
+      kitsu.events.onConnectError(onConnectError)
+      const handler = vi.fn()
+      await kitsu.events.on('x', handler)
+
+      sockets[0].failsToConnect('Invalid namespace', true)
+      expect(onConnectError.mock.calls[0][0].message).toBe('Invalid namespace')
+      await kitsu.events.on('y', () => {})
+
+      expect(sockets).toHaveLength(2)
+      sockets[1].fromServer('x', 1)
+      expect(handler.mock.calls).toEqual([[1]])
     })
 
     it('keeps the socket through an outage: socket.io reconnects it itself', async () => {

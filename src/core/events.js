@@ -54,7 +54,11 @@ export const createEvents = ({
     )
   }
   const registrations = new Set()
-  const lifecycle = { connect: new Set(), disconnect: new Set() }
+  const lifecycle = {
+    connect: new Set(),
+    disconnect: new Set(),
+    connectError: new Set()
+  }
   let ioImpl = null
   let loading = null
   let socket = null
@@ -135,6 +139,13 @@ export const createEvents = ({
         else renew()
       }
       notify(lifecycle.disconnect, reason)
+    })
+    opened.on('connect_error', err => {
+      // Refused by the server (a namespace it does not serve, for instance),
+      // the socket is destroyed and never retries: forgotten, the next on()
+      // opens another. socket.io retries any other failure by itself.
+      if (socket === opened && opened.active === false) socket = null
+      notify(lifecycle.connectError, err)
     })
     registrations.forEach(({ name, relay }) => opened.on(name, relay))
   }
@@ -275,6 +286,20 @@ export const createEvents = ({
       subscribe(
         lifecycle.disconnect,
         handlerOf('events.onDisconnect', handler)
+      ),
+
+    /**
+     * Called with the error of every failed connection attempt: Zou cannot
+     * be reached, a browser blocks the handshake (see the platforms of
+     * docs/events.md), or Zou refuses the namespace. socket.io retries by
+     * itself, except after a refusal: the next on() opens a new socket.
+     * @param {(error: Error) => void} handler
+     * @returns {Off}
+     */
+    onConnectError: handler =>
+      subscribe(
+        lifecycle.connectError,
+        handlerOf('events.onConnectError', handler)
       ),
 
     /**
