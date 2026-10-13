@@ -12,6 +12,7 @@ import { getEditUrl, webHostOf } from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
 const idKey = id => (id ? String(id).toLowerCase() : null)
@@ -124,8 +125,8 @@ export const editApi = http => {
     /**
      * @param {Model} edit
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The data history of the edit: one entry
-     *   per saved version of its metadata.
+     * @returns {Promise<Entity[]>} The data history of the edit. Zou records
+     *   versions for the shots only: the list of an edit stays empty.
      */
     allVersionsForEdit: async (edit, { signal } = {}) =>
       http.get(`data/edits/${idOf(edit)}/versions`, {}, { signal }),
@@ -175,17 +176,12 @@ export const editApi = http => {
      * Import the edits of a CSV file into the project.
      * @param {Model} project
      * @param {Blob} csvFile The CSV data, as a Blob or a File.
-     * @param {{
-     *   update?: boolean,
-     *   fileName?: string,
-     *   onProgress?: (progress: {loaded: number, total: number}) => void,
-     *   signal?: AbortSignal
-     * }} [options] update also updates the edits that already exist.
-     *   fileName names the uploaded file when it is a plain Blob. onProgress
-     *   needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
-     *   client given its own fetch (Tauri) uploads through it and never calls
-     *   onProgress.
-     * @returns {Promise<Entity[]>} The edits created or updated by the import.
+     * @param {TransferOptions & {update?: boolean}} [options] update also
+     *   updates the edits that already exist.
+     * @returns {Promise<Entity[]>} The edit of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importEditsWithCsv: async (
       project,
