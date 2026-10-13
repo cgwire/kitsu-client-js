@@ -21,6 +21,20 @@ const importIo = async () => {
   return module.io || module.default
 }
 
+/**
+ * Failures that happen behind the back of the app (one of its handlers or
+ * hooks, a socket reopened after a session change) have no caller to
+ * reject: they surface as uncaught errors, and never break the session
+ * change, the request or the socket.io emit loop they happened in, where the
+ * next handlers wait.
+ * @param {unknown} err
+ */
+export const throwOutOfBand = err => {
+  setTimeout(() => {
+    throw err
+  })
+}
+
 const handlerOf = (label, handler) => {
   if (typeof handler === 'function') return handler
   throw new ParameterError(`${label}: the handler must be a function`)
@@ -99,16 +113,6 @@ export const createEvents = ({
         })
     }
     return loading
-  }
-
-  // Failures that happen behind the back of the app (one of its handlers, a
-  // socket reopened after a session change) have no caller to reject: they
-  // surface as uncaught errors, and never break the session change or the
-  // socket.io emit loop they happened in, where the next handlers wait.
-  const throwOutOfBand = err => {
-    setTimeout(() => {
-      throw err
-    })
   }
 
   const callApp = (handler, args) => {
