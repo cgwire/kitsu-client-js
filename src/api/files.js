@@ -782,7 +782,8 @@ export const filesApi = http => {
      * @param {Model} entity
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "main" by default, like for the other entity output file functions.
      * @returns {Promise<number>} Next revision available for the output files
      *   of the entity, 1 when there is no output file yet.
      */
@@ -798,7 +799,9 @@ export const filesApi = http => {
      * @param {Model} temporalEntity Shot or scene the instance appears in.
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "master" by default, like for newAssetInstanceOutputFile (gazu), while
+     *   buildAssetInstanceOutputFilePath takes "main".
      * @returns {Promise<number>} Next revision available for the output files
      *   of the instance, 1 when there is no output file yet.
      */
@@ -821,7 +824,8 @@ export const filesApi = http => {
      * @param {Model} entity
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "main" by default, like for the other entity output file functions.
      * @returns {Promise<number>} Last revision of the output files of the
      *   entity, 0 when there is no output file yet.
      */
@@ -840,7 +844,9 @@ export const filesApi = http => {
      * @param {Model} temporalEntity Shot or scene the instance appears in.
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "master" by default, like for newAssetInstanceOutputFile (gazu), while
+     *   buildAssetInstanceOutputFilePath takes "main".
      * @returns {Promise<number>} Last revision of the output files of the
      *   instance, 0 when there is no output file yet.
      */
