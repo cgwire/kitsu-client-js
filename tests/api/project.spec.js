@@ -165,6 +165,24 @@ describe('project namespace: projects', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
+  it('newProject rejects a malformed option before looking the name up', async () => {
+    fake.reply(200, [{ id: PROJECT_ID, name: 'Sprite' }])
+    const options = [
+      { team: ['jane@studio.com'] },
+      { assetTypes: ['Props'] },
+      { taskStatuses: [{ name: 'WIP' }] },
+      { taskTypes: ['Animation'] },
+      { projectTemplate: 'Feature' }
+    ]
+    const errors = await Promise.all(
+      options.map(option =>
+        kitsu.project.newProject('Sprite', option).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeProject deletes the project, forcing on demand', async () => {
     fake.reply(204).reply(204)
     await kitsu.project.removeProject(PROJECT_ID)
