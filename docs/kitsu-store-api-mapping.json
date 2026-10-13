@@ -429,7 +429,7 @@
     "route": "/data/search",
     "client": "search.searchEntities",
     "status": "existing",
-    "note": "Same body as Kitsu: query, project_id, limit, offset and index_names (options project, limit, offset, indexNames)."
+    "note": "Same body as Kitsu: query, project_id, limit, offset and index_names (options project, limit, offset, indexNames). Like Kitsu, which only searches from 3 characters, the client refuses a shorter query (ParameterError): Zou answers it with {}."
   },
   {
     "module": "concepts",
