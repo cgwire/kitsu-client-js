@@ -247,9 +247,9 @@ export const userApi = http => ({
     http.post(
       'data/user/filters',
       {
-        name,
-        query,
-        list_type: listType,
+        name: requiredOf('name', name),
+        query: requiredOf('query', query),
+        list_type: listTypeOf(listType),
         project_id: optionalIdOf(project),
         entity_type: entityType
       },

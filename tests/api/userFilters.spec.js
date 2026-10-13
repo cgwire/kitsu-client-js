@@ -79,6 +79,21 @@ describe('user namespace: filters', () => {
     })
   })
 
+  it('newFilter requires a name, a query and a list type', async () => {
+    const { user } = kitsu
+    await expect(user.newFilter()).rejects.toThrow(ParameterError)
+    await expect(user.newFilter('Wip', '', 'asset')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(user.newFilter('Wip', 'status=wip')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      user.newFilter('Wip', 'status=wip', { project: PROJECT_ID })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeFilter deletes the filter from an id or an object', async () => {
     fake.reply(204).reply(204)
     await kitsu.user.removeFilter(FILTER_ID)
