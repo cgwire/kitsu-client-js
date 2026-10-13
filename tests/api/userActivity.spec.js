@@ -4,12 +4,14 @@ import { makeClient } from '../helpers/client.js'
 import {
   ENTITY_ID,
   NOTIFICATION_ID,
+  OTHER_ID,
   PERSON_ID,
   TASK_ID
 } from '../helpers/ids.js'
 
 const LOG_ID = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
 const DAY_OFF_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const TIME_SPENT_ID = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'
 
 describe('user namespace: time, notifications, subscriptions, chats', () => {
   let kitsu, fake
@@ -81,16 +83,31 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     expect(fake.calls[1].path).toBe('/data/user/time-spents/2026-09-20')
   })
 
-  it('getTaskTimeSpent reads the time spent on a task, null on 404', async () => {
-    fake.reply(200, { duration: 120 }).reply(404, {})
+  // The route of a single task answers a 500 when nothing is logged: the
+  // time spent is read from the time spents of the day.
+  it('getTaskTimeSpent reads the time spent on a task, null when none', async () => {
+    const timeSpent = {
+      id: TIME_SPENT_ID,
+      task_id: TASK_ID,
+      person_id: PERSON_ID,
+      date: '2026-09-19',
+      duration: 120
+    }
+    const otherTask = { ...timeSpent, id: OTHER_ID, task_id: OTHER_ID }
+    fake
+      .reply(200, [otherTask, timeSpent])
+      .reply(200, [{ ...otherTask, date: '2026-09-20' }])
     expect(
       await kitsu.user.getTaskTimeSpent({ id: TASK_ID }, '2026-09-19')
-    ).toEqual({ duration: 120 })
-    expect(await kitsu.user.getTaskTimeSpent(TASK_ID, '2026-09-19')).toBeNull()
+    ).toEqual(timeSpent)
+    expect(
+      await kitsu.user.getTaskTimeSpent(TASK_ID, new Date(2026, 8, 20))
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: `/data/user/tasks/${TASK_ID}/time-spents/2026-09-19`
+      path: '/data/user/time-spents/2026-09-19'
     })
+    expect(fake.calls[1].path).toBe('/data/user/time-spents/2026-09-20')
   })
 
   // Zou answers an empty object, never a 404, when no day off covers the day.

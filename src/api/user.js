@@ -338,14 +338,17 @@ export const userApi = http => ({
    * @returns {Promise<Entity|null>} Time spent by the user on the task that
    *   day, null when there is none.
    */
-  getTaskTimeSpent: async (task, date, { signal } = {}) =>
-    orNull(
-      http.get(
-        `data/user/tasks/${idOf(task)}/time-spents/${dayOf(date)}`,
-        {},
-        { signal }
-      )
-    ),
+  getTaskTimeSpent: async (task, date, { signal } = {}) => {
+    const id = idOf(task)
+    // The route of the task answers a 500 when nothing is logged on it that
+    // day: the time spents of the day hold at most one per task.
+    const timeSpents = await http.get(
+      `data/user/time-spents/${dayOf(date)}`,
+      {},
+      { signal }
+    )
+    return timeSpents.find(timeSpent => timeSpent.task_id === id) || null
+  },
 
   /**
    * @param {Date|string} date The day ("YYYY-MM-DD").
