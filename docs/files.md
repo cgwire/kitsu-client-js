@@ -3,15 +3,25 @@
 ## Working files
 
 The server owns the paths: they come from the file tree of the project.
+`newWorkingFile` creates the next revision and answers its `path`:
+
+```js
+const workingFile = await kitsu.files.newWorkingFile(task, {
+  software,
+  comment: 'Blocking pass'
+})
+// workingFile.path and workingFile.revision
+```
+
+`buildWorkingFilePath` builds a path without creating anything. Give it the
+revision: like gazu, it builds the path of revision 1 by default, whereas
+`newWorkingFile` takes the next one.
 
 ```js
 const path = await kitsu.files.buildWorkingFilePath(task, {
   software,
+  revision: workingFile.revision,
   sep: '/'
-})
-const workingFile = await kitsu.files.newWorkingFile(task, {
-  software,
-  comment: 'Blocking pass'
 })
 ```
 
