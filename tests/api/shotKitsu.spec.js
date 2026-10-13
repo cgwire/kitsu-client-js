@@ -30,10 +30,10 @@ describe('shot namespace: Kitsu web app functions', () => {
         )
     )
     expect(
-      await kitsu.shot.allShotsWithTasks({
-        project: { id: PROJECT_ID },
-        episode: EPISODE_ID
-      })
+      await kitsu.shot.allShotsWithTasks(
+        { id: PROJECT_ID },
+        { episode: EPISODE_ID }
+      )
     ).toEqual([{ id: SHOT_ID, tasks: [] }])
     expect(fake.calls).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
@@ -48,12 +48,12 @@ describe('shot namespace: Kitsu web app functions', () => {
 
   it('allShotsWithTasks asks again when the answer is not a stream', async () => {
     fake.reply(200, []).reply(200, [{ id: SHOT_ID, tasks: [] }])
-    expect(await kitsu.shot.allShotsWithTasks()).toEqual([
+    expect(await kitsu.shot.allShotsWithTasks(PROJECT_ID)).toEqual([
       { id: SHOT_ID, tasks: [] }
     ])
     expect(fake.calls[1].path).toBe('/data/shots/with-tasks')
     expect(fake.calls[1].query.has('stream')).toBe(false)
-    expect(fake.calls[1].query.has('project_id')).toBe(false)
+    expect(fake.calls[1].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[1].query.has('episode_id')).toBe(false)
   })
 
@@ -88,6 +88,8 @@ describe('shot namespace: Kitsu web app functions', () => {
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
   })
 
+  // Without a project, Zou lists every production to an admin and refuses
+  // anyone else.
   it('the with-tasks lists of a project reject without a project', async () => {
     await expect(kitsu.shot.allSequencesWithTasks()).rejects.toThrow(
       ParameterError
@@ -95,6 +97,11 @@ describe('shot namespace: Kitsu web app functions', () => {
     await expect(kitsu.shot.allEpisodesWithTasks(null)).rejects.toThrow(
       ParameterError
     )
+    await expect(kitsu.shot.allShotsWithTasks()).rejects.toThrow(ParameterError)
+    // The options of the former call shape are not a project.
+    await expect(
+      kitsu.shot.allShotsWithTasks({ project: PROJECT_ID })
+    ).rejects.toThrow(ParameterError)
     expect(fake.calls).toHaveLength(0)
   })
 

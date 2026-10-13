@@ -2724,7 +2724,7 @@
     "route": "/data/shots/with-tasks",
     "client": "shot.allShotsWithTasks",
     "status": "added",
-    "note": "pgetNdjson: build on http.getNdjson. Query: project_id, episode_id (both optional)."
+    "note": "pgetNdjson: build on http.getNdjson. Query: project_id, episode_id. Zou takes both as optional, but lists every production to an admin and refuses anyone else without a project: the client requires it, positional like in Kitsu."
   },
   {
     "module": "shots",
