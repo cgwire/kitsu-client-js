@@ -85,7 +85,8 @@ export const createCore = options => {
       options.eventHost || config.host.replace(/\/api\/?$/, '')
     ).replace(/\/+$/, ''),
     session,
-    io: options.io
+    io: options.io,
+    probe: () => http.get('auth/authenticated')
   })
 
   const { abortTurns, ...account } = authApi(http, session)
