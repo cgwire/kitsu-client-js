@@ -630,6 +630,13 @@ describe('playlist namespace: writes', () => {
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}/build/mp4`
     })
+    expect(fake.calls[0].query.has('full')).toBe(false)
+  })
+
+  it('buildPlaylistMovie asks for a full re-encoding', async () => {
+    fake.reply(200, { id: BUILD_JOB_ID })
+    await kitsu.playlist.buildPlaylistMovie(PLAYLIST_ID, { full: true })
+    expect(fake.calls[0].query.get('full')).toBe('true')
   })
 
   it('generateTempPlaylist posts the generation data', async () => {

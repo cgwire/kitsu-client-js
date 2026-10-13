@@ -461,11 +461,17 @@ export const playlistApi = http => {
      * (60 s to the first byte, 5 min in all, see its timeout option), while
      * Zou goes on.
      * @param {Model} playlist
-     * @param {RequestOptions} [options]
+     * @param {{full?: boolean, signal?: AbortSignal}} [options] full
+     *   re-encodes the previews, where Zou first tries to join them as they
+     *   are.
      * @returns {Promise<Entity>} The build job.
      */
-    buildPlaylistMovie: async (playlist, { signal } = {}) =>
-      http.get(`data/playlists/${idOf(playlist)}/build/mp4`, {}, { signal }),
+    buildPlaylistMovie: async (playlist, { full = false, signal } = {}) =>
+      http.get(
+        `data/playlists/${idOf(playlist)}/build/mp4`,
+        { full: full ? true : null },
+        { signal }
+      ),
 
     /**
      * @param {Model} playlist
