@@ -594,8 +594,9 @@ export const shotApi = http => {
      *   episode?: Model,
      *   assignedTo?: Model,
      *   signal?: AbortSignal
-     * }} [options] episode keeps the shots of that episode only, assignedTo
-     *   the shots with at least one task assigned to that person.
+     * }} [options] episode keeps the shots of that episode only. assignedTo
+     *   keeps the shots with a task assigned to the logged in user, and only
+     *   the tasks of that user: Zou reads it as a flag, whoever is given.
      * @returns {Promise<string>} The shots of the project, as CSV.
      */
     exportShotsWithCsv: async (
