@@ -22,6 +22,21 @@ const LINK_FIELDS = ['team', 'asset_types', 'task_statuses', 'task_types']
 // The choices of the out_field_type column of a status automation.
 const OUT_FIELD_TYPES = ['status', 'ready_for']
 
+// The choices of the position and seniority columns of a budget entry.
+const POSITIONS = ['supervisor', 'lead', 'artist']
+const SENIORITIES = ['senior', 'mid', 'junior']
+
+// Zou stores any string in a choice column, then fails on every later read
+// of the row: an unknown code is refused before the request.
+const choiceOf = (label, choices, value) => {
+  if (value === null || value === undefined || choices.includes(value)) {
+    return value
+  }
+  throw new ParameterError(
+    `Wrong format: ${label} must be one of ${choices.join(', ')}`
+  )
+}
+
 // Zou expects model links as lists of ids, while a project read with its
 // relations can carry them as dicts.
 const withLinkIds = project =>
@@ -760,7 +775,8 @@ export const projectApi = http => ({
    *   position?: string,
    *   seniority?: string,
    *   signal?: AbortSignal
-   * }} [options]
+   * }} [options] position is supervisor, lead or artist (the default),
+   *   seniority is senior, mid (the default) or junior.
    * @returns {Promise<Entity>} The created budget entry.
    */
   createBudgetEntry: async (
@@ -777,8 +793,8 @@ export const projectApi = http => ({
       withoutNil({
         department_id: idOf(department),
         person_id: optionalIdOf(person),
-        position,
-        seniority,
+        position: choiceOf('position', POSITIONS, position),
+        seniority: choiceOf('seniority', SENIORITIES, seniority),
         // Zou cannot store an entry without them: it answers 500.
         start_date: dayOf(requiredOf('startDate', startDate)),
         months_duration: requiredOf('monthsDuration', monthsDuration),
@@ -804,15 +820,20 @@ export const projectApi = http => ({
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} entry
-   * @param {object} data The fields to change: department_id, person_id,
-   *   start_date (a Date object or a YYYY-MM-DD string), months_duration,
-   *   daily_salary, position, seniority and exceptions (the whole map).
+   * @param {Record<string, any>} data The fields to change: department_id,
+   *   person_id, start_date (a Date object or a YYYY-MM-DD string),
+   *   months_duration, daily_salary, position, seniority and exceptions (the
+   *   whole map). position and seniority take the codes of
+   *   createBudgetEntry.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated budget entry.
    */
   updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) => {
     const entries = entriesOf(project, budget)
     const id = idOf(entry)
+    const { position, seniority } = data || {}
+    choiceOf('position', POSITIONS, position)
+    choiceOf('seniority', SENIORITIES, seniority)
     const current = await http.get(`data/${entries}/${id}`, {}, { signal })
     // Zou writes every field of the entry, null for a missing one: a partial
     // body would fail on the required ones and clear the person, the

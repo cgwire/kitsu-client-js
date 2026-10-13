@@ -194,6 +194,31 @@ describe('project namespace: budgets', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Zou would store the code, then fail on every read of the entry.
+  it('createBudgetEntry rejects an unknown position or seniority', async () => {
+    const options = [{ position: 'Artist' }, { seniority: 'medior' }]
+    const errors = await Promise.all(
+      options.map(option =>
+        kitsu.project
+          .createBudgetEntry(
+            PROJECT_ID,
+            BUDGET_ID,
+            DEPARTMENT_ID,
+            '2026-03-01',
+            3,
+            400,
+            option
+          )
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => {
+      expect(err).toBeInstanceOf(ParameterError)
+      expect(err.message).toMatch(/must be one of/)
+    })
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getBudgetEntry returns the entry, null on 404', async () => {
     fake.reply(200, { id: ENTRY_ID }).reply(404, {})
     expect(
@@ -260,6 +285,19 @@ describe('project namespace: budgets', () => {
       start_date: '2026-05-04',
       person_id: null
     })
+  })
+
+  it('updateBudgetEntry rejects an unknown position or seniority', async () => {
+    const changes = [{ position: 'Lead' }, { seniority: 'intern' }]
+    const errors = await Promise.all(
+      changes.map(data =>
+        kitsu.project
+          .updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, data)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('updateBudgetEntry rejects when the entry does not exist', async () => {
