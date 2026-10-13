@@ -241,6 +241,66 @@ describe('casting namespace: writes', () => {
     })
   })
 
+  // Zou empties the casting first, then only recreates the entries holding
+  // an asset_id and a nb_occurences: an incomplete one drops its asset.
+  it.each([
+    ['updateShotCasting', SHOT_ID],
+    ['updateAssetCasting', ASSET_ID],
+    ['updateEpisodeCasting', EPISODE_ID]
+  ])(
+    '%s rejects an incomplete casting before any request',
+    async (name, entityId) => {
+      const wrongCastings = [
+        undefined,
+        { asset_id: ASSET_ID, nb_occurences: 1 },
+        [{ asset_id: ASSET_ID }],
+        [{ asset_id: ASSET_ID, nb_occurences: '2' }],
+        [{ asset_id: ASSET_ID, nb_occurences: -1 }],
+        [{ nb_occurences: 1 }],
+        [{ asset_id: 'chair', nb_occurences: 1 }],
+        [CASTING[0], null]
+      ]
+      const errors = await Promise.all(
+        wrongCastings.map(casting =>
+          kitsu.casting[name](PROJECT_ID, entityId, casting).catch(err => err)
+        )
+      )
+      errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
+  it('updateShotCasting sends back a casting read from Zou', async () => {
+    const read = [
+      {
+        asset_id: ASSET_ID,
+        asset_name: 'Chair',
+        asset_type_name: 'Props',
+        nb_occurences: 2,
+        label: 'fixed',
+        is_shared: false,
+        project_id: PROJECT_ID
+      }
+    ]
+    fake.reply(200, read).reply(200, read)
+    const shot = { id: SHOT_ID, project_id: PROJECT_ID }
+    const casting = await kitsu.casting.getShotCasting(shot)
+    await kitsu.casting.updateShotCasting(PROJECT_ID, shot, casting)
+    expect(fake.calls[1]).toMatchObject({
+      method: 'PUT',
+      path: ENTITY_CASTING_PATH(SHOT_ID),
+      body: read
+    })
+  })
+
+  it('updateEpisodeCasting accepts an empty casting, which removes every asset', async () => {
+    fake.reply(200, [])
+    expect(
+      await kitsu.casting.updateEpisodeCasting(PROJECT_ID, EPISODE_ID, [])
+    ).toEqual([])
+    expect(fake.calls[0].body).toEqual([])
+  })
+
   it('castAsset sends only the entity ids by default', async () => {
     fake.reply(200, { [SHOT_ID]: CASTING })
     expect(

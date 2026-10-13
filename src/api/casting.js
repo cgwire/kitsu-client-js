@@ -1,15 +1,60 @@
+import { ParameterError } from '../core/errors.js'
 import { idOf, orNull, requiredOf, withoutNil } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
- * @typedef {{asset_id: string, nb_occurences?: number, [field: string]: any}}
- *   CastingEntry
+ * @typedef {{
+ *   asset_id: string,
+ *   nb_occurences: number,
+ *   label?: string,
+ *   [field: string]: any
+ * }} CastingEntry An asset of a casting. The other fields of a casting read
+ *   can be sent back as they are.
  * @typedef {Record<string, CastingEntry[]>} CastingMap Casting lists keyed by
  *   entity id.
  * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
+
+const isCastingEntry = entry =>
+  entry !== null &&
+  typeof entry === 'object' &&
+  typeof entry.asset_id === 'string' &&
+  Number.isInteger(entry.nb_occurences) &&
+  entry.nb_occurences >= 0
+
+// Zou empties the casting first, then creates the entries holding both an
+// asset_id and a nb_occurences: any other entry would drop its asset without
+// an error.
+const castingOf = casting => {
+  if (!Array.isArray(requiredOf('casting', casting))) {
+    throw new ParameterError('Wrong format: casting must be a list of entries')
+  }
+  casting.forEach(entry => {
+    if (!isCastingEntry(entry)) {
+      throw new ParameterError(
+        'Wrong format: each casting entry needs an asset_id and nb_occurences, a whole number'
+      )
+    }
+    idOf(entry.asset_id)
+  })
+  return casting
+}
+
+const castingsOf = castings => {
+  const given = requiredOf('castings', castings)
+  if (typeof given !== 'object' || Array.isArray(given)) {
+    throw new ParameterError(
+      'Wrong format: castings must map entity ids to casting lists'
+    )
+  }
+  Object.entries(given).forEach(([entityId, casting]) => {
+    idOf(entityId)
+    castingOf(casting)
+  })
+  return given
+}
 
 export const castingApi = http => {
   const read = (path, signal) => orNull(http.get(path, {}, { signal }))
@@ -23,7 +68,9 @@ export const castingApi = http => {
     read(entityCastingPath(entity && entity.project_id, entity), signal)
 
   const updateEntityCasting = (project, entity, casting, signal) =>
-    http.put(entityCastingPath(project, entity), casting, { signal })
+    http.put(entityCastingPath(project, entity), castingOf(casting), {
+      signal
+    })
 
   const castAsset = (project, entities, asset, data, signal) =>
     http.put(
@@ -40,7 +87,8 @@ export const castingApi = http => {
      * Replace the whole casting of a shot.
      * @param {Model} project
      * @param {Model} shot
-     * @param {CastingEntry[]} casting
+     * @param {CastingEntry[]} casting Every entry needs its asset_id and
+     *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated shot.
      */
@@ -51,7 +99,8 @@ export const castingApi = http => {
      * Replace the whole casting of an asset.
      * @param {Model} project
      * @param {Model} asset
-     * @param {CastingEntry[]} casting
+     * @param {CastingEntry[]} casting Every entry needs its asset_id and
+     *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset.
      */
@@ -62,7 +111,8 @@ export const castingApi = http => {
      * Replace the whole casting of an episode.
      * @param {Model} project
      * @param {Model} episode
-     * @param {CastingEntry[]} casting
+     * @param {CastingEntry[]} casting Every entry needs its asset_id and
+     *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated episode.
      */
@@ -74,14 +124,14 @@ export const castingApi = http => {
      * missing from the map keep their casting.
      * @param {Model} project
      * @param {CastingMap} castings The new casting of each entity, keyed by
-     *   entity id.
+     *   entity id. Every entry needs its asset_id and nb_occurences.
      * @param {RequestOptions} [options]
      * @returns {Promise<CastingMap>} The updated casting of each entity.
      */
     updateCastings: async (project, castings, { signal } = {}) =>
       http.put(
         `data/projects/${idOf(project)}/entities/casting`,
-        requiredOf('castings', castings),
+        castingsOf(castings),
         { signal }
       ),
 
