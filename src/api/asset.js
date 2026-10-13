@@ -180,17 +180,16 @@ export const assetApi = http => {
     /**
      * Assets with their tasks, read as a stream (NDJSON) when Zou serves one:
      * made for full project views.
-     * @param {{project?: Model, episode?: Model, signal?: AbortSignal}} [options]
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the assets of the episode and the ones casted in it.
      * @returns {Promise<Entity[]>} Assets, each with its tasks, in the order
      *   given by Zou.
      */
-    allAssetsWithTasks: async ({ project, episode, signal } = {}) =>
+    allAssetsWithTasks: async (project, { episode, signal } = {}) =>
       http.getNdjson(
         'data/assets/with-tasks',
-        {
-          project_id: optionalIdOf(project),
-          episode_id: optionalIdOf(episode)
-        },
+        { project_id: idOf(project), episode_id: optionalIdOf(episode) },
         { signal }
       ),
 

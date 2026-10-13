@@ -6,7 +6,7 @@
     "route": "/data/assets | /data/assets/with-tasks",
     "client": "asset.allAssets | asset.allAssetsWithTasks",
     "status": "added",
-    "note": "Plain route (withTasks false): asset.allAssets, the filtered CRUD list shared with getSharedAssets (query project_id, episode_id). asset.allAssetsForEpisode hits the same route but forces a source_id filter. With-tasks route: asset.allAssetsWithTasks, which needs an NDJSON variant built on http.getNdjson (Kitsu uses pgetNdjson there). Query: project_id, episode_id."
+    "note": "Plain route (withTasks false): asset.allAssets, the filtered CRUD list shared with getSharedAssets (query project_id, episode_id). asset.allAssetsForEpisode hits the same route but forces a source_id filter. With-tasks route: asset.allAssetsWithTasks, which needs an NDJSON variant built on http.getNdjson (Kitsu uses pgetNdjson there). Query: project_id, episode_id. allAssetsWithTasks requires the project, positional like in Kitsu: without it, Zou lists every production to an admin."
   },
   {
     "module": "assets",
