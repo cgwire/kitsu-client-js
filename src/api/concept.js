@@ -54,7 +54,8 @@ export const conceptApi = http => {
     /**
      * @param {Model} concept
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the concept.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   concept: task type ids as keys, revisions as values.
      */
     allPreviewsForConcept: async (concept, { signal } = {}) =>
       http.fetchAll(`concepts/${idOf(concept)}/preview-files`, {}, { signal }),
