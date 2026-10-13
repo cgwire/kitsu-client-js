@@ -46,7 +46,7 @@ const FUNCTIONS = [
   ['getContext', []],
   ['allTasksRequiringFeedback', []],
   ['allFilterGroups', []],
-  ['newFilterGroup', ['Anim']],
+  ['newFilterGroup', ['Anim', 'asset']],
   ['getFilterGroup', [FILTER_GROUP_ID]],
   ['updateFilterGroup', [{ id: FILTER_GROUP_ID }]],
   ['removeFilterGroup', [FILTER_GROUP_ID]],
