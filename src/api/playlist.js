@@ -815,7 +815,8 @@ export const playlistApi = http => {
      *   signal?: AbortSignal
      * }} [options] onProgress needs XMLHttpRequest (browsers, webviews):
      *   fetch cannot report it. A client given its own fetch (Tauri) uploads
-     *   through it and never calls onProgress.
+     *   through it and never calls onProgress, unless it is created with
+     *   xhrUploads: true.
      * @returns {Promise<Entity>} The comment with its attachment files.
      */
     addSharedPlaylistCommentAttachments: async (
