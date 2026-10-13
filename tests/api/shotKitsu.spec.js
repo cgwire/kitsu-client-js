@@ -106,7 +106,12 @@ describe('shot namespace: Kitsu web app functions', () => {
   })
 
   it('getEpisodeStats reads the task status counts per episode', async () => {
-    const stats = { [EPISODE_ID]: { all: {} } }
+    const counts = { name: 'wip', color: '#3273dc', count: 2, frames: 48 }
+    const stats = {
+      [EPISODE_ID]: {
+        [TASK_TYPE_ID]: { [OTHER_ID]: { ...counts, drawings: 0 } }
+      }
+    }
     fake.reply(200, stats)
     expect(await kitsu.shot.getEpisodeStats({ id: PROJECT_ID })).toEqual(stats)
     expect(fake.calls[0]).toMatchObject({
@@ -116,7 +121,18 @@ describe('shot namespace: Kitsu web app functions', () => {
   })
 
   it('getEpisodeRetakeStats reads the retake counts per episode', async () => {
-    const stats = { [EPISODE_ID]: { all: {} } }
+    const counts = { count: 0, frames: 0, drawings: 0 }
+    const stats = {
+      all: {
+        all: {
+          max_retake_count: 0,
+          evolution: {},
+          done: counts,
+          retake: counts,
+          other: counts
+        }
+      }
+    }
     fake.reply(200, stats)
     expect(await kitsu.shot.getEpisodeRetakeStats(PROJECT_ID)).toEqual(stats)
     expect(fake.calls[0]).toMatchObject({
