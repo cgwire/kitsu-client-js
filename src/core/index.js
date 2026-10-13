@@ -96,6 +96,8 @@ export const createCore = options => {
     io: options.io
   })
 
+  const { abortTurns, ...account } = authApi(http, session)
+
   return {
     host: config.host,
     http,
@@ -104,10 +106,11 @@ export const createCore = options => {
       try {
         events.disconnect()
       } finally {
+        abortTurns()
         http.abortAll()
       }
     },
-    ...authApi(http, session)
+    ...account
   }
 }
 

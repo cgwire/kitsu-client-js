@@ -58,22 +58,97 @@ const twoFactorPayloadOf = ({
   })
 
 export const authApi = (http, session) => {
+  // Session changes (logIn, logOut, setToken, a two-factor registration) are
+  // numbered when they start: an answer is only adopted while no later
+  // change started, so the last call wins whatever order the answers land in.
+  let changes = 0
+  const startChange = () => {
+    changes += 1
+    const started = changes
+    return () => started === changes
+  }
+
+  // Cookie mode: the browser keeps the session and applies the cookies of
+  // each answer as it lands. A change waits for the one before it to settle,
+  // so its cookies land in call order too. Until its turn it is in flight
+  // all the same: its signal or close() still keeps it from being sent.
+  let previous = Promise.resolve()
+  let closes = 0
+  const inTurn = (run, signal) => {
+    if (session.mode !== 'cookie') return run()
+    const queuedAt = closes
+    const turn = previous.then(() => {
+      if (closes !== queuedAt || (signal && signal.aborted)) {
+        throw new DOMException('The operation was aborted', 'AbortError')
+      }
+      return run()
+    })
+    previous = turn.then(
+      () => {},
+      () => {}
+    )
+    return turn
+  }
+
   // Zou answers a two-factor registration with a new token pair: the one in
-  // use may carry the requires_2fa_setup claim, which locks the API.
-  const adoptTokens = body => {
-    if (session.mode === 'bearer' && body.access_token) {
-      session.setTokens({
-        access_token: body.access_token,
-        refresh_token: body.refresh_token
-      })
+  // use may carry the requires_2fa_setup claim, which locks the API. The
+  // recovery codes come back even when a later change keeps its own tokens:
+  // Zou shows them once.
+  const register = (path, payload, signal) => {
+    const isLatest = startChange()
+    return inTurn(() => http.post(path, payload, { signal }), signal).then(
+      body => {
+        if (session.mode === 'bearer' && body.access_token && isLatest()) {
+          session.setTokens({
+            access_token: body.access_token,
+            refresh_token: body.refresh_token
+          })
+        }
+        return body.otp_recovery_codes
+      }
+    )
+  }
+
+  // Zou revokes a session from its access token. An expired one is renewed
+  // first, like any request would do, with the refresh token of the session
+  // being closed: the client already holds no token.
+  const sendLogout = async (headers, refreshToken, signal) => {
+    const logout = auth =>
+      http.get('auth/logout', {}, { skipAuth: true, headers: auth, signal })
+    try {
+      return await logout(headers)
+    } catch (err) {
+      if (!(err instanceof NotAuthenticatedError) || !refreshToken) throw err
+      const renewed = await http.get(
+        'auth/refresh-token',
+        {},
+        {
+          skipAuth: true,
+          headers: { Authorization: `Bearer ${refreshToken}` },
+          signal
+        }
+      )
+      // A browser gets its token in a cookie only: nothing to revoke with.
+      const token = renewed && renewed.access_token
+      if (typeof token !== 'string' || !token) throw err
+      return logout({ Authorization: `Bearer ${token}` })
     }
-    return body.otp_recovery_codes
   }
 
   return {
     /**
+     * For the close() of the core: the changes waiting for their turn are
+     * aborted like the requests in flight.
+     */
+    abortTurns: () => {
+      closes += 1
+    },
+
+    /**
      * Log in with user credentials. In bearer mode the tokens are kept by
-     * this client only.
+     * this client only. The last session change started wins: when a
+     * logIn, logOut, setToken or two-factor setup starts before the answer
+     * lands, this logIn keeps nothing and rejects with an AbortError.
      * @param {string} email
      * @param {string} password
      * @param {LogInOptions} [options]
@@ -95,27 +170,38 @@ export const authApi = (http, session) => {
         recovery_code: recoveryCode,
         fido_authentication_response: fidoAuthenticationResponse
       }
-      const body = await http
-        .post('auth/login', payload, { skipAuth: true, signal })
-        .catch(err => {
-          // Only a refusal of Zou is a failed login: an outage (5xx) or a
-          // host given without "/api" (405, 404, a page answered with a 200)
-          // is not wrong credentials.
-          throw err instanceof KitsuError && LOGIN_REFUSALS.includes(err.status)
-            ? loginErrorFrom(err)
-            : err
+      const isLatest = startChange()
+      const body = await inTurn(
+        () => http.post('auth/login', payload, { skipAuth: true, signal }),
+        signal
+      ).catch(err => {
+        // Only a refusal of Zou is a failed login: an outage (5xx) or a
+        // host given without "/api" (405, 404, a page answered with a 200)
+        // is not wrong credentials.
+        throw err instanceof KitsuError && LOGIN_REFUSALS.includes(err.status)
+          ? loginErrorFrom(err)
+          : err
+      })
+      // A JSON answer without a token (proxy, wrong service) must not leave
+      // the client believing it is logged in.
+      if (
+        session.mode === 'bearer' &&
+        (typeof body?.access_token !== 'string' || !body.access_token)
+      ) {
+        throw new AuthFailedError('Login returned no access token', {
+          status: 200,
+          path: 'auth/login',
+          method: 'POST',
+          body
         })
+      }
+      if (!isLatest()) {
+        throw new DOMException(
+          'The login was superseded by a later session change',
+          'AbortError'
+        )
+      }
       if (session.mode === 'bearer') {
-        // A JSON answer without a token (proxy, wrong service) must not
-        // leave the client believing it is logged in.
-        if (typeof body?.access_token !== 'string' || !body.access_token) {
-          throw new AuthFailedError('Login returned no access token', {
-            status: 200,
-            path: 'auth/login',
-            method: 'POST',
-            body
-          })
-        }
         session.setTokens({
           access_token: body.access_token,
           refresh_token: body.refresh_token
@@ -125,20 +211,35 @@ export const authApi = (http, session) => {
     },
 
     /**
-     * Log out. Tokens are cleared even when the request fails.
+     * Log out. The client drops its session at once, whatever the answer:
+     * the request only asks Zou to revoke it, an expired access token being
+     * renewed for that.
      * @param {RequestOptions} [options]
      * @returns {Promise<Record<string, any>>}
      */
-    logOut: ({ signal } = {}) =>
-      http
-        .get('auth/logout', {}, { signal })
-        .finally(() => session.setTokens(null)),
+    logOut: async options => {
+      startChange()
+      const tokens = session.getTokens()
+      const headers = session.headers()
+      const { signal } = options ?? {}
+      // In turn before the session is dropped: the drop runs app code (its
+      // socket handlers, onTokensChange), which may start the next change.
+      const sent = inTurn(
+        () => sendLogout(headers, tokens && tokens.refresh_token, signal),
+        signal
+      )
+      session.setTokens(null)
+      return sent
+    },
 
     /**
      * Authenticate with a long-lived token (bot token). No refresh happens.
      * @param {string} token
      */
-    setToken: token => session.setTokens({ access_token: token }),
+    setToken: token => {
+      startChange()
+      session.setTokens({ access_token: token })
+    },
 
     /**
      * @returns {import('./session.js').Tokens|null} A copy of the tokens.
@@ -221,9 +322,7 @@ export const authApi = (http, session) => {
      * @returns {Promise<string[]>} The recovery codes.
      */
     enableTotp: async (totp, { signal } = {}) =>
-      http
-        .post('auth/totp', { totp: requiredOf('totp', totp) }, { signal })
-        .then(adoptTokens),
+      register('auth/totp', { totp: requiredOf('totp', totp) }, signal),
 
     /**
      * Disable TOTP for the current user.
@@ -263,13 +362,11 @@ export const authApi = (http, session) => {
      * @returns {Promise<string[]>} The recovery codes.
      */
     enableEmailOtp: async (emailOtp, { signal } = {}) =>
-      http
-        .post(
-          'auth/email-otp',
-          { email_otp: requiredOf('emailOtp', emailOtp) },
-          { signal }
-        )
-        .then(adoptTokens),
+      register(
+        'auth/email-otp',
+        { email_otp: requiredOf('emailOtp', emailOtp) },
+        signal
+      ),
 
     /**
      * Disable email OTP for the current user.
@@ -296,19 +393,17 @@ export const authApi = (http, session) => {
      * @returns {Promise<string[]>} The recovery codes.
      */
     registerFido: async (registrationResponse, deviceName, { signal } = {}) =>
-      http
-        .post(
-          'auth/fido',
-          {
-            registration_response: requiredOf(
-              'registrationResponse',
-              registrationResponse
-            ),
-            device_name: requiredOf('deviceName', deviceName)
-          },
-          { signal }
-        )
-        .then(adoptTokens),
+      register(
+        'auth/fido',
+        {
+          registration_response: requiredOf(
+            'registrationResponse',
+            registrationResponse
+          ),
+          device_name: requiredOf('deviceName', deviceName)
+        },
+        signal
+      ),
 
     /**
      * Get the FIDO challenge of a user, before logging in. No authentication
