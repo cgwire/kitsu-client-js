@@ -130,6 +130,12 @@ describe('events', () => {
       expect(sockets[0].url).toBe(url)
     })
 
+    it('drops every trailing slash of the host before "/api"', async () => {
+      const { io, sockets } = createFakeIo()
+      await makeCore(io, { host: `${HOST}//` }).events.on('x', () => {})
+      expect(sockets[0].url).toBe('http://kitsu.test/events')
+    })
+
     it('connects to the same origin for a relative host', async () => {
       const { io, sockets } = createFakeIo()
       await makeCore(io, { host: '/api' }).events.on('x', () => {})

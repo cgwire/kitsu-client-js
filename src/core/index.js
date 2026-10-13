@@ -32,6 +32,41 @@ const resolveTimeout = (timeout = {}) =>
     deadline: timerOf('deadline', timeout.deadline)
   })
 
+const OPTION_TYPES = {
+  fetch: 'function',
+  xhrUploads: 'boolean',
+  onTokensChange: 'function',
+  onUnauthorized: 'function',
+  eventHost: 'string'
+}
+
+// A wrong option throws at creation, instead of being ignored or failing
+// later in a request. Undefined and null keep the default.
+const checkOptions = options => {
+  if (typeof options.host !== 'string') {
+    throw new TypeError('createClient: host must be a string')
+  }
+  if (!['bearer', 'cookie', undefined, null].includes(options.auth)) {
+    throw new TypeError('createClient: auth must be "bearer" or "cookie"')
+  }
+  const { timeout } = options
+  if (
+    timeout !== undefined &&
+    timeout !== null &&
+    typeof timeout !== 'object'
+  ) {
+    throw new TypeError(
+      'createClient: timeout must be an object: { response, deadline }'
+    )
+  }
+  Object.entries(OPTION_TYPES).forEach(([name, type]) => {
+    const value = options[name]
+    if (value !== undefined && value !== null && typeof value !== type) {
+      throw new TypeError(`createClient: ${name} must be a ${type}`)
+    }
+  })
+}
+
 /**
  * @typedef {object} ClientOptions
  * @property {string} host API root, for instance "https://kitsu.studio/api".
@@ -75,6 +110,7 @@ export const createCore = options => {
   if (!options || !options.host) {
     throw new TypeError('createClient: host is required')
   }
+  checkOptions(options)
   const auth = options.auth || 'bearer'
   const config = Object.freeze({
     host: options.host,
@@ -93,13 +129,13 @@ export const createCore = options => {
     auth,
     tokens: options.tokens,
     onChange: () => syncSession(),
-    onTokensChange: options.onTokensChange || (() => {}),
-    onUnauthorized: options.onUnauthorized
+    onTokensChange: options.onTokensChange || undefined,
+    onUnauthorized: options.onUnauthorized || undefined
   })
   const http = createHttp(config, session)
   const { syncSession, ...events } = createEvents({
     eventHost: (
-      options.eventHost || config.host.replace(/\/api\/?$/, '')
+      options.eventHost || config.host.replace(/\/+$/, '').replace(/\/api$/, '')
     ).replace(/\/+$/, ''),
     session,
     io: options.io,

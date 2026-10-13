@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { TimeoutError, createClient } from '../../src/index.js'
+import {
+  NotAuthenticatedError,
+  TimeoutError,
+  createClient
+} from '../../src/index.js'
 import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
 
@@ -14,6 +18,36 @@ const hanging = (url, init) =>
 describe('createClient', () => {
   it('requires a host', () => {
     expect(() => createClient({})).toThrow(/host is required/)
+  })
+
+  it.each([
+    [{ host: new URL(HOST) }],
+    [{ auth: 'Bearer' }],
+    [{ timeout: 10000 }],
+    [{ fetch: {} }],
+    [{ xhrUploads: 'yes' }],
+    [{ onTokensChange: 'save' }],
+    [{ onUnauthorized: true }],
+    [{ eventHost: 42 }]
+  ])('rejects %o at creation', options => {
+    expect(() => createClient({ host: HOST, ...options })).toThrow(TypeError)
+  })
+
+  it('keeps the defaults of options given as null', async () => {
+    const fake = createFakeFetch().reply(401, {})
+    const kitsu = createClient({
+      host: HOST,
+      fetch: fake,
+      auth: null,
+      timeout: null,
+      onTokensChange: null,
+      onUnauthorized: null
+    })
+    kitsu.setToken('token')
+    await expect(kitsu.getCurrentUser()).rejects.toBeInstanceOf(
+      NotAuthenticatedError
+    )
+    expect(fake.calls[0].headers.Authorization).toBe('Bearer token')
   })
 
   it('returns a frozen client', () => {
