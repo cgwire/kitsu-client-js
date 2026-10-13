@@ -560,8 +560,10 @@ export const playlistApi = http => {
       ),
 
     /**
-     * Read the playlist through its project: unlike getPlaylist, the answer
-     * carries the build jobs and the enriched entries.
+     * Read the playlist through its project, as Kitsu does. Its build_jobs
+     * are summaries (id, status, created_at, message) where getPlaylist
+     * gives their ids, and each entry also carries the previews of its
+     * entity where getPlaylist gives the stored entries.
      * @param {Model} project
      * @param {Model} playlist
      * @param {RequestOptions} [options]
