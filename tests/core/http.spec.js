@@ -107,6 +107,82 @@ describe('http errors', () => {
     })
   })
 
+  it('refuses a successful answer announced as JSON that does not parse', async () => {
+    const text = '{"id": "66666666-6666'
+    const cut = async () =>
+      new Response(text, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    const err = await makeHttp(cut)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: 'data/tasks',
+      method: 'GET',
+      body: text
+    })
+    expect(err.cause).toBeInstanceOf(SyntaxError)
+  })
+
+  it('keeps the text of an error body announced as JSON that does not parse', async () => {
+    const page = '<html>502 Bad Gateway</html>'
+    const proxy = async () =>
+      new Response(page, {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    const err = await makeHttp(proxy)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(ServerError)
+    expect(err.body).toBe(page)
+  })
+
+  it('refuses JSON that does not parse over XHR too', async () => {
+    const text = '{"id": "66666666-6666'
+    vi.stubGlobal(
+      'XMLHttpRequest',
+      class {
+        constructor() {
+          this.upload = {}
+        }
+        open() {}
+        setRequestHeader() {}
+        getResponseHeader(name) {
+          return name === 'Content-Type' ? 'application/json' : null
+        }
+        send() {
+          Object.assign(this, { status: 201, responseText: text })
+          queueMicrotask(() => this.onload())
+        }
+      }
+    )
+    try {
+      const http = createHttp(
+        {
+          host: HOST,
+          fetch: createFakeFetch(),
+          timeout: TIMEOUT,
+          xhrUploads: true
+        },
+        stubSession
+      )
+      const err = await http
+        .upload(`data/tasks/${TASK_ID}/comments`, {
+          file: new Blob(['pixels']),
+          onProgress: () => {}
+        })
+        .catch(e => e)
+      expect(err).toBeInstanceOf(KitsuError)
+      expect(err).toMatchObject({ status: 201, body: text })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('wraps a network failure', async () => {
     const failing = async () => {
       throw new TypeError('fetch failed')
