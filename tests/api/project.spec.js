@@ -96,7 +96,8 @@ describe('project namespace: projects', () => {
     expect(fake.calls[0].query.get('name')).toBe('Sprite')
   })
 
-  it('newProject creates the project with the defaults of gazu', async () => {
+  // Zou defaults to the short and 2d3d of gazu.
+  it('newProject leaves the production type and style to Zou by default', async () => {
     fake.reply(200, []).reply(201, { id: PROJECT_ID, name: 'Sprite' })
     expect(await kitsu.project.newProject('Sprite')).toEqual({
       id: PROJECT_ID,
@@ -109,12 +110,26 @@ describe('project namespace: projects', () => {
     })
     expect(fake.calls[1].body).toEqual({
       name: 'Sprite',
-      production_type: 'short',
+      team: [],
+      asset_types: [],
+      task_statuses: [],
+      task_types: []
+    })
+  })
+
+  // Zou takes any production setting of the body over the template's one.
+  it('newProject leaves the production type and style to the template', async () => {
+    fake.reply(200, []).reply(201, { id: PROJECT_ID })
+    await kitsu.project.newProject('Sprite S2', {
+      projectTemplate: TEMPLATE_ID
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Sprite S2',
       team: [],
       asset_types: [],
       task_statuses: [],
       task_types: [],
-      production_style: '2d3d'
+      project_template_id: TEMPLATE_ID
     })
   })
 

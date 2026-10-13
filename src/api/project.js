@@ -114,19 +114,21 @@ export const projectApi = http => ({
    *   productionStyle?: string,
    *   projectTemplate?: Model,
    *   signal?: AbortSignal
-   * }} [options] productionType is short, featurefilm or tvshow.
-   *   projectTemplate is applied after the creation.
+   * }} [options] productionType is short (the default), featurefilm or
+   *   tvshow, and productionStyle is 2d3d by default. projectTemplate is
+   *   applied after the creation: its production type and style apply unless
+   *   productionType or productionStyle is given.
    * @returns {Promise<Entity>} The created project, or the existing one.
    */
   newProject: async (
     name,
     {
-      productionType = 'short',
+      productionType,
       team = [],
       assetTypes = [],
       taskStatuses = [],
       taskTypes = [],
-      productionStyle = '2d3d',
+      productionStyle,
       projectTemplate,
       signal
     } = {}
@@ -137,18 +139,21 @@ export const projectApi = http => ({
       { signal }
     )
     if (existing) return existing
-    const templateId = optionalIdOf(projectTemplate)
     return http.create(
       'projects',
       {
         name,
-        production_type: productionType,
         team: idsOf(team),
         asset_types: idsOf(assetTypes),
         task_statuses: idsOf(taskStatuses),
         task_types: idsOf(taskTypes),
-        production_style: productionStyle,
-        ...(templateId ? { project_template_id: templateId } : {})
+        // Zou defaults to short and 2d3d. Any value sent overrides the one
+        // of the template.
+        ...withoutNil({
+          production_type: productionType,
+          production_style: productionStyle,
+          project_template_id: optionalIdOf(projectTemplate)
+        })
       },
       { signal }
     )

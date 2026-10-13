@@ -1977,7 +1977,7 @@
     "route": "/data/projects",
     "client": "project.newProject",
     "status": "existing",
-    "note": "Kitsu posts a free-form production object to /data/projects/ (trailing slash); the client first looks the name up with GET /data/projects?name= and returns the existing project, and only sends name, production_type, production_style, team, asset_types, task_statuses, task_types and project_template_id: other fields (dates, fps, ratio, resolution) need a following updateProject"
+    "note": "Kitsu posts a free-form production object to /data/projects/ (trailing slash); the client first looks the name up with GET /data/projects?name= and returns the existing project, and only sends name, team, asset_types, task_statuses and task_types, plus production_type, production_style and project_template_id when they are given (a template keeps its own type and style): other fields (dates, fps, ratio, resolution) need a following updateProject"
   },
   {
     "module": "productions",
