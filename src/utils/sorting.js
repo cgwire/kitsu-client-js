@@ -242,20 +242,33 @@ export const sortPeople = people => [...people].sort(personComparator)
  */
 export const sortByName = entries => [...entries].sort(byName)
 
+// Kitsu sorts on the name its store adds to each person, which the dicts of
+// the API do not carry: build it the same way.
+const personNameOf = person =>
+  person?.name ||
+  [person?.first_name, person?.last_name].filter(Boolean).join(' ') ||
+  person?.email ||
+  ''
+
 /**
- * Sort person ids alphabetically by the person's name. Ids missing from a
+ * Sort person ids alphabetically by the person's name: first and last names,
+ * or the email when both are empty, as Kitsu displays it. Ids missing from a
  * partially loaded map sink to the end rather than throwing: callers read the
  * first id as "the" assignee, so a hole must never displace a person who did
  * resolve.
  * @param {string[]} personIds
- * @param {Map<string, {name?: string, [field: string]: any}>} personMap
- *   People indexed by id.
+ * @param {Map<string, {
+ *   first_name?: string,
+ *   last_name?: string,
+ *   [field: string]: any
+ * }>} personMap People indexed by id: the dicts of the API, or the people of
+ *   the Kitsu store, whose name field wins.
  * @returns {string[]} A new sorted array.
  */
 export const sortByPersonName = (personIds, personMap) =>
   [...personIds].sort((a, b) => {
-    const nameA = personMap.get(a)?.name
-    const nameB = personMap.get(b)?.name
+    const nameA = personNameOf(personMap.get(a))
+    const nameB = personNameOf(personMap.get(b))
     if (!nameA) return nameB ? 1 : 0
     if (!nameB) return -1
     return nameA.localeCompare(nameB)

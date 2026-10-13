@@ -607,6 +607,25 @@ describe('utils/sorting', () => {
       'missing'
     ])
   })
+
+  it('sortByPersonName reads the person dicts of the API', () => {
+    // Zou dicts carry no name: Kitsu builds it from these fields.
+    const persons = [
+      { id: 'person-1', first_name: 'Charlie', last_name: 'Doe' },
+      { id: 'person-2', first_name: 'Alice', last_name: 'Smith' },
+      { id: 'person-3', first_name: '', last_name: 'Bob' },
+      { id: 'person-4', first_name: '', last_name: '', email: 'aaron@a.com' },
+      { id: 'person-5', first_name: '', last_name: '' }
+    ]
+    const personMap = new Map(persons.map(person => [person.id, person]))
+    expect(sortByPersonName(idsOf([...persons].reverse()), personMap)).toEqual([
+      'person-4',
+      'person-2',
+      'person-3',
+      'person-1',
+      'person-5'
+    ])
+  })
 })
 
 const permutationsOf = entries =>
