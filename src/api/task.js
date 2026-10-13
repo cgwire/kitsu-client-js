@@ -89,6 +89,19 @@ import * as urls from '../utils/urls.js'
  */
 
 /**
+ * @typedef {object} BatchComment
+ * @property {string} [task_id] Id of the task, required without the task
+ *   option.
+ * @property {string} task_status_id
+ * @property {string} text Can be empty.
+ * @property {string} [person_id] Author of the comment (managers only).
+ * @property {string} [created_at] Date of the comment (managers only):
+ *   "YYYY-MM-DDTHH:MM:SS" in UTC.
+ * @property {{text: string, checked: boolean}[]} [checklist]
+ * @property {string[]} [links]
+ */
+
+/**
  * @typedef {object} TransferOptions
  * @property {string} [fileName] Names the first file sent: a bare Blob has no
  *   name, and a preview needs one, Zou reads the preview type from the
@@ -1512,18 +1525,33 @@ export const taskApi = http => {
     setMainPreview,
 
     /**
-     * Publish several comments in one request. Without task, every comment
-     * carries its own task_id.
-     * @param {object[]} [comments]
+     * Publish several comments in one request, as JSON: previews and
+     * attachments cannot go with them, addComment and addPreview can.
+     * @param {BatchComment[]} [comments] Without the task option, every
+     *   comment carries its own task_id.
      * @param {{task?: Model, signal?: AbortSignal}} [options]
      * @returns {Promise<Entity[]>} The created comments.
      */
-    batchComments: async (comments = [], { task, signal } = {}) =>
-      http.post(
-        `actions/tasks/${task ? `${optionalIdOf(task)}/` : ''}batch-comment`,
+    batchComments: async (comments = [], { task, signal } = {}) => {
+      const taskId = optionalIdOf(task)
+      // Zou answers 500 to an entry without one of these keys.
+      const isComplete = entry =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        Boolean(entry.task_status_id) &&
+        typeof entry.text === 'string' &&
+        (taskId !== null || Boolean(entry.task_id))
+      if (!Array.isArray(comments) || !comments.every(isComplete)) {
+        throw new ParameterError(
+          'Missing parameter: every comment needs task_status_id, text and, without the task option, task_id'
+        )
+      }
+      return http.post(
+        `actions/tasks/${taskId === null ? '' : `${taskId}/`}batch-comment`,
         { comments },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Comment several tasks of a project in one request. Each comment sets
