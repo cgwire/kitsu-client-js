@@ -55,6 +55,19 @@ import * as urls from '../utils/urls.js'
  */
 
 /**
+ * @typedef {object} OpenTasksPage
+ * @property {Entity[]} data The tasks of the page.
+ * @property {{total: number, total_duration: number,
+ *   total_estimation: number,
+ *   status: {task_status_id: string, amount: number}[]}} stats Counts of
+ *   the tasks matching the filters, over every page: their time spent and
+ *   estimations in minutes, and their number for each task status.
+ * @property {boolean} is_more
+ * @property {number} limit
+ * @property {number} page
+ */
+
+/**
  * @typedef {object} OpenTasksBurndown
  * @property {number} total Number of tasks matching the filters.
  * @property {number} total_estimation Sum of their estimations, in minutes.
@@ -842,8 +855,7 @@ export const taskApi = http => {
      * One page of the open tasks, the same way the Kitsu task list reads it.
      * @param {OpenTasksFilters & {page?: number, limit?: number}} [options]
      *   page starts at 1, limit is 100 by default.
-     * @returns {Promise<{data: Entity[], stats: object, is_more: boolean,
-     *   limit: number, page: number}>} The page of Zou.
+     * @returns {Promise<OpenTasksPage>} The page of Zou.
      */
     allOpenTasks: async ({ page, limit, signal, ...filters } = {}) =>
       http.get(
