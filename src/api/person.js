@@ -581,14 +581,23 @@ export const personApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<string>} The presence log table of the month, as CSV.
    */
-  getPresenceLog: async (year, month, { signal } = {}) =>
-    http.get(
-      `data/persons/presence-logs/${intOf(year)}-${twoDigits(month)}`,
-      {},
-      // A CSV table: the http core refuses a non-JSON body unless told how
-      // to read it.
-      { signal, read: response => response.text() }
-    ),
+  getPresenceLog: async (year, month, { signal } = {}) => {
+    const path = `data/persons/presence-logs/${intOf(year)}-${twoDigits(month)}`
+    // A CSV table: the http core refuses a non-JSON body unless told how to
+    // read it, and then leaves the checks to the reader.
+    const read = async response => {
+      const text = await response.text()
+      const type = response.headers.get('Content-Type') || ''
+      if (type.includes('csv')) return text
+      // A page served with a 2xx (host without "/api", SSO portal) must not
+      // reach the caller as if it were the table.
+      throw new KitsuError(
+        `GET ${path} answered ${response.status} without CSV`,
+        { status: response.status, path, method: 'GET', body: text }
+      )
+    }
+    return http.get(path, {}, { signal, read })
+  },
 
   /**
    * @param {Model} person
