@@ -384,6 +384,17 @@ describe('person namespace', () => {
     })
   })
 
+  it('newBot rejects a missing name or email before any request', async () => {
+    await expect(kitsu.person.newBot()).rejects.toThrow(ParameterError)
+    await expect(kitsu.person.newBot('Render bot')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(kitsu.person.newBot('', 'bot@doe.com')).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateBot puts the bot like a person', async () => {
     fake.reply(200, { id: PERSON_ID })
     await kitsu.person.updateBot({

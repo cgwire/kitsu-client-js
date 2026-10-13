@@ -462,9 +462,9 @@ export const personApi = http => ({
     http.post(
       'data/persons',
       {
-        first_name: name,
+        first_name: requiredOf('name', name),
         last_name: '',
-        email,
+        email: requiredOf('email', email),
         role,
         departments: idsOf(departments),
         active,
