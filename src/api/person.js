@@ -366,8 +366,11 @@ export const personApi = http => ({
    *   active?: boolean,
    *   contractType?: string,
    *   signal?: AbortSignal
-   * }} [options] role is user, manager or admin (artist, supervisor and
-   *   studio manager). Zou sets a default password when none is given.
+   * }} [options] role is user (artist), supervisor, manager (production
+   *   manager), admin (studio manager), client or vendor. Without a
+   *   password, the person cannot log in until invited (invitePerson), sent
+   *   a reset link (generateResetPasswordLink) or given one
+   *   (changePasswordForPerson).
    * @returns {Promise<Entity>} The person.
    */
   newPerson: async (
