@@ -14,6 +14,23 @@ import { idOf, orNull, requiredOf, withoutNil } from '../core/params.js'
  *   can be sent back as they are.
  * @typedef {Record<string, CastingEntry[]>} CastingMap Casting lists keyed by
  *   entity id.
+ * @typedef {{
+ *   shot_id: string,
+ *   shot_name: string,
+ *   sequence_name: string,
+ *   episode_id: string,
+ *   episode_name: string|null,
+ *   preview_file_id: string|null,
+ *   nb_occurences: number
+ * }} ShotCastIn A shot an asset is cast in. Its episode_id is the string
+ *   'None' when the shot belongs to no episode.
+ * @typedef {{
+ *   asset_id: string,
+ *   asset_name: string,
+ *   asset_type_name: string,
+ *   preview_file_id: string|null,
+ *   nb_occurences: number
+ * }} AssetCastIn An asset holding the asset in its casting, such as a set.
  * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
@@ -90,7 +107,8 @@ export const castingApi = http => {
      * @param {CastingEntry[]} casting Every entry needs its asset_id and
      *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The updated shot.
+     * @returns {Promise<CastingEntry[]>} The casting, as sent: Zou answers
+     *   the request body.
      */
     updateShotCasting: async (project, shot, casting, { signal } = {}) =>
       updateEntityCasting(project, shot, casting, signal),
@@ -102,7 +120,8 @@ export const castingApi = http => {
      * @param {CastingEntry[]} casting Every entry needs its asset_id and
      *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The updated asset.
+     * @returns {Promise<CastingEntry[]>} The casting, as sent: Zou answers
+     *   the request body.
      */
     updateAssetCasting: async (project, asset, casting, { signal } = {}) =>
       updateEntityCasting(project, asset, casting, signal),
@@ -114,7 +133,8 @@ export const castingApi = http => {
      * @param {CastingEntry[]} casting Every entry needs its asset_id and
      *   nb_occurences: an empty list removes every asset.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The updated episode.
+     * @returns {Promise<CastingEntry[]>} The casting, as sent: Zou answers
+     *   the request body.
      */
     updateEpisodeCasting: async (project, episode, casting, { signal } = {}) =>
       updateEntityCasting(project, episode, casting, signal),
@@ -246,7 +266,8 @@ export const castingApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]|null>} The entities the asset is cast in.
+     * @returns {Promise<(ShotCastIn|AssetCastIn)[]|null>} The shots, then the
+     *   assets, the asset is cast in. The rows carry no id of their own.
      */
     getAssetCastIn: async (asset, { signal } = {}) =>
       read(`data/assets/${idOf(asset)}/cast-in`, signal),
@@ -255,9 +276,15 @@ export const castingApi = http => {
      * @param {Model} project
      * @param {{page?: number, limit?: number, signal?: AbortSignal}} [options]
      *   limit only applies with a page, like in gazu.
-     * @returns {Promise<Entity[]|Entity>} Every entity link of the project, or
-     *   one paginated answer ("data" and the pagination fields) when a page
-     *   is given.
+     * @returns {Promise<Entity[]|{
+     *   data: Entity[],
+     *   total: number,
+     *   nb_pages: number,
+     *   limit: number,
+     *   offset: number,
+     *   page: number
+     * }>} Every entity link of the project, or one page envelope, the links
+     *   in "data", when a page is given.
      */
     allEntityLinksForProject: async (project, { page, limit, signal } = {}) => {
       const paginated = page !== null && page !== undefined
