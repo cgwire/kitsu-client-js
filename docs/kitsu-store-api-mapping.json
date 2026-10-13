@@ -1077,7 +1077,7 @@
     "route": "/data/persons",
     "client": "person.allPersons",
     "status": "existing",
-    "note": "Kitsu sends relations=true and is_guest=false, the client sends no query: allPersons needs relations and isGuest options."
+    "note": "Kitsu sends relations=true and is_guest=false: call allPersons({ relations: true, isGuest: false }). The client sorts the persons by full name."
   },
   {
     "module": "people",
@@ -1086,7 +1086,7 @@
     "route": "/data/persons",
     "client": "person.allPersons",
     "status": "existing",
-    "note": "Same route as getPeople with is_guest=true and relations=true: allPersons needs relations and isGuest options."
+    "note": "Same route as getPeople with is_guest=true and relations=true: call allPersons({ relations: true, isGuest: true })."
   },
   {
     "module": "people",
@@ -1095,7 +1095,7 @@
     "route": "/data/persons/<id>",
     "client": "person.getPerson",
     "status": "existing",
-    "note": "Reads the same person through GET /data/persons?id=<id>, with an optional relations flag, and returns null when the person does not exist."
+    "note": "Reads the person through GET /data/persons?id=<id> like gazu, with an optional relations flag, and returns null when the person does not exist. There a manager gets the minimal fields of the person, where the route of Kitsu gives them all."
   },
   {
     "module": "people",

@@ -236,11 +236,21 @@ export const personApi = http => ({
     http.fetchAll('departments', {}, { signal }).then(sortedByName),
 
   /**
-   * @param {RequestOptions} [options]
+   * A non-admin gets the minimal fields of each person, without email or
+   * is_guest.
+   * @param {{relations?: boolean, isGuest?: boolean, signal?: AbortSignal}}
+   *   [options] relations also loads the departments of each person.
+   *   isGuest keeps the guests (true) or the other persons (false).
    * @returns {Promise<Entity[]>} All persons, sorted by full name.
    */
-  allPersons: async ({ signal } = {}) =>
-    http.fetchAll('persons', {}, { signal }).then(sortedByFullName),
+  allPersons: async ({ relations = false, isGuest, signal } = {}) =>
+    http
+      .fetchAll(
+        'persons',
+        { relations: relations ? true : null, is_guest: isGuest },
+        { signal }
+      )
+      .then(sortedByFullName),
 
   /**
    * @param {string} name
@@ -259,6 +269,8 @@ export const personApi = http => ({
     http.fetchOne('departments', idOf(department), { signal }),
 
   /**
+   * Read the person from the list of persons, like gazu: a non-admin gets
+   * its minimal fields there, without email or contract.
    * @param {Model} person
    * @param {{relations?: boolean, signal?: AbortSignal}} [options] relations
    *   also loads the links of the person (departments, ...).
