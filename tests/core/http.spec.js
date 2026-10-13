@@ -200,7 +200,7 @@ describe('http errors', () => {
           host: HOST,
           fetch: createFakeFetch(),
           timeout: TIMEOUT,
-          xhrUploads: true
+          xhrUploads: 'all'
         },
         stubSession
       )
