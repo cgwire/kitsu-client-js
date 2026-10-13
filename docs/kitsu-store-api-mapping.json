@@ -1509,7 +1509,7 @@
     "route": "/data/persons/<id>/day-offs/<id>",
     "client": "person.getDayOffByDate",
     "status": "added",
-    "note": "The second path parameter is a date. person.getDayOff reads /data/day-offs/<id> and user.getDayOff reads /data/user/day-offs/<date>: neither matches."
+    "note": "The second path parameter is a date. person.getDayOff reads /data/day-offs/<id> and user.getDayOff reads /data/user/day-offs/<date>: neither matches. Zou answers an empty object when no day off covers the date, which the client resolves to null."
   },
   {
     "module": "people",
