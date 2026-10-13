@@ -83,19 +83,9 @@ const WITHOUT_REQUIRED_ARGUMENTS = [
 // before checking a required argument, or fail with a TypeError. Remove a
 // function from this list once it checks its arguments first.
 const KNOWN_GAPS = [
-  'asset.allAssetsForProject',
-  'asset.getAssetTypeFromAsset',
-  'entity.newEntityType',
-  'person.newBot',
-  'project.closeProject',
-  'projectTemplate.newProjectTemplate',
   'task.addTasksBatchComments',
   'task.reorderTaskTypes',
   'task.setTasksMainPreview',
-  'task.startTask',
-  'user.getTimespentsRange',
-  'user.newFilter',
-  'user.newFilterGroup',
   'user.subscribeToTasks',
   'user.unsubscribeFromTasks'
 ]
