@@ -1318,7 +1318,8 @@ export const projectApi = http => ({
 
   /**
    * Delete the automation itself. removeStatusAutomation only unlinks it
-   * from a project.
+   * from a project. Zou refuses it (ParameterError) while a project or a
+   * project template links the automation: unlink it first.
    * @param {Model} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
@@ -1381,7 +1382,9 @@ export const projectApi = http => ({
 
   /**
    * Delete the background itself. removePreviewBackgroundFile only unlinks it
-   * from a project.
+   * from a project. Zou refuses it (ParameterError) while a project or a
+   * project template links the background or has it as its default: unlink
+   * it first.
    * @param {Model} backgroundFile
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
