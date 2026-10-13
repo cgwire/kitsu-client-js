@@ -17,6 +17,10 @@ Pure functions, importable on their own from `@cgwire/kitsu-client/utils`:
   host. The namespaces expose the same names, loading what the URL needs:
   `await kitsu.shot.getShotUrl(shot)`.
 
+Unlike the namespace functions, the URL and path helpers throw: a wrong
+argument raises a `ParameterError`, for instance an id string where the URL
+needs the `project_id` or the `production_type` of the object.
+
 ## Smaller bundles
 
 `createClient` wires every namespace. To ship only what you use, compose the
