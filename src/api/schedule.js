@@ -97,7 +97,7 @@ export const scheduleApi = http => ({
    * Delete a milestone.
    * @param {Model} milestone
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeMilestone: async (milestone, { signal } = {}) =>
     http.remove('milestones', idOf(milestone), undefined, { signal }),
@@ -209,7 +209,7 @@ export const scheduleApi = http => ({
    * Delete a schedule item.
    * @param {Model} scheduleItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleItem: async (scheduleItem, { signal } = {}) =>
     http.remove('schedule-items', idOf(scheduleItem), undefined, { signal }),
@@ -282,7 +282,7 @@ export const scheduleApi = http => ({
    * Delete a production schedule version.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleVersion: async (version, { signal } = {}) =>
     http.remove('production-schedule-versions', idOf(version), undefined, {
@@ -431,7 +431,7 @@ export const scheduleApi = http => ({
    * Delete a task link of a production schedule version.
    * @param {Model} taskLink
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleVersionTaskLink: async (taskLink, { signal } = {}) =>
     http.remove(
