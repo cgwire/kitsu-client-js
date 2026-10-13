@@ -15,6 +15,14 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  * @typedef {import('../core/params.js').TransferOptions} TransferOptions
+ * @typedef {{
+ *   name: string,
+ *   color: string,
+ *   count: number,
+ *   frames: number,
+ *   drawings: number
+ * }} StatusStats The tasks of a task status: their count, and the frames and
+ *   drawings of their entities.
  */
 
 // Same defaults as gazu. Zou fills these placeholders itself: they are not
@@ -659,8 +667,10 @@ export const shotApi = http => {
     /**
      * @param {Model} project
      * @param {RequestOptions} [options]
-     * @returns {Promise<Object<string, object>>} The task counts per status
-     *   and task type, keyed by episode id ("all" sums the episodes).
+     * @returns {Promise<Record<string, Record<string, Record<string,
+     *   StatusStats>>>>} The task counts keyed by episode id ("all" sums the
+     *   episodes), then by task type id ("all" sums the task types), then by
+     *   task status id.
      */
     getEpisodeStats: async (project, { signal } = {}) =>
       http.get(`data/projects/${idOf(project)}/episodes/stats`, {}, { signal }),
@@ -668,8 +678,10 @@ export const shotApi = http => {
     /**
      * @param {Model} project
      * @param {RequestOptions} [options]
-     * @returns {Promise<Object<string, object>>} The retake counts per task
-     *   type, keyed by episode id ("all" sums the episodes).
+     * @returns {Promise<Record<string, Record<string, Record<string, any>>>>}
+     *   The retake counts keyed by episode id ("all" sums the episodes), then
+     *   by task type id ("all" sums the task types): max_retake_count,
+     *   evolution (by retake number), done, retake and other.
      */
     getEpisodeRetakeStats: async (project, { signal } = {}) =>
       http.get(
