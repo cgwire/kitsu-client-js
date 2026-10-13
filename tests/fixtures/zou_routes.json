@@ -230,6 +230,7 @@
  "/data/persons/<person_id>/time-spents/month/all/<year>/<month>",
  "/data/persons/<person_id>/time-spents/week/<year>/<week>",
  "/data/persons/<person_id>/time-spents/year/<year>",
+ "/data/persons/day-offs/<year>",
  "/data/persons/day-offs/<year>/<month>",
  "/data/persons/presence-logs/<month_date>",
  "/data/persons/task-dates",

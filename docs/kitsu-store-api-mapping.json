@@ -1488,10 +1488,10 @@
     "module": "people",
     "kitsu": "getDaysOff",
     "method": "GET",
-    "route": "/data/day-offs | /data/persons/day-offs/<id>/<id>",
+    "route": "/data/day-offs | /data/persons/day-offs/<id> | /data/persons/day-offs/<id>/<id>",
     "client": "person.allDayOffs",
     "status": "added",
-    "note": "All the day offs of the studio, narrowed by optional year and month path segments. Zou only serves /data/persons/day-offs/<year>/<month>: the year only variant built by Kitsu does not exist, so person.allDayOffs rejects a year without a month."
+    "note": "All the day offs of the studio, narrowed by optional year and month path segments, a month needing its year. The whole history is for admins only; a year or a month holds the day offs the user may read."
   },
   {
     "module": "people",
