@@ -1,0 +1,107 @@
+---
+# Releases a version in one run: checks main, commits and tags the new
+# version, creates the GitHub release, then starts publish.yml on the tag. A
+# tag or a release created with the workflow token triggers no workflow, hence
+# the explicit start; publish.yml runs on the tagged commit, so the npm
+# provenance names it.
+name: Release Kitsu Client
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Part of the version to increase (in 0.x, minor may break)
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      notes:
+        description: Line shown above the generated release notes (optional)
+        required: false
+        type: string
+
+# Two runs at once would bump the same version.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HUSKY: 0
+
+jobs:
+  check:
+    if: github.repository_owner == 'cgwire' && github.ref == 'refs/heads/main'
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install npm dependencies
+        run: |
+          echo "Node.js $(node -v)"
+          echo "npm v$(npm -v)"
+          npm ci
+      - name: Run the checks
+        run: npm run check
+
+  # It holds the write token: it installs and runs nothing from npm.
+  release:
+    needs: check
+    if: github.repository_owner == 'cgwire' && github.ref == 'refs/heads/main'
+    name: Bump, tag and release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v7
+        with:
+          # The checked commit: if main moved since, the push fails.
+          ref: ${{ github.sha }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Bump the version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+          ACTOR: ${{ github.actor }}
+          ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$ACTOR"
+          git config user.email "$ACTOR_ID+$ACTOR@users.noreply.github.com"
+          npm version "$BUMP" -m "%s"
+          echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Push the version commit and its tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: git push --atomic origin HEAD:main "refs/tags/$TAG"
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          args=(--verify-tag --title "$TAG" --generate-notes)
+          if [ -n "$NOTES" ]; then args+=(--notes "$NOTES"); fi
+          gh release create "$TAG" "${args[@]}"
+      - name: Start the npm publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh workflow run publish.yml --ref "$TAG"
