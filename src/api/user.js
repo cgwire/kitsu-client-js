@@ -260,9 +260,10 @@ export const userApi = http => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} What an application needs to start:
-   *   projects, task types, statuses, persons, filters and settings visible
-   *   to the user.
+   * @returns {Promise<Record<string, any>|null>} What an application needs
+   *   to start: projects, task types, statuses, persons, filters and settings
+   *   visible to the user, each under its own key (projects, task_types,
+   *   task_status, persons, search_filters...).
    */
   getContext: async ({ signal } = {}) =>
     orNull(http.get('data/user/context', {}, { signal })),
@@ -530,8 +531,10 @@ export const userApi = http => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} Values available to filter the tasks
-   *   waiting for a feedback from the user (see allTasksRequiringFeedback).
+   * @returns {Promise<Record<string, string[]>|null>} Values available to
+   *   filter the tasks waiting for a feedback from the user (see
+   *   allTasksRequiringFeedback): the ids in project_ids, task_type_ids,
+   *   task_status_ids, episode_ids and person_ids.
    */
   getTasksRequiringFeedbackFilterValues: async ({ signal } = {}) =>
     orNull(http.get('data/user/tasks-to-check/filter-values', {}, { signal })),

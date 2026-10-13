@@ -148,11 +148,17 @@ describe('user namespace: Kitsu coverage', () => {
   })
 
   it('getTasksRequiringFeedbackFilterValues reads the filter values', async () => {
-    fake.reply(200, { projects: [], task_types: [] }).reply(404, {})
-    expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toEqual({
-      projects: [],
-      task_types: []
-    })
+    const values = {
+      project_ids: [OTHER_ID],
+      task_type_ids: [],
+      task_status_ids: [],
+      episode_ids: [],
+      person_ids: []
+    }
+    fake.reply(200, values).reply(404, {})
+    expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toEqual(
+      values
+    )
     expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
