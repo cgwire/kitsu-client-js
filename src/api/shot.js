@@ -1,6 +1,7 @@
 import {
   idOf,
   optionalIdOf,
+  orNull,
   placeholdersToNull,
   requiredOf,
   sortedByName,
@@ -22,6 +23,25 @@ const otioNamingConvention = episodeId =>
     ? '${project_name}_${episode_name}-${sequence_name}-${shot_name}'
     : '${project_name}_${sequence_name}-${shot_name}'
 
+const idKey = id => (id ? String(id).toLowerCase() : null)
+
+const childOf = parentId => entry => idKey(entry.parent_id) === idKey(parentId)
+
+// Zou matches a name filter with ILIKE (any case, _ and % as wildcards) and
+// gives a vendor every episode or sequence they are assigned to, whatever
+// the filters. Like gazu the case is ignored, but the name and the parent
+// must match, and the exact spelling wins over another case.
+const findByName = (entries, name, inParent) => {
+  const wanted = String(name)
+  const matches = (Array.isArray(entries) ? entries : []).filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase() &&
+      inParent(entry)
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
+
 export const shotApi = http => {
   const fetchOne = (model, entity, signal) =>
     http.fetchOne(model, idOf(entity), { signal })
@@ -34,33 +54,50 @@ export const shotApi = http => {
     return source ? source.parent_id : null
   }
 
-  // Like gazu: a sequence name is unique per episode on a TV show, per
-  // project otherwise.
-  const sequenceByName = (project, name, episode, signal) => {
+  // A missing sequence or episode in the filters answers a 404: nothing has
+  // that name there.
+  const named = (path, query, name, inParent, signal) =>
+    orNull(http.fetchAll(path, query, { signal })).then(entries =>
+      findByName(entries, name, inParent)
+    )
+
+  // A sequence name is unique per episode on a TV show, per project
+  // otherwise: without an episode, only a sequence outside any episode
+  // matches, as Zou checks before creating one.
+  const sequenceByName = async (project, name, episode, signal) => {
     const projectId = idOf(project)
+    const episodeId = optionalIdOf(episode)
     const filter = { name: requiredOf('name', name) }
-    return http.fetchFirst(
+    return named(
       'sequences',
-      episode
-        ? { ...filter, episode_id: idOf(episode) }
-        : { ...filter, project_id: projectId },
-      { signal }
+      episodeId === null
+        ? { ...filter, project_id: projectId }
+        : { ...filter, episode_id: episodeId },
+      name,
+      childOf(episodeId),
+      signal
     )
   }
 
-  const episodeByName = (project, name, signal) =>
-    http.fetchFirst(
+  const episodeByName = async (project, name, signal) =>
+    named(
       'episodes',
       { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+      name,
+      () => true,
+      signal
     )
 
-  const shotByName = (sequence, name, signal) =>
-    http.fetchFirst(
+  const shotByName = async (sequence, name, signal) => {
+    const sequenceId = idOf(sequence)
+    return named(
       'shots/all',
-      { sequence_id: idOf(sequence), name: requiredOf('name', name) },
-      { signal }
+      { sequence_id: sequenceId, name: requiredOf('name', name) },
+      name,
+      childOf(sequenceId),
+      signal
     )
+  }
 
   // Shots, sequences and episodes are all saved through the entity route.
   // The rows of allSequencesWithTasks and allEpisodesWithTasks write a
@@ -168,7 +205,8 @@ export const shotApi = http => {
      * @param {Model} project
      * @param {string} episodeName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The episode of the project with that name.
+     * @returns {Promise<Entity|null>} The episode of the project with that
+     *   name (case-insensitive), null when there is none.
      */
     getEpisodeByName: async (project, episodeName, { signal } = {}) =>
       episodeByName(project, episodeName, signal),
@@ -197,8 +235,10 @@ export const shotApi = http => {
      * @param {Model} project
      * @param {string} sequenceName
      * @param {{episode?: Model, signal?: AbortSignal}} [options] With an
-     *   episode (TV show), the lookup is scoped to it instead of the project.
-     * @returns {Promise<Entity|null>} The sequence with that name.
+     *   episode (TV show), the lookup is scoped to it. Without one, only a
+     *   sequence of the project outside any episode matches.
+     * @returns {Promise<Entity|null>} The sequence with that name
+     *   (case-insensitive), null when there is none.
      */
     getSequenceByName: async (
       project,
@@ -228,14 +268,16 @@ export const shotApi = http => {
      * @param {Model} sequence
      * @param {string} shotName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The shot of the sequence with that name.
+     * @returns {Promise<Entity|null>} The shot of the sequence with that name
+     *   (case-insensitive), null when there is none.
      */
     getShotByName: async (sequence, shotName, { signal } = {}) =>
       shotByName(sequence, shotName, signal),
 
     /**
-     * Create a sequence, unless one already has that name in the project (or
-     * in the episode): the existing sequence is then returned.
+     * Create a sequence, unless the episode, or the project outside any
+     * episode, already has one with that name (case-insensitive): the
+     * existing sequence is then returned.
      * @param {Model} project
      * @param {string} name
      * @param {{episode?: Model, signal?: AbortSignal}} [options]
@@ -252,9 +294,9 @@ export const shotApi = http => {
     },
 
     /**
-     * Create a shot, unless one already has that name in the sequence: the
-     * existing shot is then returned. Frame in and frame out are stored in
-     * the shot metadata.
+     * Create a shot, unless one already has that name in the sequence
+     * (case-insensitive): the existing shot is then returned. Frame in and
+     * frame out are stored in the shot metadata.
      * @param {Model} project
      * @param {Model} sequence
      * @param {string} name
@@ -369,8 +411,8 @@ export const shotApi = http => {
       http.put(`data/shots/${idOf(shot)}`, { canceled: false }, { signal }),
 
     /**
-     * Create an episode, unless one already has that name in the project:
-     * the existing episode is then returned.
+     * Create an episode, unless one already has that name in the project
+     * (case-insensitive): the existing episode is then returned.
      * @param {Model} project
      * @param {string} name
      * @param {RequestOptions} [options]

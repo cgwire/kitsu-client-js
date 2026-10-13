@@ -14,6 +14,7 @@ import {
 
 const UNSORTED = [{ name: 'sh030' }, { name: 'SH010' }, { name: 'sh020' }]
 const SORTED_NAMES = ['SH010', 'sh020', 'sh030']
+const OTHER_EPISODE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
 describe('shot namespace: reads', () => {
   let kitsu, fake
@@ -22,7 +23,9 @@ describe('shot namespace: reads', () => {
   })
 
   it('getShotByName looks a shot up inside its sequence', async () => {
-    fake.reply(200, [{ id: SHOT_ID, name: 'SH010' }]).reply(200, [])
+    fake
+      .reply(200, [{ id: SHOT_ID, name: 'SH010', parent_id: SEQUENCE_ID }])
+      .reply(200, [])
     expect(
       await kitsu.shot.getShotByName({ id: SEQUENCE_ID }, 'SH010')
     ).toMatchObject({ id: SHOT_ID })
@@ -30,6 +33,39 @@ describe('shot namespace: reads', () => {
     expect(fake.calls[0].path).toBe('/data/shots/all')
     expect(fake.calls[0].query.get('sequence_id')).toBe(SEQUENCE_ID)
     expect(fake.calls[0].query.get('name')).toBe('SH010')
+  })
+
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getShotByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'SH-010', parent_id: SEQUENCE_ID }
+    fake
+      .reply(200, [
+        nearName,
+        { id: SHOT_ID, name: 'SH_010', parent_id: SEQUENCE_ID }
+      ])
+      .reply(200, [nearName])
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH_010')).toMatchObject(
+      { id: SHOT_ID }
+    )
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH_010')).toBeNull()
+  })
+
+  it('getShotByName ignores the case like gazu, the exact spelling first', async () => {
+    const upper = { id: SHOT_ID, name: 'SH010', parent_id: SEQUENCE_ID }
+    const lower = { id: OTHER_ID, name: 'sh010', parent_id: SEQUENCE_ID }
+    fake.reply(200, [upper]).reply(200, [upper, lower])
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'sh010')).toEqual(upper)
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'sh010')).toEqual(lower)
+  })
+
+  it('getShotByName keeps the shots of the sequence only', async () => {
+    fake.reply(200, [{ id: OTHER_ID, name: 'SH010', parent_id: OTHER_ID }])
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH010')).toBeNull()
+  })
+
+  it('getShotByName gives null when the sequence does not exist', async () => {
+    fake.reply(404, { message: 'Sequence not found' })
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH010')).toBeNull()
   })
 
   it('allPreviewsForShot groups the previews of a shot by task type', async () => {
@@ -131,6 +167,15 @@ describe('shot namespace: reads', () => {
     expect(fake.calls[0].query.get('name')).toBe('E01')
   })
 
+  // A vendor gets every episode they are assigned to, whatever the name.
+  it('getEpisodeByName keeps only the episode with that name', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'E01', project_id: PROJECT_ID },
+      { id: EPISODE_ID, name: 'E03', project_id: PROJECT_ID }
+    ])
+    expect(await kitsu.shot.getEpisodeByName(PROJECT_ID, 'E02')).toBeNull()
+  })
+
   it('getEpisodeFromSequence fetches the parent episode', async () => {
     fake.reply(200, { id: EPISODE_ID })
     const sequence = { id: SEQUENCE_ID, parent_id: EPISODE_ID }
@@ -178,7 +223,9 @@ describe('shot namespace: reads', () => {
   })
 
   it('getSequenceByName filters by project, or by episode when given', async () => {
-    fake.reply(200, [{ id: SEQUENCE_ID, name: 'SQ01' }]).reply(200, [])
+    fake
+      .reply(200, [{ id: SEQUENCE_ID, name: 'SQ01', parent_id: null }])
+      .reply(200, [])
     expect(
       await kitsu.shot.getSequenceByName({ id: PROJECT_ID }, 'SQ01')
     ).toMatchObject({ id: SEQUENCE_ID })
@@ -194,6 +241,32 @@ describe('shot namespace: reads', () => {
     expect(fake.calls[1].query.get('episode_id')).toBe(EPISODE_ID)
     expect(fake.calls[1].query.get('name')).toBe('nope')
     expect(fake.calls[1].query.has('project_id')).toBe(false)
+  })
+
+  // A vendor gets every sequence they are assigned to, whatever the episode
+  // and the name.
+  it('getSequenceByName keeps the sequence of the given episode', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'SQ01', parent_id: OTHER_EPISODE_ID },
+      { id: SEQUENCE_ID, name: 'SQ01', parent_id: EPISODE_ID },
+      { id: SHOT_ID, name: 'SQ02', parent_id: EPISODE_ID }
+    ])
+    expect(
+      await kitsu.shot.getSequenceByName(PROJECT_ID, 'SQ01', {
+        episode: EPISODE_ID
+      })
+    ).toMatchObject({ id: SEQUENCE_ID })
+  })
+
+  // Zou looks for the same name outside any episode before creating one.
+  it('getSequenceByName without episode matches a sequence outside any episode', async () => {
+    const inEpisode = { id: OTHER_ID, name: 'SQ01', parent_id: EPISODE_ID }
+    const outside = { id: SEQUENCE_ID, name: 'SQ01', parent_id: null }
+    fake.reply(200, [inEpisode]).reply(200, [inEpisode, outside])
+    expect(await kitsu.shot.getSequenceByName(PROJECT_ID, 'SQ01')).toBeNull()
+    expect(await kitsu.shot.getSequenceByName(PROJECT_ID, 'SQ01')).toEqual(
+      outside
+    )
   })
 
   it('getSequenceFromShot fetches the parent sequence', async () => {
@@ -265,7 +338,10 @@ describe('shot namespace: reads', () => {
       () => kitsu.shot.getEpisodeByName(PROJECT_ID, undefined),
       () => kitsu.shot.getShotByName(SEQUENCE_ID, ''),
       () => kitsu.shot.newSequence(PROJECT_ID, ''),
-      () => kitsu.shot.newEpisode(PROJECT_ID, '')
+      () => kitsu.shot.newEpisode(PROJECT_ID, ''),
+      // A blank episode is not a missing one: it is no id.
+      () => kitsu.shot.getSequenceByName(PROJECT_ID, 'SQ01', { episode: '' }),
+      () => kitsu.shot.newSequence(PROJECT_ID, 'SQ01', { episode: '' })
     ]
     const errors = await Promise.all(
       lookups.map(lookup => lookup().catch(err => err))
