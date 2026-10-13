@@ -23,7 +23,9 @@ import * as urls from '../utils/urls.js'
  * @property {string} [name] File name suffix, "main" by default.
  * @property {string} [mode] Template of the file tree, "output" by default.
  * @property {string} [representation] Selects a template inside the mode.
- * @property {number} [revision]
+ * @property {number} [revision] 0 by default. Zou then takes the next
+ *   revision for the file name of an entity, but keeps 0 in its folder, and
+ *   in the whole path of an asset instance: pass the revision to build.
  * @property {string} [sep] OS separator, "/" by default.
  * @property {AbortSignal} [signal]
  */
@@ -674,7 +676,9 @@ export const filesApi = http => {
      * @param {{name?: string, mode?: string, software?: Model,
      *   revision?: number, sep?: string, signal?: AbortSignal}} [options]
      *   name is the file name suffix, mode selects a template of the file
-     *   tree, sep is the OS separator.
+     *   tree, sep is the OS separator. revision is 1 by default, as in gazu:
+     *   0 asks Zou for the next revision of the name, the one newWorkingFile
+     *   creates by default.
      * @returns {Promise<string>} The working file path, without extension.
      */
     buildWorkingFilePath: async (
@@ -744,7 +748,8 @@ export const filesApi = http => {
 
     /**
      * Create a working file for a task. The server builds its path and, when
-     * revision is 0, sets the revision to the last one plus one.
+     * revision is 0 (the default), sets the revision to the last one plus
+     * one: save the file at the path of the created working file.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
      *   comment?: string, person?: Model, revision?: number,
