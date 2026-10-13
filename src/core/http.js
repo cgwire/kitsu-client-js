@@ -105,6 +105,23 @@ const releasing = (response, release) => {
   })
 }
 
+const abortError = () =>
+  new DOMException('The operation was aborted', 'AbortError')
+
+// Settles like the promise, or rejects with an AbortError as soon as the
+// signal aborts: the shared token refresh goes on for the other requests.
+const unlessAborted = (promise, signal) =>
+  signal
+    ? new Promise((resolve, reject) => {
+        const abort = () => reject(abortError())
+        if (signal.aborted) abort()
+        else signal.addEventListener('abort', abort, { once: true })
+        promise
+          .then(resolve, reject)
+          .finally(() => signal.removeEventListener('abort', abort))
+      })
+    : promise
+
 const NOT_STREAMED = Symbol('not streamed')
 
 const isAuthFailure = err =>
@@ -216,9 +233,7 @@ export const createHttp = (config, session) => {
       // Decided from the controller, not from the shape of the rejection:
       // injected fetches (Tauri) do not all reject with an AbortError.
       if (controller.signal.aborted) {
-        throw err?.name === 'AbortError'
-          ? err
-          : new DOMException('The operation was aborted', 'AbortError')
+        throw err?.name === 'AbortError' ? err : abortError()
       }
       if (err instanceof KitsuError) throw err
       // A body read by options.read that does not parse (NDJSON): the API
@@ -237,7 +252,9 @@ export const createHttp = (config, session) => {
     }
   }
 
-  const withAuthReplay = async attempt => {
+  // signal is the one of the caller: giving up while a refresh is pending
+  // rejects at once.
+  const withAuthReplay = async (attempt, signal) => {
     const generation = session.generation()
     const used = session.headers()
     // logIn, logOut or setToken happened since the request left: its 401
@@ -254,11 +271,13 @@ export const createHttp = (config, session) => {
         session.headers().Authorization !== used.Authorization
       if (!renewedMeanwhile) {
         const refreshError = session.canRefresh()
-          ? await session.refresh(send).then(
+          ? await unlessAborted(session.refresh(send), signal).then(
               () => null,
               failure => failure
             )
           : err
+        // An abort of the caller wins over the outcome of the refresh.
+        if (signal?.aborted) throw abortError()
         if (replaced()) throw err
         // Only an answer of the API tells the session is lost: a network
         // failure, a timeout or close() says nothing about the refresh token.
@@ -282,11 +301,13 @@ export const createHttp = (config, session) => {
   const request = (method, path, options = {}) =>
     options.skipAuth
       ? send(method, path, options)
-      : withAuthReplay(headers =>
-          send(method, path, {
-            ...options,
-            headers: { ...headers, ...options.headers }
-          })
+      : withAuthReplay(
+          headers =>
+            send(method, path, {
+              ...options,
+              headers: { ...headers, ...options.headers }
+            }),
+          options.signal
         )
 
   const get = (path, query, options) =>

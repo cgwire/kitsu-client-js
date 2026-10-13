@@ -371,6 +371,80 @@ describe('a token Zou cannot decode', () => {
   })
 })
 
+describe('a caller abort while the token is refreshed', () => {
+  // What Zou answers for an expired token, access or refresh.
+  const expired = () =>
+    jsonResponse(401, { error: true, message: 'Signature has expired' })
+
+  // Two requests hit the expired access token and wait for one refresh,
+  // parked until the test answers it. The first one can be aborted.
+  const parkedRefresh = (onUnauthorized = () => {}) => {
+    let answer
+    const refreshAnswer = new Promise(resolve => {
+      answer = resolve
+    })
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : expired()
+      )
+      .on('GET', '/auth/refresh-token', () => refreshAnswer)
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' },
+      onUnauthorized
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const caller = new AbortController()
+    const aborted = http
+      .get('data/persons', {}, { signal: caller.signal })
+      .catch(e => e)
+    const other = http.get('data/persons').catch(e => e)
+    const refreshSent = () =>
+      vi.waitFor(() =>
+        expect(fake.calls.map(call => call.path)).toContain(
+          '/auth/refresh-token'
+        )
+      )
+    return { fake, caller, aborted, other, answer, refreshSent }
+  }
+
+  const within50ms = promise =>
+    Promise.race([
+      promise,
+      new Promise(resolve => setTimeout(() => resolve('pending'), 50))
+    ])
+
+  it('rejects at once with AbortError and lets the refresh serve the others', async () => {
+    const { fake, caller, aborted, other, answer, refreshSent } =
+      parkedRefresh()
+    await refreshSent()
+    caller.abort()
+    expect((await within50ms(aborted)).name).toBe('AbortError')
+    answer(jsonResponse(200, { access_token: 'new' }))
+    expect(await other).toEqual([])
+    expect(
+      fake.calls.filter(call => call.path === '/data/persons')
+    ).toHaveLength(3)
+  })
+
+  it('reports the abort, not the refused refresh, to the caller who aborted', async () => {
+    const onUnauthorized = vi.fn()
+    const { caller, aborted, other, answer, refreshSent } =
+      parkedRefresh(onUnauthorized)
+    await refreshSent()
+    caller.abort()
+    answer(expired())
+    expect((await aborted).name).toBe('AbortError')
+    expect(await other).toBeInstanceOf(NotAuthenticatedError)
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('gazu helpers', () => {
   it('fetchAll prefixes data/', async () => {
     const fake = createFakeFetch().reply(200, [])
