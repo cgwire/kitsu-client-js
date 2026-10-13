@@ -1,5 +1,5 @@
 import { authApi } from './auth.js'
-import { createEvents } from './events.js'
+import { createEvents, throwOutOfBand } from './events.js'
 import { createHttp } from './http.js'
 import { createSession } from './session.js'
 
@@ -31,6 +31,20 @@ const resolveTimeout = (timeout = {}) =>
     response: timerOf('response', timeout.response),
     deadline: timerOf('deadline', timeout.deadline)
   })
+
+// The hooks of the app run inside a session change, a refresh or a request:
+// an exception of theirs must not fail the logIn, the requests waiting on the
+// refresh or the 401 it was called from.
+const outOfBand = hook =>
+  hook
+    ? (...args) => {
+        try {
+          hook(...args)
+        } catch (err) {
+          throwOutOfBand(err)
+        }
+      }
+    : undefined
 
 const OPTION_TYPES = {
   fetch: 'function',
@@ -84,12 +98,14 @@ const checkOptions = options => {
  * @property {'bearer'|'cookie'} [auth] Defaults to "bearer".
  * @property {import('./session.js').Tokens|null} [tokens] Resume a session.
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]
- *   Called on every token change, to persist them.
+ *   Called on every token change, to persist them. An exception it throws
+ *   is rethrown out of band, from a timer: the change stands, and in Node
+ *   the process ends unless the hook catches its own errors.
  * @property {() => void} [onUnauthorized] Called when a request stays
  *   unauthorized after the refresh attempt, or when Zou refuses to renew the
  *   token it refused the event socket. Zou never renews the token of a
  *   bearer client it takes for a browser: such a session ends with its
- *   access token.
+ *   access token. An exception it throws is rethrown out of band too.
  * @property {string} [eventHost] Defaults to the host without "/api".
  * @property {Function} [io] The socket.io-client "io" function. Left out,
  *   the first events.on() imports the optional peer "socket.io-client",
@@ -129,8 +145,8 @@ export const createCore = options => {
     auth,
     tokens: options.tokens,
     onChange: () => syncSession(),
-    onTokensChange: options.onTokensChange || undefined,
-    onUnauthorized: options.onUnauthorized || undefined
+    onTokensChange: outOfBand(options.onTokensChange),
+    onUnauthorized: outOfBand(options.onUnauthorized)
   })
   const http = createHttp(config, session)
   const { syncSession, ...events } = createEvents({

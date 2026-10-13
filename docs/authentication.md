@@ -49,6 +49,11 @@ try {
 const myTasks = await kitsu.user.allTasksToDo()
 ```
 
+Both hooks run inside the change or the request that calls them. An
+exception they throw is rethrown out of band, from a timer, so the change
+stands; in Node that ends the process: a hook that can fail, a keychain write
+for instance, catches its own errors.
+
 An expired access token is refreshed once, whatever the number of requests
 that hit the 401 at the same time, and each of them is replayed once. Zou
 renews the token only for a caller it does not take for a browser, judging by
