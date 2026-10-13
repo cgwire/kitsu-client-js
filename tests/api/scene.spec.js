@@ -80,15 +80,40 @@ describe('scene namespace: reads', () => {
     })
   })
 
-  it('getSceneByName looks a scene up inside its sequence', async () => {
-    fake.reply(200, [{ id: SCENE_ID, name: 'SC010' }]).reply(200, [])
+  // The scenes of a sequence are open to the project members, unlike the
+  // filtered list of every scene.
+  it('getSceneByName looks a scene up among the scenes of its sequence', async () => {
+    const scenes = [
+      { id: OTHER_ID, name: 'SC-010', parent_id: SEQUENCE_ID },
+      { id: SCENE_ID, name: 'SC_010', parent_id: SEQUENCE_ID }
+    ]
+    fake.reply(200, scenes).reply(200, scenes)
     expect(
-      await kitsu.scene.getSceneByName({ id: SEQUENCE_ID }, 'SC010')
+      await kitsu.scene.getSceneByName({ id: SEQUENCE_ID }, 'SC_010')
     ).toMatchObject({ id: SCENE_ID })
-    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'nope')).toBeNull()
-    expect(fake.calls[0].path).toBe('/data/scenes/all')
-    expect(fake.calls[0].query.get('parent_id')).toBe(SEQUENCE_ID)
-    expect(fake.calls[0].query.get('name')).toBe('SC010')
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'SC_020')).toBeNull()
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/sequences/${SEQUENCE_ID}/scenes`
+    })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('getSceneByName ignores the case like gazu, the exact spelling first', async () => {
+    const upper = { id: SCENE_ID, name: 'SC010', parent_id: SEQUENCE_ID }
+    const lower = { id: OTHER_ID, name: 'sc010', parent_id: SEQUENCE_ID }
+    fake.reply(200, [upper]).reply(200, [upper, lower])
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'sc010')).toEqual(
+      upper
+    )
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'sc010')).toEqual(
+      lower
+    )
+  })
+
+  it('getSceneByName gives null when the sequence does not exist', async () => {
+    fake.reply(404, { message: 'Sequence not found' })
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'SC010')).toBeNull()
   })
 
   it('getSceneByName rejects a blank name', async () => {
@@ -114,18 +139,41 @@ describe('scene namespace: reads', () => {
     })
   })
 
-  it('getAssetInstanceByName looks an instance up inside its scene', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID, name: 'chair_0001' }])
-    fake.reply(200, [])
+  // The instances of a scene are open to the project members, unlike the
+  // list of every instance.
+  it('getAssetInstanceByName looks an instance up among the instances of its scene', async () => {
+    const instance = {
+      id: ASSET_INSTANCE_ID,
+      name: 'chair_0001',
+      asset_id: ASSET_ID,
+      scene_id: SCENE_ID
+    }
+    const instances = {
+      [ASSET_ID]: [{ ...instance, id: SHOT_ID, name: 'chair_0002' }, instance],
+      [OTHER_ID]: [{ ...instance, id: OTHER_ID, name: 'chairX0001' }]
+    }
+    fake.reply(200, instances).reply(200, instances)
     expect(
       await kitsu.scene.getAssetInstanceByName({ id: SCENE_ID }, 'chair_0001')
-    ).toMatchObject({ id: ASSET_INSTANCE_ID })
+    ).toEqual(instance)
     expect(
-      await kitsu.scene.getAssetInstanceByName(SCENE_ID, 'nope')
+      await kitsu.scene.getAssetInstanceByName(SCENE_ID, 'chair_0003')
     ).toBeNull()
-    expect(fake.calls[0].path).toBe('/data/asset-instances')
-    expect(fake.calls[0].query.get('name')).toBe('chair_0001')
-    expect(fake.calls[0].query.get('scene_id')).toBe(SCENE_ID)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/scenes/${SCENE_ID}/asset-instances`
+    })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('getAssetInstanceByName gives null for an empty or missing scene', async () => {
+    fake.reply(200, {}).reply(404, { message: 'Scene not found' })
+    expect(
+      await kitsu.scene.getAssetInstanceByName(SCENE_ID, 'chair_0001')
+    ).toBeNull()
+    expect(
+      await kitsu.scene.getAssetInstanceByName(SCENE_ID, 'chair_0001')
+    ).toBeNull()
   })
 
   it('getAssetInstanceByName rejects a blank name', async () => {

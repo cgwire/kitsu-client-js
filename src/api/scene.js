@@ -1,6 +1,7 @@
 import {
   idOf,
   optionalIdOf,
+  orNull,
   requiredOf,
   sortedByName,
   withoutNil
@@ -11,6 +12,18 @@ import {
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// Like gazu the case is ignored, but the name must match, and the exact
+// spelling wins over another case.
+const findByName = (entries, name) => {
+  const wanted = String(name)
+  const matches = entries.filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase()
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
 
 export const sceneApi = http => {
   const fetchScene = (scene, signal) =>
@@ -38,7 +51,9 @@ export const sceneApi = http => {
       ),
 
     /**
-     * @param {{project?: Model, signal?: AbortSignal}} [options]
+     * @param {{project?: Model, signal?: AbortSignal}} [options] Without a
+     *   project, Zou lists the scenes of every project to an admin only:
+     *   anyone else gets a NotAllowedError.
      * @returns {Promise<Entity[]>} Every scene, or the scenes of the project,
      *   sorted by name.
      */
@@ -77,14 +92,19 @@ export const sceneApi = http => {
      * @param {Model} sequence
      * @param {string} sceneName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The scene of the sequence with that name.
+     * @returns {Promise<Entity|null>} The scene of the sequence with that
+     *   name (case-insensitive), null when there is none.
      */
-    getSceneByName: async (sequence, sceneName, { signal } = {}) =>
-      http.fetchFirst(
-        'scenes/all',
-        { parent_id: idOf(sequence), name: requiredOf('sceneName', sceneName) },
-        { signal }
-      ),
+    getSceneByName: async (sequence, sceneName, { signal } = {}) => {
+      const sequenceId = idOf(sequence)
+      requiredOf('sceneName', sceneName)
+      // The scenes of the sequence are open to the members of its project,
+      // while a filtered list of every scene needs an admin.
+      const scenes = await orNull(
+        http.fetchAll(`sequences/${sequenceId}/scenes`, {}, { signal })
+      )
+      return findByName(scenes || [], sceneName)
+    },
 
     /**
      * Save the scene. Zou merges the given metadata into the stored ones: a
@@ -124,14 +144,18 @@ export const sceneApi = http => {
      * @param {string} name
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The asset instance of the scene with
-     *   that name.
+     *   that name (case-insensitive), null when there is none.
      */
-    getAssetInstanceByName: async (scene, name, { signal } = {}) =>
-      http.fetchFirst(
-        'asset-instances',
-        { name: requiredOf('name', name), scene_id: idOf(scene) },
-        { signal }
-      ),
+    getAssetInstanceByName: async (scene, name, { signal } = {}) => {
+      const sceneId = idOf(scene)
+      requiredOf('name', name)
+      // The instances of the scene are open to the members of its project,
+      // while the list of every instance needs an admin.
+      const instances = await orNull(
+        http.get(`data/scenes/${sceneId}/asset-instances`, {}, { signal })
+      )
+      return findByName(Object.values(instances || {}).flat(), name)
+    },
 
     /**
      * @param {Model} scene
