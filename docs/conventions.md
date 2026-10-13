@@ -40,12 +40,18 @@ Every error extends `KitsuError` and carries `status`, `path`, `method` and
 | no answer             | `NetworkError`, `TimeoutError`                                                                                |
 | `signal` or `close()` | the native `AbortError`                                                                                       |
 | 2xx that is not JSON  | `KitsuError` (usually a host given without its `/api` suffix)                                                 |
+| 202 to a download     | `KitsuError`: Zou still builds the file, ask again after `error.retryAfter` seconds                           |
 
 A refused `logIn` is a 400, 401 or 409 answer of Zou, whatever the cause: Zou
 also answers 400 when its database pool times out, and 409 when it has no
 authentication strategy configured. `error.status` tells them apart. Any
 other failure keeps its own error: a 5xx outage is a `ServerError`, not wrong
 credentials.
+
+`error.retryAfter` is the number of seconds to wait before asking again, when
+the answer tells it: a download of a preview whose files Zou still builds
+(202), a media request refused while Zou is busy (503). It is `null`
+otherwise.
 
 Regular calls are bounded: 60 s to the first byte, 5 min in total
 (`timeout: { response, deadline }`, `0` disables a timer). Uploads are not

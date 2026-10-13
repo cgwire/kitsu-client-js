@@ -60,6 +60,17 @@ const reasonOf = err => {
   return typeof cause === 'string' ? `${err.message}: ${cause}` : err.message
 }
 
+// Seconds to wait before asking again, when the answer tells it: Zou sends
+// a number of seconds, HTTP also allows a date.
+const retryAfterOf = response => {
+  const value = (response.headers.get('Retry-After') || '').trim()
+  if (/^\d+$/.test(value)) return Number(value)
+  const date = Date.parse(value)
+  return Number.isNaN(date)
+    ? null
+    : Math.max(0, Math.ceil((date - Date.now()) / 1000))
+}
+
 const NOT_STREAMED = Symbol('not streamed')
 
 const isAuthFailure = err =>
@@ -118,7 +129,26 @@ export const createHttp = (config, session) => {
       status = response.status
       if (!response.ok) {
         const { data } = await readBody(response).catch(() => ({ data: '' }))
-        throw errorFromResponse(response.status, { ...info, body: data || '' })
+        throw errorFromResponse(response.status, {
+          ...info,
+          body: data || '',
+          retryAfter: retryAfterOf(response)
+        })
+      }
+      // Asked for JSON, Zou answers 202 and when to come back for a preview
+      // whose files it still builds: no file yet. Any other client gets a
+      // 404, as for a missing file.
+      if (raw && response.status === 202) {
+        const { data } = await readBody(response).catch(() => ({ data: '' }))
+        throw new KitsuError(
+          `${method} ${path} answered 202: the file is not ready yet`,
+          {
+            ...info,
+            status: 202,
+            body: data || '',
+            retryAfter: retryAfterOf(response)
+          }
+        )
       }
       if (raw && response.body) {
         // The body is still to be read by the caller: the abort wiring
@@ -291,6 +321,9 @@ export const createHttp = (config, session) => {
   })
 
   /**
+   * A file Zou still builds (the pictures and movies of a new preview)
+   * rejects with a KitsuError of status 202, whose retryAfter tells when
+   * to ask again.
    * @param {string} path
    * @param {{query?: object, signal?: AbortSignal}} [options]
    * @returns {Promise<Response>} The raw response: the caller reads

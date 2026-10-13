@@ -42,6 +42,15 @@ describe('errorFromResponse', () => {
   })
 })
 
+describe('retryAfter', () => {
+  it('carries the delay an answer asks to wait, null by default', () => {
+    const busy = errorFromResponse(503, { ...info, retryAfter: 5 })
+    expect(busy.retryAfter).toBe(5)
+    expect(errorFromResponse(500, info).retryAfter).toBeNull()
+    expect(new KitsuError('boom').retryAfter).toBeNull()
+  })
+})
+
 describe('error names', () => {
   const NAMES = {
     KitsuError,
