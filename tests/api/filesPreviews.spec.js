@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   OTHER_ID,
@@ -112,12 +113,39 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('getRunningPreviewFiles lists the previews being processed', async () => {
-    fake.reply(200, [{ id: PREVIEW_FILE_ID, status: 'processing' }])
-    expect(await kitsu.files.getRunningPreviewFiles()).toHaveLength(1)
+    const running = {
+      id: PREVIEW_FILE_ID,
+      status: 'processing',
+      project_id: PROJECT_ID,
+      task_type_id: OTHER_ID,
+      full_entity_name: 'SE01 / SH010'
+    }
+    fake.reply(200, [running])
+    expect(await kitsu.files.getRunningPreviewFiles()).toEqual([running])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/playlists/preview-files/running'
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('getRunningPreviewFiles pages with a limit and a cursor', async () => {
+    fake.reply(200, [])
+    await kitsu.files.getRunningPreviewFiles({
+      limit: 20,
+      lastPreviewFile: { id: PREVIEW_FILE_ID }
+    })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      limit: '20',
+      cursor_preview_file_id: PREVIEW_FILE_ID
+    })
+  })
+
+  it('getRunningPreviewFiles rejects a malformed cursor', async () => {
+    await expect(
+      kitsu.files.getRunningPreviewFiles({ lastPreviewFile: 'nope' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('extractFrameFromPreview returns the raw response of the frame', async () => {

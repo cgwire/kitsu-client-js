@@ -1698,7 +1698,7 @@
     "route": "/data/playlists/preview-files/running",
     "client": "files.getRunningPreviewFiles",
     "status": "existing",
-    "note": "Query differs: Kitsu sends limit and cursor_preview_file_id, the client sends none (add limit and cursor options)."
+    "note": "Same query as Kitsu: limit and cursor_preview_file_id (options limit and lastPreviewFile)."
   },
   {
     "module": "playlists",
