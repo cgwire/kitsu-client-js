@@ -1188,8 +1188,12 @@ export const filesApi = http => {
       http.update('preview-files', idOf(previewFile), data, { signal }),
 
     /**
+     * List the preview files of the open productions whose status is
+     * processing, broken or missing, newest first. Admins only. A broken or
+     * missing preview stays listed until its status changes.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Preview files currently being processed.
+     * @returns {Promise<Entity[]>} The preview files, each with the
+     *   project_id, task_type_id and full_entity_name of its task.
      */
     getRunningPreviewFiles: async ({ signal } = {}) =>
       http.fetchAll('playlists/preview-files/running', {}, { signal }),
