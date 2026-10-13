@@ -581,4 +581,21 @@ describe('task namespace: tasks, types and statuses', () => {
       body: { task_type_ids: [TASK_TYPE_ID, OTHER_ID] }
     })
   })
+
+  it.each([
+    ['createShotTasks', SHOT_ID],
+    ['createAssetTasks', ASSET_ID],
+    ['createEditTasks', EDIT_ID],
+    ['createConceptTasks', CONCEPT_ID],
+    ['createEntityTasks', ENTITY_ID]
+  ])('%s creates nothing without a task type', async (name, id) => {
+    // Zou would create every task type of the entity.
+    const errors = await Promise.all(
+      [[], undefined, null].map(taskTypes =>
+        kitsu.task[name](id, taskTypes).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
 })
