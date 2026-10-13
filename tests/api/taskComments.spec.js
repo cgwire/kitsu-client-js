@@ -386,8 +386,11 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('deleteCommentReply deletes a reply of a comment', async () => {
-    fake.reply(204)
-    await kitsu.task.deleteCommentReply({ id: TASK_ID }, COMMENT_ID, OTHER_ID)
+    const updated = { id: COMMENT_ID, replies: [] }
+    fake.reply(200, updated)
+    expect(
+      await kitsu.task.deleteCommentReply({ id: TASK_ID }, COMMENT_ID, OTHER_ID)
+    ).toEqual(updated)
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data${COMMENT_PATH}/reply/${OTHER_ID}`
