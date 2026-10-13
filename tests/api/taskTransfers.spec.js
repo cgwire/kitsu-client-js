@@ -119,6 +119,46 @@ describe('task namespace transfers', () => {
     expect(await form.get('file-1').text()).toBe('sketch')
   })
 
+  it('addComment sends a Date as the UTC second Zou reads', async () => {
+    // A Date sent as it is, in JSON or in a form, carries milliseconds and
+    // a Z: Zou would date the comment now.
+    const createdAt = new Date(Date.UTC(2026, 8, 19, 10, 0, 0, 500))
+    fake.reply(201, { id: COMMENT_ID }).reply(201, { id: COMMENT_ID })
+    await kitsu.task.addComment(TASK_ID, TASK_STATUS_ID, { createdAt })
+    await kitsu.task.addComment(TASK_ID, TASK_STATUS_ID, {
+      createdAt,
+      attachments: [notes]
+    })
+    expect(fake.calls[0].body.created_at).toBe('2026-09-19T10:00:00')
+    expect(fake.calls[1].body.get('created_at')).toBe('2026-09-19T10:00:00')
+  })
+
+  it('addComment takes the date of Zou with a space too', async () => {
+    fake.reply(201, { id: COMMENT_ID })
+    await kitsu.task.addComment(TASK_ID, TASK_STATUS_ID, {
+      createdAt: '2026-09-19 10:00:00'
+    })
+    expect(fake.calls[0].body.created_at).toBe('2026-09-19 10:00:00')
+  })
+
+  it.each([
+    ['2026-09-19T10:00:00.000Z'],
+    ['2026-09-19T10:00:00+02:00'],
+    ['2026-09-19'],
+    ['19/09/2026 10:00'],
+    [new Date('not a date')]
+  ])('addComment rejects the date %s without any request', async createdAt => {
+    await expect(
+      kitsu.task.addComment(TASK_ID, TASK_STATUS_ID, { createdAt })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.task.publishPreview(TASK_ID, TASK_STATUS_ID, movieFile, {
+        createdAt
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('addComment sends for_client in a multipart form only when true', async () => {
     fake.reply(201, { id: COMMENT_ID }).reply(201, { id: COMMENT_ID })
     await kitsu.task.addComment(TASK_ID, TASK_STATUS_ID, {

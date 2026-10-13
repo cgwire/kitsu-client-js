@@ -1,6 +1,7 @@
 import { NotFoundError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
+  datetimeOf,
   dayOf,
   idOf,
   idsOf,
@@ -19,15 +20,18 @@ import * as urls from '../utils/urls.js'
  * @typedef {{relations?: boolean, signal?: AbortSignal}} RelationsOptions
  * @typedef {{forEntity?: string, department?: Model,
  *   signal?: AbortSignal}} TaskTypeFilters
- * @typedef {{
- *   comment?: string,
- *   person?: Model,
- *   checklist?: object[],
- *   attachments?: Blob[],
- *   createdAt?: string,
- *   links?: string[]
- * }} CommentFields person is the author, checklist holds entries like
- *   {text: "Item 1", checked: false}, createdAt is the comment date.
+ */
+
+/**
+ * @typedef {object} CommentFields
+ * @property {string} [comment]
+ * @property {Model} [person] Author of the comment (managers only).
+ * @property {object[]} [checklist] Entries like
+ *   {text: "Item 1", checked: false}.
+ * @property {Blob[]} [attachments]
+ * @property {Date|string} [createdAt] Date of the comment (managers only): a
+ *   Date, or "YYYY-MM-DDTHH:MM:SS" in UTC.
+ * @property {string[]} [links]
  */
 
 /**
@@ -44,8 +48,26 @@ import * as urls from '../utils/urls.js'
 
 const HEX_COLOR = /^#[0-9a-fA-F]*$/
 
+const COMMENT_DATE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}$/
+
 const COLLECTION_ROUTES = ['assets', 'shots', 'edits', 'concepts']
 const ENTITY_TYPE_ROUTES = ['episodes', 'sequences']
+
+/**
+ * Zou reads the date of a comment to the second, as naive UTC, and dates
+ * the comment now in any other format, without an error: toISOString() and
+ * a Date sent as JSON carry milliseconds and a Z.
+ * @param {Date|string} [createdAt]
+ * @returns {string|undefined}
+ */
+const commentDateOf = createdAt => {
+  const date = datetimeOf(createdAt)
+  if (date === undefined || date === null || date === '') return undefined
+  if (COMMENT_DATE.test(date)) return date
+  throw new ParameterError(
+    'Wrong format: createdAt must be a Date or a "YYYY-MM-DDTHH:MM:SS" string in UTC'
+  )
+}
 
 /**
  * FormData names a bare Blob "blob", and Zou reads the preview type from the
@@ -298,7 +320,7 @@ export const taskApi = http => {
       checklist,
       links,
       person_id: optionalIdOf(person),
-      created_at: createdAt
+      created_at: commentDateOf(createdAt)
     }
     if (!attachments || attachments.length === 0) {
       return http.post(path, withoutNil({ ...data, for_client: forClient }), {
