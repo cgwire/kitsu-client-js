@@ -264,7 +264,9 @@ export const authApi = (http, session) => {
       http.get('auth/authenticated', {}, { signal }).then(body => body.user),
 
     /**
-     * Probe the session without triggering a refresh nor onUnauthorized.
+     * Probe the session without triggering a refresh nor onUnauthorized:
+     * false means that Zou refuses the current access token, even one that
+     * the refresh token could renew. getCurrentUser() renews it.
      * @param {RequestOptions} [options]
      * @returns {Promise<boolean>}
      */

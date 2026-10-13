@@ -58,6 +58,11 @@ gets the new token in a cookie only. There a bearer session ends with its
 access token, 7 days by default, when `onUnauthorized` fires, and a `logOut`
 after that cannot revoke it on the server.
 
+To check a resumed session at startup, call `kitsu.getCurrentUser()`: it
+renews an expired access token like any call does. `kitsu.isAuthenticated()`
+only probes the current access token, without renewing it: it answers false
+for a session that the refresh token could still renew.
+
 Web apps served by Kitsu itself use the session cookie instead:
 `createClient({ host: '/api', auth: 'cookie' })`.
 
