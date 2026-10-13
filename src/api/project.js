@@ -133,6 +133,15 @@ export const projectApi = http => ({
       signal
     } = {}
   ) => {
+    // Checked before the lookup: a wrong option is reported even when the
+    // project already exists.
+    const links = {
+      team: idsOf(team),
+      asset_types: idsOf(assetTypes),
+      task_statuses: idsOf(taskStatuses),
+      task_types: idsOf(taskTypes)
+    }
+    const templateId = optionalIdOf(projectTemplate)
     const existing = await http.fetchFirst(
       'projects',
       { name: requiredOf('name', name) },
@@ -143,16 +152,13 @@ export const projectApi = http => ({
       'projects',
       {
         name,
-        team: idsOf(team),
-        asset_types: idsOf(assetTypes),
-        task_statuses: idsOf(taskStatuses),
-        task_types: idsOf(taskTypes),
+        ...links,
         // Zou defaults to short and 2d3d. Any value sent overrides the one
         // of the template.
         ...withoutNil({
           production_type: productionType,
           production_style: productionStyle,
-          project_template_id: optionalIdOf(projectTemplate)
+          project_template_id: templateId
         })
       },
       { signal }
