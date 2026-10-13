@@ -67,7 +67,10 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * Create an empty project template.
+     * Create a project template without any link. The production settings
+     * it is not given take the defaults of Zou (25 fps, 16:9, 1920x1080,
+     * short, 2d3d, no retake limit, the assets homepage, every flag off),
+     * which applyProjectTemplate writes to a project like the given ones.
      * @param {string} name Must be unique.
      * @param {{
      *   description?: string,
@@ -127,9 +130,12 @@ export const projectTemplateApi = http => {
       http.del(templatePath(projectTemplate), undefined, { signal }),
 
     /**
-     * Snapshot the configuration of a project (task types, task statuses,
-     * asset types, status automations, metadata descriptors and production
-     * settings) into a new template. Production data is not copied.
+     * Snapshot the configuration of a project into a new template: its
+     * production settings, its file tree, its data (the values of its Project
+     * metadata), its metadata descriptors, its default preview background
+     * and its links to task types, task statuses, asset types, status
+     * automations and preview backgrounds. The team, the dates and the
+     * production data (assets, shots, tasks) are not copied.
      * @param {Model} project
      * @param {string} name
      * @param {{description?: string, signal?: AbortSignal}} [options]
@@ -147,8 +153,13 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * Apply the template to an existing project. Existing links are kept and
-     * duplicates are skipped.
+     * Apply the template to an existing project. Every production setting
+     * the template has (fps, ratio, resolution, production type and style,
+     * max retakes, homepage, client, preview and publish flags, movie
+     * bitrates) overwrites the one of the project, and its file tree and
+     * data, when it has them, replace the project's. Links and metadata
+     * descriptors are only added, the existing ones are kept, and the
+     * default background is set only when the project has none.
      * @param {Model} project
      * @param {Model} projectTemplate
      * @param {RequestOptions} [options]
