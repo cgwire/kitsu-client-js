@@ -96,19 +96,24 @@ export const authApi = (http, session) => {
     return turn
   }
 
-  // Zou answers a two-factor registration with a new token pair: the one in
-  // use may carry the requires_2fa_setup claim, which locks the API. The
-  // recovery codes come back even when a later change keeps its own tokens:
-  // Zou shows them once, for the first method only.
+  // Zou answers a two-factor registration with a new token pair, also set
+  // as cookies: the one in use may carry the requires_2fa_setup claim, which
+  // locks the API and the socket. The recovery codes come back even when a
+  // later change keeps its own tokens: Zou shows them once, for the first
+  // method only.
   const register = (path, payload, signal) => {
     const isLatest = startChange()
     return inTurn(() => http.post(path, payload, { signal }), signal).then(
       body => {
-        if (session.mode === 'bearer' && body.access_token && isLatest()) {
-          session.setTokens({
-            access_token: body.access_token,
-            refresh_token: body.refresh_token
-          })
+        if (body.access_token && isLatest()) {
+          if (session.mode === 'bearer') {
+            session.setTokens({
+              access_token: body.access_token,
+              refresh_token: body.refresh_token
+            })
+          } else {
+            session.startCookieSession()
+          }
         }
         return body.otp_recovery_codes ?? null
       }
