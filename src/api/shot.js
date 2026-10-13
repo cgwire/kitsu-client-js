@@ -521,7 +521,10 @@ export const shotApi = http => {
      * @param {Blob} csvFile The CSV data, as a Blob or a File.
      * @param {TransferOptions & {update?: boolean}} [options] update also
      *   updates the shots that already exist.
-     * @returns {Promise<Entity[]>} The shots created by the import.
+     * @returns {Promise<Entity[]>} The shot of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importShotsWithCsv: async (
       project,
@@ -546,7 +549,8 @@ export const shotApi = http => {
      *   episode?: Model,
      *   namingConvention?: string,
      *   matchCase?: boolean
-     * }} [options] namingConvention is the template matching the shot names
+     * }} [options] episode is required on a TV show: Zou refuses the import
+     *   without it. namingConvention is the template matching the shot names
      *   of the file, by default
      *   "${project_name}_${sequence_name}-${shot_name}" (with
      *   "${episode_name}-" before the sequence when an episode is given).
@@ -681,8 +685,11 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The data history of the shot: one version
-     *   per change of its metadata.
+     * @returns {Promise<Entity[]>} The data history of the shot, most recent
+     *   first. Zou records a version when the name or the frame range change
+     *   through the entity route (updateShot, updateShotData), and folds the
+     *   changes one person makes within a minute. The other routes (the CSV
+     *   and OTIO imports, setNbFramesFromTaskTypePreviews) record nothing.
      */
     allVersionsForShot: async (shot, { signal } = {}) =>
       http.get(`data/shots/${idOf(shot)}/versions`, {}, { signal }),
