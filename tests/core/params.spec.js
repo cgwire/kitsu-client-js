@@ -25,6 +25,16 @@ describe('idOf', () => {
     expect(idOf(SHOT_ID)).toBe(SHOT_ID)
   })
 
+  // Some routes compare the id of the path with the lowercase ids Zou
+  // writes: the casting ones refuse an uppercase project id with a 403.
+  it('returns the id in lowercase, as Zou writes it', () => {
+    const upper = OTHER_ID.toUpperCase()
+    expect(idOf(upper)).toBe(OTHER_ID)
+    expect(idOf({ id: upper })).toBe(OTHER_ID)
+    expect(optionalIdOf(upper)).toBe(OTHER_ID)
+    expect(idsOf([upper])).toEqual([OTHER_ID])
+  })
+
   it('rejects a missing entity, so it never lands in a path as "null"', () => {
     expect(() => idOf(null)).toThrow(ParameterError)
     expect(() => idOf(undefined)).toThrow(ParameterError)

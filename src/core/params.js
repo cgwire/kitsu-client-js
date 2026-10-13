@@ -26,11 +26,12 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
  * is not a UUID keeps caller input, and a missing entity, out of request
  * paths. Optional filters go through optionalIdOf.
  * @param {Model} model
- * @returns {string}
+ * @returns {string} The id in lowercase, as Zou writes it: some routes
+ *   compare the id of their path with the ids of the database as strings.
  */
 export const idOf = model => {
   const id = model && typeof model === 'object' ? model.id : model
-  if (typeof id === 'string' && UUID.test(id)) return id
+  if (typeof id === 'string' && UUID.test(id)) return id.toLowerCase()
   throw new ParameterError(
     'Wrong format: expected an id string or an entity object'
   )
