@@ -208,6 +208,45 @@ describe('asset namespace: asset types', () => {
     })
   })
 
+  // The rows of allAssetsWithTasks name the type asset_type_id.
+  it('getAssetTypeFromAsset reads the type of a row of allAssetsWithTasks', async () => {
+    fake.reply(200, { id: ASSET_TYPE_ID, name: 'Props' })
+    await kitsu.asset.getAssetTypeFromAsset({
+      id: ASSET_ID,
+      asset_type_id: ASSET_TYPE_ID,
+      asset_type_name: 'Props'
+    })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].path).toBe(`/data/asset-types/${ASSET_TYPE_ID}`)
+  })
+
+  it('getAssetTypeFromAsset reads the asset first when given an id', async () => {
+    fake
+      .reply(200, { id: ASSET_ID, entity_type_id: ASSET_TYPE_ID })
+      .reply(200, { id: ASSET_TYPE_ID, name: 'Props' })
+      .reply(404, { message: 'Asset not found' })
+    expect(await kitsu.asset.getAssetTypeFromAsset(ASSET_ID)).toEqual({
+      id: ASSET_TYPE_ID,
+      name: 'Props'
+    })
+    expect(await kitsu.asset.getAssetTypeFromAsset({ id: ASSET_ID })).toBeNull()
+    expect(fake.calls.map(call => call.path)).toEqual([
+      `/data/assets/${ASSET_ID}`,
+      `/data/asset-types/${ASSET_TYPE_ID}`,
+      `/data/assets/${ASSET_ID}`
+    ])
+  })
+
+  it('getAssetTypeFromAsset rejects a malformed asset before any request', async () => {
+    const errors = await Promise.all(
+      [null, 'Props', { name: 'Chair' }].map(asset =>
+        kitsu.asset.getAssetTypeFromAsset(asset).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getAssetTypeFromAsset fetches the type of the asset', async () => {
     fake.reply(200, { id: ASSET_TYPE_ID, name: 'Props' })
     const assetType = await kitsu.asset.getAssetTypeFromAsset({
