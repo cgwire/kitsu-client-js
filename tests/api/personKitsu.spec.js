@@ -36,10 +36,11 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it('generateResetPasswordLink posts without a body', async () => {
-    fake.reply(200, { reset_url: 'http://kitsu.test/reset' })
+    const link = 'http://kitsu.test/reset-change-password?token=abc'
+    fake.reply(200, { reset_password_link: link })
     expect(
       await kitsu.person.generateResetPasswordLink({ id: PERSON_ID })
-    ).toEqual({ reset_url: 'http://kitsu.test/reset' })
+    ).toEqual({ reset_password_link: link })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/persons/${PERSON_ID}/reset-password-link`

@@ -949,7 +949,8 @@ export const personApi = http => ({
    * sending any email.
    * @param {Model} person
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The link, in reset_url.
+   * @returns {Promise<{reset_password_link: string}>} The link, in
+   *   reset_password_link.
    */
   generateResetPasswordLink: async (person, { signal } = {}) =>
     http.post(`actions/persons/${idOf(person)}/reset-password-link`, null, {
