@@ -28,8 +28,8 @@ export const createSession = ({
   // Counts the sessions this instance went through: logIn, logOut and
   // setToken open a new one, a token refresh does not.
   let generation = 0
-  // Cookie mode: whether the browser holds a session that a logIn of this
-  // instance opened. No token tells it.
+  // Cookie mode: whether the browser holds a session that a logIn (or a
+  // two-factor setup) of this instance opened. No token tells it.
   let cookieLogIn = false
 
   // The instance (its socket) follows the change first. The app hook
@@ -59,8 +59,9 @@ export const createSession = ({
     mode: auth,
     getTokens: () => copy(current),
     setTokens,
-    // A cookie-mode logIn: a new session, kept by the browser. There is no
-    // token to persist, but the instance follows it like any other.
+    // A cookie-mode logIn or two-factor setup: a new session, kept by the
+    // browser. There is no token to persist, but the instance follows it
+    // like any other.
     startCookieSession: () => {
       nextSession()
       cookieLogIn = true
@@ -73,7 +74,7 @@ export const createSession = ({
         ? { Authorization: `Bearer ${current.access_token}` }
         : {},
     // Whether a connection opened now can authenticate: with the bearer
-    // token, or with the cookie that a logIn of this instance set.
+    // token, or with the cookie that this instance had the browser set.
     canAuthenticate: () =>
       auth === 'bearer'
         ? Boolean(current && current.access_token)

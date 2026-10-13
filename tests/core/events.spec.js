@@ -497,6 +497,25 @@ describe('events', () => {
       expect(sockets).toHaveLength(2)
     })
 
+    // Zou refuses the socket of a session locked until a second factor is
+    // set up, and answers the setup with new cookies.
+    it('in cookie mode reopens a refused socket after a two-factor setup', async () => {
+      const { io, sockets } = createFakeIo()
+      const fetch = createFakeFetch().reply(200, {
+        otp_recovery_codes: ['code'],
+        access_token: 'full',
+        refresh_token: 'refresh'
+      })
+      const kitsu = makeCore(io, { fetch, auth: 'cookie', tokens: null })
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+
+      expect(await kitsu.enableTotp('123456')).toEqual(['code'])
+
+      expect(sockets).toHaveLength(2)
+      expect(kitsu.getTokens()).toBeNull()
+    })
+
     it('in cookie mode closes on logOut and reopens at the next logIn', async () => {
       const { io, sockets } = createFakeIo()
       const fetch = createFakeFetch()
