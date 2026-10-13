@@ -87,20 +87,23 @@ export const formatTime = (rawTime, fps) => {
 
 /**
  * Get the `HH:MM:SS:FF` timecode of a frame number. A missing or negative
- * frame counts as 0.
+ * frame counts as 0. A fractional fps counts at its nominal rate, like the
+ * non-drop-frame timecode of editing software: 24 frames a second at 23.976.
  * @param {number|null} [frame] Frame number, counted from 0.
  * @param {number} [fps] Frames per second, `DEFAULT_FPS` when omitted.
  * @returns {string} Timecode.
  */
 export const formatToTimecode = (frame, fps = DEFAULT_FPS) => {
-  const count = !frame || frame < 0 ? 0 : frame
-  const hours = Math.floor(count / fps / 3600)
-  const minutes = Math.floor((count - hours * fps * 3600) / fps / 60)
-  const seconds = Math.floor(
-    (count - hours * fps * 3600 - minutes * fps * 60) / fps
-  )
-  // Floored: a fractional fps (23.976) leaves a fractional remainder.
-  return [hours, minutes, seconds, Math.floor(count % fps)]
+  const count = !frame || frame < 0 ? 0 : Math.floor(frame)
+  // Whole numbers only: float divisions by 23.976 floor a second too low.
+  const rate = Math.round(Number(fps))
+  const seconds = Math.floor(count / rate)
+  return [
+    Math.floor(seconds / 3600),
+    Math.floor(seconds / 60) % 60,
+    seconds % 60,
+    count % rate
+  ]
     .map(part => part.toString().padStart(2, '0'))
     .join(':')
 }
