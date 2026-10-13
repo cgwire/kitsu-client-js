@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import { idOf, optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
@@ -36,7 +37,8 @@ import * as urls from '../utils/urls.js'
  * @property {number} [nbElements] Number of files of an image sequence.
  * @property {string} [representation] "abc", "jpg"...
  * @property {string} [sep] OS separator, "/" by default.
- * @property {Model} [fileStatusId] File status set at creation.
+ * @property {Model} [fileStatus] File status set at creation, the default
+ *   one of Zou when left out.
  * @property {AbortSignal} [signal]
  */
 
@@ -181,7 +183,14 @@ export const filesApi = http => {
     outputType,
     taskType,
     comment,
-    {
+    options = {}
+  ) => {
+    // 0.2.0 named it fileStatusId: dropped without a word, it would leave the
+    // default status on the file.
+    if ('fileStatusId' in options) {
+      throw new ParameterError('Wrong format: fileStatusId is now fileStatus')
+    }
+    const {
       workingFile,
       person,
       name = defaultName,
@@ -189,11 +198,10 @@ export const filesApi = http => {
       nbElements = 1,
       representation = '',
       sep = '/',
-      fileStatusId,
+      fileStatus,
       signal
-    } = {}
-  ) =>
-    http.post(
+    } = options
+    return http.post(
       path,
       withoutNil({
         output_type_id: idOf(outputType),
@@ -206,10 +214,11 @@ export const filesApi = http => {
         sep,
         working_file_id: optionalIdOf(workingFile),
         person_id: optionalIdOf(person),
-        file_status_id: optionalIdOf(fileStatusId)
+        file_status_id: optionalIdOf(fileStatus)
       }),
       { signal }
     )
+  }
 
   const nextOutputRevision = (path, outputType, taskType, name, signal) =>
     http
