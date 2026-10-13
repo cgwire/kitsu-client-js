@@ -35,8 +35,14 @@ const withoutUndefined = data =>
 const optionalIdsOf = models =>
   models === undefined || models === null ? models : idsOf(models)
 
-const clearableIdOf = model =>
-  model === undefined ? undefined : optionalIdOf(model)
+// Up to 0.2.0 the changes were options: such a call would now save nothing.
+const refuseOptionChanges = (options, names, saved) => {
+  if (names.some(name => name in options)) {
+    throw new ParameterError(
+      `Wrong format: the changes are fields of the ${saved}, not options`
+    )
+  }
+}
 
 export const scheduleApi = http => ({
   /**
@@ -60,28 +66,32 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a milestone. Only the given fields are sent; a null task type
-   * clears it.
-   * @param {Model} milestone
+   * Save the date, name and task_type_id of the milestone. A field missing
+   * from the given object is left untouched, a null task_type_id clears the
+   * task type.
    * @param {{
+   *   id: string,
    *   date?: Date|string,
    *   name?: string,
-   *   taskType?: Model|null,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   task_type_id?: string|null,
+   *   [field: string]: any
+   * }} milestone A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateMilestone: async (milestone, { date, name, taskType, signal } = {}) =>
-    http.update(
+  updateMilestone: async (milestone, options = {}) => {
+    refuseOptionChanges(options, ['date', 'name', 'taskType'], 'milestone')
+    return http.update(
       'milestones',
       idOf(milestone),
       withoutUndefined({
-        date: dateOf(date),
-        name,
-        task_type_id: clearableIdOf(taskType)
+        date: dateOf(milestone.date),
+        name: milestone.name,
+        task_type_id: milestone.task_type_id
       }),
-      { signal }
-    ),
+      { signal: options.signal }
+    )
+  },
 
   /**
    * Delete a milestone.
@@ -165,30 +175,35 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a schedule item. Only the given fields are sent.
-   * @param {Model} scheduleItem
+   * Save the start_date, end_date and man_days of the schedule item. A field
+   * missing from the given object is left untouched.
    * @param {{
-   *   startDate?: Date|string,
-   *   endDate?: Date|string,
-   *   manDays?: number|null,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   id: string,
+   *   start_date?: Date|string,
+   *   end_date?: Date|string,
+   *   man_days?: number|null,
+   *   [field: string]: any
+   * }} scheduleItem A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleItem: async (
-    scheduleItem,
-    { startDate, endDate, manDays, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleItem: async (scheduleItem, options = {}) => {
+    refuseOptionChanges(
+      options,
+      ['startDate', 'endDate', 'manDays'],
+      'schedule item'
+    )
+    return http.update(
       'schedule-items',
       idOf(scheduleItem),
       withoutUndefined({
-        start_date: dateOf(startDate),
-        end_date: dateOf(endDate),
-        man_days: manDays
+        start_date: dateOf(scheduleItem.start_date),
+        end_date: dateOf(scheduleItem.end_date),
+        man_days: scheduleItem.man_days
       }),
-      { signal }
-    ),
+      { signal: options.signal }
+    )
+  },
 
   /**
    * Delete a schedule item.
@@ -237,26 +252,31 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a production schedule version. Only the given fields are sent.
-   * @param {Model} version
+   * Save the name, canceled and locked fields of the production schedule
+   * version. A field missing from the given object is left untouched.
    * @param {{
+   *   id: string,
    *   name?: string,
    *   canceled?: boolean,
    *   locked?: boolean,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   [field: string]: any
+   * }} version
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersion: async (
-    version,
-    { name, canceled, locked, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleVersion: async (version, options = {}) => {
+    refuseOptionChanges(options, ['name', 'canceled', 'locked'], 'version')
+    return http.update(
       'production-schedule-versions',
       idOf(version),
-      withoutUndefined({ name, canceled, locked }),
-      { signal }
-    ),
+      withoutUndefined({
+        name: version.name,
+        canceled: version.canceled,
+        locked: version.locked
+      }),
+      { signal: options.signal }
+    )
+  },
 
   /**
    * Delete a production schedule version.
@@ -369,33 +389,38 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a task link. Only the given fields are sent; a null date clears
-   * it.
-   * @param {Model} taskLink
+   * Save the start_date, due_date, estimation and assignees of the task
+   * link. A field missing from the given object is left untouched, a null
+   * date clears it.
    * @param {{
-   *   startDate?: Date|string|null,
-   *   dueDate?: Date|string|null,
+   *   id: string,
+   *   start_date?: Date|string|null,
+   *   due_date?: Date|string|null,
    *   estimation?: number,
    *   assignees?: Model[],
-   *   signal?: AbortSignal
-   * }} [options] A Date gives its local day.
+   *   [field: string]: any
+   * }} taskLink A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersionTaskLink: async (
-    taskLink,
-    { startDate, dueDate, estimation, assignees, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleVersionTaskLink: async (taskLink, options = {}) => {
+    refuseOptionChanges(
+      options,
+      ['startDate', 'dueDate', 'estimation', 'assignees'],
+      'task link'
+    )
+    return http.update(
       'production-schedule-version-task-links',
       idOf(taskLink),
       withoutUndefined({
-        start_date: dateOf(startDate),
-        due_date: dateOf(dueDate),
-        estimation,
-        assignees: optionalIdsOf(assignees)
+        start_date: dateOf(taskLink.start_date),
+        due_date: dateOf(taskLink.due_date),
+        estimation: taskLink.estimation,
+        assignees: optionalIdsOf(taskLink.assignees)
       }),
-      { signal }
-    ),
+      { signal: options.signal }
+    )
+  },
 
   /**
    * Delete a task link of a production schedule version.
