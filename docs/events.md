@@ -22,6 +22,9 @@ of reach, a handshake that a browser blocks, a namespace that Zou does not
 serve. socket.io keeps retrying by itself, except after that last one: the
 next `on()` opens a new socket then. A handshake that Zou refuses, for its
 token or its cookie, ends in `onDisconnect` with `"io server disconnect"`.
+`onConnect`, `onDisconnect` and `onConnectError` return their `off()` at once,
+so a handler that is not a function throws a `ParameterError` right there,
+where `on()` rejects.
 
 `logIn`, `logOut` and `setToken` replace the socket, in cookie mode too, so it
 never outlives the session it was opened for. A socket that `on()` asked for

@@ -279,6 +279,8 @@ export const createEvents = ({
      * events missed during an outage: this is where an app reloads its data.
      * @param {() => void} handler
      * @returns {Off}
+     * @throws {ParameterError} At once, for a handler that is not a
+     *   function: the Off comes back synchronously.
      */
     onConnect: handler =>
       subscribe(lifecycle.connect, handlerOf('events.onConnect', handler)),
@@ -291,6 +293,8 @@ export const createEvents = ({
      * session change, or tries again at the next on().
      * @param {(reason: string) => void} handler
      * @returns {Off}
+     * @throws {ParameterError} At once, for a handler that is not a
+     *   function: the Off comes back synchronously.
      */
     onDisconnect: handler =>
       subscribe(
@@ -305,6 +309,8 @@ export const createEvents = ({
      * itself, except after a refusal: the next on() opens a new socket.
      * @param {(error: Error) => void} handler
      * @returns {Off}
+     * @throws {ParameterError} At once, for a handler that is not a
+     *   function: the Off comes back synchronously.
      */
     onConnectError: handler =>
       subscribe(
