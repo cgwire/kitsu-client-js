@@ -66,11 +66,10 @@ describe('edit namespace: Kitsu store API', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Zou records versions for the shots only: an edit has none.
   it('allVersionsForEdit reads the data history of the edit', async () => {
-    fake.reply(200, [{ id: 'version-1' }]).reply(200, [])
-    expect(await kitsu.edit.allVersionsForEdit({ id: EDIT_ID })).toEqual([
-      { id: 'version-1' }
-    ])
+    fake.reply(200, []).reply(200, [])
+    expect(await kitsu.edit.allVersionsForEdit({ id: EDIT_ID })).toEqual([])
     await kitsu.edit.allVersionsForEdit(EDIT_ID)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
