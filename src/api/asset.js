@@ -356,18 +356,16 @@ export const assetApi = http => {
       name,
       { description, extraData = {}, episode, isShared = false, signal } = {}
     ) => {
+      // Every id is checked before the lookup, even when the asset exists.
+      const path = `data/projects/${idOf(project)}/asset-types/${idOf(assetType)}/assets/new`
+      const body = {
+        name,
+        data: extraData,
+        is_shared: isShared,
+        ...withoutNil({ description, episode_id: optionalIdOf(episode) })
+      }
       const existing = await assetByName(project, name, assetType, signal)
-      if (existing !== null) return existing
-      return http.post(
-        `data/projects/${idOf(project)}/asset-types/${idOf(assetType)}/assets/new`,
-        {
-          name,
-          data: extraData,
-          is_shared: isShared,
-          ...withoutNil({ description, episode_id: optionalIdOf(episode) })
-        },
-        { signal }
-      )
+      return existing || http.post(path, body, { signal })
     },
 
     /**
@@ -789,19 +787,17 @@ export const assetApi = http => {
      * @returns {Promise<string>} URL of the asset list filtered on the type.
      */
     getAssetTypeUrl: async (project, assetType, { signal } = {}) => {
+      const projectId = idOf(project)
+      const assetTypeId = idOf(assetType)
       const loadedProject = await http.get(
-        `data/projects/${idOf(project)}`,
+        `data/projects/${projectId}`,
         {},
         { signal }
       )
       const named =
-        typeof assetType === 'object' && assetType && 'name' in assetType
+        typeof assetType === 'object' && 'name' in assetType
           ? assetType
-          : await http.get(
-              `data/asset-types/${idOf(assetType)}`,
-              {},
-              { signal }
-            )
+          : await http.get(`data/asset-types/${assetTypeId}`, {}, { signal })
       return urls.getAssetTypeUrl(
         urls.webHostOf(http.host),
         loadedProject,
