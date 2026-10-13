@@ -486,8 +486,10 @@ export const projectTemplateApi = http => {
     },
 
     /**
-     * Set the priority of every task type link of the template from the order
-     * of the list, in one request.
+     * Give the listed task types their priority on the template from the
+     * order of the list. A task type missing from the template is linked
+     * too, at its position. Zou saves the links one by one: an unknown id
+     * fails the call once the links before it are saved.
      * @param {Model} projectTemplate
      * @param {Model[]} taskTypes Task types or ids, in their new order.
      * @param {RequestOptions} [options]
@@ -507,8 +509,11 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * Set the priority of every task status link of the template from the
-     * order of the list, in one request.
+     * Give the listed task statuses their priority on the template from the
+     * order of the list, their board roles unchanged. A task status missing
+     * from the template is linked too, at its position. Zou saves the links
+     * one by one: an unknown id fails the call once the links before it are
+     * saved.
      * @param {Model} projectTemplate
      * @param {Model[]} taskStatuses Task statuses or ids, in their new order.
      * @param {RequestOptions} [options]
