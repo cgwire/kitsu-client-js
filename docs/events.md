@@ -18,3 +18,9 @@ next socket. Zou does not replay the events missed while offline, hence
 never outlives the session it was opened for. A socket that `on()` asked for
 opens again as soon as the new session can authenticate it: a `logIn` reopens
 a socket that Zou refused or that `logOut` closed.
+
+When Zou refuses the token of the socket while the session holds a refresh
+token, the client checks the session with a request. An expired access token
+is renewed on the way, as for any request, and the socket reopens with the new
+one; a refresh that Zou refuses calls `onUnauthorized`. A token that the API
+still accepts leaves the socket closed until the next session change.

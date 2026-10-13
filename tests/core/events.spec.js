@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createEvents } from '../../src/core/events.js'
 import { ParameterError, createCore } from '../../src/core/index.js'
 import { createSession } from '../../src/core/session.js'
-import { createFakeFetch } from '../helpers/fakeFetch.js'
+import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
 
 const CLOSED_BY_SERVER = 'io server disconnect'
@@ -576,11 +576,46 @@ describe('events', () => {
   })
 
   describe('connection closed by the server', () => {
+    // A session whose access token "old" expired: the API refuses it, as
+    // the socket does. Each refresh answers a new token, renewed-1,
+    // renewed-2..., which the API accepts until expire().
+    const makeRenewingCore = (io, refreshAnswer) => {
+      const expired = new Set(['Bearer old'])
+      let count = 0
+      const renewed = () => {
+        count += 1
+        return jsonResponse(200, { access_token: `renewed-${count}` })
+      }
+      const fetch = createFakeFetch()
+        .on('GET', '/auth/authenticated', call =>
+          expired.has(call.headers.Authorization)
+            ? jsonResponse(401, {})
+            : jsonResponse(200, { user: { id: 'u' } })
+        )
+        .on('GET', '/auth/refresh-token', refreshAnswer || renewed)
+      const onUnauthorized = vi.fn()
+      const kitsu = makeCore(io, {
+        fetch,
+        tokens: { access_token: 'old', refresh_token: 'refresh' },
+        onUnauthorized
+      })
+      const expire = token => expired.add(`Bearer ${token}`)
+      const accept = token => expired.delete(`Bearer ${token}`)
+      const calls = path =>
+        fetch.calls
+          .filter(call => call.path === path)
+          .map(call => call.headers.Authorization)
+      const refreshes = () => calls('/auth/refresh-token')
+      const checks = () => calls('/auth/authenticated')
+      return { kitsu, fetch, onUnauthorized, expire, accept, refreshes, checks }
+    }
+
     // Zou closes the connection of a rejected token, and socket.io never
     // reconnects by itself after an "io server disconnect".
     it('opens a new socket at the next on(), handlers included', async () => {
       const { io, sockets } = createFakeIo()
-      const kitsu = makeCore(io)
+      const fetch = createFakeFetch()
+      const kitsu = makeCore(io, { fetch })
       const handler = vi.fn()
       const onDisconnect = vi.fn()
       kitsu.events.onDisconnect(onDisconnect)
@@ -588,6 +623,8 @@ describe('events', () => {
       sockets[0].connects()
       sockets[0].drops(CLOSED_BY_SERVER)
       expect(onDisconnect.mock.calls).toEqual([['io server disconnect']])
+      // A bot token has nothing to renew it with.
+      expect(fetch.calls).toEqual([])
 
       await kitsu.events.on('y', () => {})
 
@@ -596,17 +633,150 @@ describe('events', () => {
       expect(handler.mock.calls).toEqual([[1]])
     })
 
-    it('reopens as soon as the token is renewed', async () => {
+    it('renews the token Zou refused and reopens with the new one', async () => {
       const { io, sockets } = createFakeIo()
-      const kitsu = makeExpiredCore(io)
-      await kitsu.events.on('x', () => {})
+      const { kitsu, refreshes } = makeRenewingCore(io)
+      const handler = vi.fn()
+      await kitsu.events.on('x', handler)
+
       sockets[0].drops(CLOSED_BY_SERVER)
 
-      await kitsu.getCurrentUser()
-
-      expect(sockets).toHaveLength(2)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      expect(refreshes()).toEqual(['Bearer refresh'])
       expect(sockets[1].opts.extraHeaders).toEqual({
-        Authorization: 'Bearer renewed'
+        Authorization: 'Bearer renewed-1'
+      })
+      sockets[1].fromServer('x', 1)
+      expect(handler.mock.calls).toEqual([[1]])
+    })
+
+    it('renews a token refused at a reconnection of socket.io', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu } = makeRenewingCore(io)
+      await kitsu.events.on('x', () => {})
+      sockets[0].connects()
+      sockets[0].drops('transport close')
+      sockets[0].io.trigger('reconnect_attempt')
+
+      sockets[0].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      expect(sockets[1].opts.extraHeaders).toEqual({
+        Authorization: 'Bearer renewed-1'
+      })
+    })
+
+    // The page sends a stale Kitsu cookie that Zou reads first, or the
+    // session waits for its two-factor setup: the token itself is fine.
+    it('leaves closed a socket refused for a token the API accepts', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, accept, onUnauthorized, refreshes, checks } =
+        makeRenewingCore(io)
+      accept('old')
+      await kitsu.events.on('x', () => {})
+
+      sockets[0].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(checks()).toEqual(['Bearer old']))
+      await new Promise(resolve => setTimeout(resolve))
+      expect(refreshes()).toEqual([])
+      expect(onUnauthorized).not.toHaveBeenCalled()
+      expect(sockets).toHaveLength(1)
+    })
+
+    it('checks once until a socket connects', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, fetch } = makeRenewingCore(io)
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      const sent = fetch.calls.length
+
+      // Refused again with the renewed token: the expiry was not the cause.
+      sockets[1].drops(CLOSED_BY_SERVER)
+      await kitsu.events.on('y', () => {})
+      sockets[2].drops(CLOSED_BY_SERVER)
+
+      await new Promise(resolve => setTimeout(resolve))
+      expect(fetch.calls).toHaveLength(sent)
+      expect(sockets).toHaveLength(3)
+    })
+
+    it('checks once more in a new session', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, fetch, expire, refreshes } = makeRenewingCore(io)
+      fetch.on('POST', '/auth/login', () =>
+        jsonResponse(200, { access_token: 'bob', refresh_token: 'bob-refresh' })
+      )
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      sockets[1].drops(CLOSED_BY_SERVER)
+      await kitsu.logIn('bob@kitsu.test', 'password')
+      expire('bob')
+
+      sockets[2].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(sockets).toHaveLength(4))
+      expect(refreshes()).toEqual(['Bearer refresh', 'Bearer bob-refresh'])
+    })
+
+    it('renews again the token of a socket that connected since', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, expire, refreshes } = makeRenewingCore(io)
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+      await vi.waitFor(() => expect(sockets).toHaveLength(2))
+      sockets[1].connects()
+      expire('renewed-1')
+
+      sockets[1].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(sockets).toHaveLength(3))
+      expect(refreshes()).toHaveLength(2)
+      expect(sockets[2].opts.extraHeaders).toEqual({
+        Authorization: 'Bearer renewed-2'
+      })
+    })
+
+    it('reports a refresh refused by Zou as a lost session', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, onUnauthorized } = makeRenewingCore(io, () =>
+        jsonResponse(401, {})
+      )
+      await kitsu.events.on('x', () => {})
+
+      sockets[0].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(onUnauthorized).toHaveBeenCalledTimes(1))
+      expect(sockets).toHaveLength(1)
+    })
+
+    // Zou restarts: its event stream is back before its API.
+    it('tries again at the next refusal after a refresh with no answer', async () => {
+      const { io, sockets } = createFakeIo()
+      const outage = vi.fn(() => {
+        throw new TypeError('fetch failed')
+      })
+      const { kitsu, onUnauthorized, refreshes } = makeRenewingCore(io, call =>
+        outage.mock.calls.length < 1
+          ? outage(call)
+          : jsonResponse(200, { access_token: 'renewed-1' })
+      )
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+      await vi.waitFor(() => expect(refreshes()).toHaveLength(1))
+      await new Promise(resolve => setTimeout(resolve))
+      expect(onUnauthorized).not.toHaveBeenCalled()
+      expect(sockets).toHaveLength(1)
+
+      await kitsu.events.on('y', () => {})
+      sockets[1].drops(CLOSED_BY_SERVER)
+
+      await vi.waitFor(() => expect(sockets).toHaveLength(3))
+      expect(refreshes()).toHaveLength(2)
+      expect(sockets[2].opts.extraHeaders).toEqual({
+        Authorization: 'Bearer renewed-1'
       })
     })
 
@@ -632,24 +802,6 @@ describe('events', () => {
       })
       sockets[1].fromServer('x', 1)
       expect(handler.mock.calls).toEqual([[1]])
-
-      // One shot: rejected with the current token, it waits for another one.
-      sockets[1].drops(CLOSED_BY_SERVER)
-      expect(sockets).toHaveLength(2)
-    })
-
-    it('does not reopen a reconnection rejected with the current token', async () => {
-      const { io, sockets } = createFakeIo()
-      const kitsu = makeExpiredCore(io)
-      await kitsu.events.on('x', () => {})
-      sockets[0].connects()
-      await kitsu.getCurrentUser()
-      sockets[0].drops('transport close')
-      sockets[0].io.trigger('reconnect_attempt')
-
-      sockets[0].drops(CLOSED_BY_SERVER)
-
-      expect(sockets).toHaveLength(1)
     })
 
     it('stays closed when a disconnect handler answers the rejection with disconnect()', async () => {

@@ -1,4 +1,4 @@
-import { ParameterError } from './errors.js'
+import { KitsuError, NotAuthenticatedError, ParameterError } from './errors.js'
 
 /**
  * @typedef {(...args: any[]) => void} EventHandler
@@ -22,6 +22,12 @@ const handlerOf = (label, handler) => {
   throw new ParameterError(`${label}: the handler must be a function`)
 }
 
+// As for a request: only an answer of the API tells about the session, not
+// a network failure, a timeout or an outage.
+const isAuthFailure = err =>
+  err instanceof NotAuthenticatedError ||
+  (err instanceof KitsuError && err.status >= 400 && err.status < 500)
+
 /**
  * Per-instance real-time events: one lazy socket, on the "/events" namespace
  * of eventHost. Registrations live here, not on the socket: they last until
@@ -30,10 +36,18 @@ const handlerOf = (label, handler) => {
  * @param {string} deps.eventHost Origin of the socket, without trailing slash.
  * @param {ReturnType<typeof import('./session.js').createSession>} deps.session
  * @param {Function|null} [deps.io] The socket.io-client "io" function.
+ * @param {() => Promise<any>} [deps.probe] An authenticated request: it
+ *   renews an expired token or reports a lost session, as any request does.
  * @param {() => Function|Promise<Function>} [deps.loadIo] Internal seam:
  *   how "io" is loaded when it is not given.
  */
-export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
+export const createEvents = ({
+  eventHost,
+  session,
+  io,
+  probe = async () => {},
+  loadIo = importIo
+}) => {
   if (io !== undefined && io !== null && typeof io !== 'function') {
     throw new TypeError(
       'createClient: io must be the "io" function of socket.io-client'
@@ -50,6 +64,9 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
   let wanted = false
   // True from an opening that threw to the next on().
   let failed = false
+  // The session generation in which a refused token was checked, until a
+  // socket connects: a token refused again waits for another change.
+  let renewedIn = null
 
   // Single flight, kept once loaded. A failure is forgotten, so a later on()
   // tries again: in a browser the import is a network request.
@@ -104,7 +121,10 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
       opened.io.opts.extraHeaders = renewed
       sent = renewed.Authorization
     })
-    opened.on('connect', () => notify(lifecycle.connect))
+    opened.on('connect', () => {
+      renewedIn = null
+      notify(lifecycle.connect)
+    })
     opened.on('disconnect', reason => {
       if (socket === opened && reason === CLOSED_BY_SERVER) {
         socket = null
@@ -112,6 +132,7 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
         // no token change is left to come and reopen the socket. One shot:
         // the new socket sends the current token.
         if (session.headers().Authorization !== sent) reopen()
+        else renew()
       }
       notify(lifecycle.disconnect, reason)
     })
@@ -157,6 +178,21 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
         throwOutOfBand(err)
       }
     }
+  }
+
+  // Zou refused the current token. A request tells why: an expired token is
+  // renewed on the way, and the new one reopens the socket (syncSession); a
+  // refused refresh reports a lost session. A token the API still accepts
+  // (the socket got a stale Kitsu cookie, a two-factor setup is pending)
+  // leaves the socket closed. Without an answer of the API, the next refusal
+  // tries again.
+  const renew = () => {
+    const generation = session.generation()
+    if (!wanted || renewedIn === generation || !session.canRefresh()) return
+    renewedIn = generation
+    probe().catch(err => {
+      if (!isAuthFailure(err) && renewedIn === generation) renewedIn = null
+    })
   }
 
   // Forgotten before it is closed: a disconnect handler that calls back
@@ -229,7 +265,9 @@ export const createEvents = ({ eventHost, session, io, loadIo = importIo }) => {
     /**
      * Called with the socket.io reason whenever the connection is lost or
      * closed. After "io server disconnect" (Zou rejected the token) the
-     * socket reopens when the token is renewed, or at the next on().
+     * client checks the session with a request: an expired token is renewed
+     * and the socket reopens. Otherwise the socket reopens at the next
+     * session change, or tries again at the next on().
      * @param {(reason: string) => void} handler
      * @returns {Off}
      */
