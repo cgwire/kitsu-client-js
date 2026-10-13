@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import { idOf, requiredOf, withoutNil } from '../core/params.js'
 
 /**
@@ -54,10 +55,17 @@ export const hardwareApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated hardware item.
    */
-  updateHardwareItem: async (hardwareItem, { signal } = {}) =>
-    http.update(
+  updateHardwareItem: async (hardwareItem, { signal } = {}) => {
+    const id = idOf(hardwareItem)
+    // Its id alone holds no field: the empty body would pass as a save.
+    if (typeof hardwareItem !== 'object') {
+      throw new ParameterError(
+        'Wrong format: expected the hardware item, not its id'
+      )
+    }
+    return http.update(
       'hardware-items',
-      idOf(hardwareItem),
+      id,
       withoutNil({
         name: hardwareItem.name,
         short_name: hardwareItem.short_name,
@@ -66,7 +74,8 @@ export const hardwareApi = http => ({
         archived: hardwareItem.archived
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * Zou refuses (400) to delete an item still linked to a department: unlink
