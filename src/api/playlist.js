@@ -365,21 +365,44 @@ export const playlistApi = http => {
      *   allPlaylistsForProject, an id) is read first.
      * @param {Model} entity
      * @param {Model} previewFile
-     * @param {{persist?: boolean, signal?: AbortSignal}} [options] With
-     *   persist set to false nothing is saved.
+     * @param {{
+     *   previousPreviewFile?: Model|null,
+     *   persist?: boolean,
+     *   signal?: AbortSignal
+     * }} [options] previousPreviewFile picks the entry to change, as Kitsu
+     *   does: the first entry of the entity with this preview, or without
+     *   preview when null. Nothing changes when no entry matches. Without
+     *   it, every entry of the entity gets the new preview: an entity
+     *   reviewed under several previews (one per task type) then ends with
+     *   as many identical entries. With persist set to false nothing is
+     *   saved.
      * @returns {Promise<Entity>} The updated playlist.
      */
     updateEntityPreview: async (
       playlist,
       entity,
       previewFile,
-      { persist = true, signal } = {}
+      { previousPreviewFile, persist = true, signal } = {}
     ) => {
       const entityId = idOf(entity)
       const previewFileId = idOf(previewFile)
+      const previousId =
+        previousPreviewFile === undefined
+          ? undefined
+          : optionalIdOf(previousPreviewFile)
       const current = await withEntries(playlist, signal)
-      const shots = entriesOf(current).map(entry =>
-        entry.entity_id === entityId
+      const entries = entriesOf(current)
+      const isOfEntity = entry => entry.entity_id === entityId
+      // An entry is an (entity, preview) couple: the previous preview tells
+      // which one of the entity changes.
+      const target = entries.findIndex(
+        entry =>
+          isOfEntity(entry) && (entry.preview_file_id || null) === previousId
+      )
+      const changes = (entry, index) =>
+        previousId === undefined ? isOfEntity(entry) : index === target
+      const shots = entries.map((entry, index) =>
+        changes(entry, index)
           ? { ...entry, preview_file_id: previewFileId }
           : entry
       )
