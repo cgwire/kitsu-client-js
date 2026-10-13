@@ -55,6 +55,23 @@ describe('projectTemplate namespace: templates', () => {
     expect(fake.calls[0].query.get('name')).toBe('Feature')
   })
 
+  // Zou matches with ILIKE: "_" and "%" are wildcards and the case is
+  // ignored, in no set order.
+  it('getProjectTemplateByName keeps the template of that name, its exact case first', async () => {
+    fake
+      .reply(200, [
+        { id: OTHER_ID, name: 'feature' },
+        { id: TEMPLATE_ID, name: 'Feature' }
+      ])
+      .reply(200, [{ id: OTHER_ID, name: 'TV-show' }])
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('Feature')
+    ).toMatchObject({ id: TEMPLATE_ID })
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('TV_show')
+    ).toBeNull()
+  })
+
   it('getProjectTemplateByName rejects a blank name', async () => {
     await expect(
       kitsu.projectTemplate.getProjectTemplateByName('')
