@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotFoundError, ParameterError } from '../../src/index.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
@@ -189,11 +189,10 @@ describe('asset namespace: asset instances', () => {
     ])
   })
 
-  it('getEpisodeFromAsset rejects when the asset is missing', async () => {
-    fake.reply(404, {})
-    await expect(
-      kitsu.asset.getEpisodeFromAsset(ASSET_ID)
-    ).rejects.toBeInstanceOf(NotFoundError)
+  // Like getSequenceFromShot: a missing entity has no parent.
+  it('getEpisodeFromAsset gives null for a missing asset', async () => {
+    fake.reply(404, { message: 'Asset not found' })
+    expect(await kitsu.asset.getEpisodeFromAsset(ASSET_ID)).toBeNull()
     expect(fake.calls).toHaveLength(1)
   })
 
