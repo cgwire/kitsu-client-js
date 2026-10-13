@@ -69,6 +69,8 @@ export const hardwareApi = http => ({
     ),
 
   /**
+   * Zou refuses (400) to delete an item still linked to a department: unlink
+   * it with removeHardwareItemFromDepartment first.
    * @param {Model} hardwareItem
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
