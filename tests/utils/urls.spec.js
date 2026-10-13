@@ -69,6 +69,14 @@ describe('project and people URLs', () => {
   it('rejects a wrong id instead of building a broken URL', () => {
     expect(() => getProjectUrl(WEB, 'not-a-uuid')).toThrow(ParameterError)
   })
+
+  it('getProjectUrl rejects the options object of the namespace function', () => {
+    const options = { section: 'shots' }
+    expect(() => getProjectUrl(WEB, PROJECT_ID, options)).toThrow(
+      ParameterError
+    )
+    expect(() => getProjectUrl(WEB, PROJECT_ID, '')).toThrow(ParameterError)
+  })
 })
 
 describe('asset URLs', () => {

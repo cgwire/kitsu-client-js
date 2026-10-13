@@ -35,11 +35,16 @@ const isTvShow = project =>
 /**
  * @param {string} webHost
  * @param {Model} project
- * @param {string} [section] "assets" by default.
+ * @param {string} [section] "assets" by default. Positional here, unlike the
+ *   `{ section }` option of kitsu.project.getProjectUrl.
  * @returns {string}
  */
-export const getProjectUrl = (webHost, project, section = 'assets') =>
-  `${productionUrl(webHost, project)}/${section}/`
+export const getProjectUrl = (webHost, project, section = 'assets') => {
+  if (typeof section !== 'string' || section === '') {
+    throw new ParameterError('Wrong format: section must be a string')
+  }
+  return `${productionUrl(webHost, project)}/${section}/`
+}
 
 /**
  * @param {string} webHost
