@@ -706,7 +706,7 @@ export const assetApi = http => {
      *   or episode_id, is read first.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The episode of the asset, null when the
-     *   asset belongs to the main pack.
+     *   asset belongs to the main pack or does not exist.
      */
     getEpisodeFromAsset: async (asset, { signal } = {}) => {
       // source_id is the episode link; listings serialize it as episode_id,
@@ -718,7 +718,8 @@ export const assetApi = http => {
         ('source_id' in asset || 'episode_id' in asset)
       const source = known
         ? asset
-        : await http.get(`data/assets/${idOf(asset)}`, {}, { signal })
+        : await http.fetchOne('assets', idOf(asset), { signal })
+      if (source === null) return null
       const episodeId = optionalIdOf(
         source.source_id || source.episode_id || null
       )
