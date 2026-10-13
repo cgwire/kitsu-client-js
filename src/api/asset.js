@@ -25,26 +25,16 @@ const ASSET_PLACEHOLDERS = {
 }
 
 export const assetApi = http => {
-  /**
-   * @param {Model|null} project null lists the assets of every project.
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} Assets of the project, sorted by name.
-   */
-  const allAssetsForProject = async (project, { signal } = {}) => {
+  // The public functions are documented on the returned object: the
+  // declarations keep the JSDoc of a property, not the one of a constant.
+  const assetsOfProject = async (project, signal) => {
     const projectId = optionalIdOf(project)
     const path =
       projectId === null ? 'assets/all' : `projects/${projectId}/assets`
     return http.fetchAll(path, {}, { signal }).then(sortedByName)
   }
 
-  /**
-   * @param {Model} project
-   * @param {string} name
-   * @param {{assetType?: Model, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity|null>} First asset of the project matching the
-   *   name (and the asset type when given), null when there is none.
-   */
-  const getAssetByName = async (project, name, { assetType, signal } = {}) =>
+  const assetByName = async (project, name, assetType, signal) =>
     http.fetchFirst(
       'assets/all',
       {
@@ -55,50 +45,10 @@ export const assetApi = http => {
       { signal }
     )
 
-  /**
-   * @param {Model} asset
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The asset, null when it does not exist.
-   */
-  const getAsset = async (asset, { signal } = {}) =>
-    http.fetchOne('assets', idOf(asset), { signal })
-
-  /**
-   * Save the asset. It must already exist. An asset read with getAsset or
-   * allAssetsWithTasks can be saved back as it is: the placeholders of its
-   * missing preview, ready_for and episode are sent as null.
-   * @param {{id: string, [field: string]: any}} asset
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The updated asset.
-   */
-  const updateAsset = async (asset, { signal } = {}) =>
-    http.update(
-      'entities',
-      idOf(asset),
-      placeholdersToNull(
-        // Zou stores the episode of an asset in source_id.
-        'episode_id' in asset
-          ? { ...asset, source_id: asset.episode_id }
-          : asset,
-        ASSET_PLACEHOLDERS
-      ),
-      { signal }
-    )
-
-  /**
-   * @param {Model} assetType
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The asset type, null when missing.
-   */
-  const getAssetType = async (assetType, { signal } = {}) =>
+  const assetTypeOf = async (assetType, signal) =>
     http.fetchOne('asset-types', idOf(assetType), { signal })
 
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First asset type matching the name.
-   */
-  const getAssetTypeByName = async (name, { signal } = {}) =>
+  const assetTypeByName = async (name, signal) =>
     http.fetchFirst(
       'entity-types',
       { name: requiredOf('name', name) },
@@ -114,13 +64,17 @@ export const assetApi = http => {
       http
         .fetchAll('projects/open', {}, { signal })
         .then(projects =>
-          Promise.all(
-            projects.map(project => allAssetsForProject(project, { signal }))
-          )
+          Promise.all(projects.map(project => assetsOfProject(project, signal)))
         )
         .then(assetLists => sortedByName(assetLists.flat())),
 
-    allAssetsForProject,
+    /**
+     * @param {Model|null} project null lists the assets of every project.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} Assets of the project, sorted by name.
+     */
+    allAssetsForProject: async (project, { signal } = {}) =>
+      assetsOfProject(project, signal),
 
     /**
      * @param {{
@@ -261,9 +215,23 @@ export const assetApi = http => {
         )
         .then(sortedByName),
 
-    getAssetByName,
+    /**
+     * @param {Model} project
+     * @param {string} name
+     * @param {{assetType?: Model, signal?: AbortSignal}} [options]
+     * @returns {Promise<Entity|null>} First asset of the project matching the
+     *   name (and the asset type when given), null when there is none.
+     */
+    getAssetByName: async (project, name, { assetType, signal } = {}) =>
+      assetByName(project, name, assetType, signal),
 
-    getAsset,
+    /**
+     * @param {Model} asset
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The asset, null when it does not exist.
+     */
+    getAsset: async (asset, { signal } = {}) =>
+      http.fetchOne('assets', idOf(asset), { signal }),
 
     /**
      * Create an asset, or return the asset of that name and type when the
@@ -287,10 +255,7 @@ export const assetApi = http => {
       name,
       { description, extraData = {}, episode, isShared = false, signal } = {}
     ) => {
-      const existing = await getAssetByName(project, name, {
-        assetType,
-        signal
-      })
+      const existing = await assetByName(project, name, assetType, signal)
       if (existing !== null) return existing
       return http.post(
         `data/projects/${idOf(project)}/asset-types/${idOf(assetType)}/assets/new`,
@@ -304,7 +269,27 @@ export const assetApi = http => {
       )
     },
 
-    updateAsset,
+    /**
+     * Save the asset. It must already exist. An asset read with getAsset or
+     * allAssetsWithTasks can be saved back as it is: the placeholders of its
+     * missing preview, ready_for and episode are sent as null.
+     * @param {{id: string, [field: string]: any}} asset
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The updated asset.
+     */
+    updateAsset: async (asset, { signal } = {}) =>
+      http.update(
+        'entities',
+        idOf(asset),
+        placeholdersToNull(
+          // Zou stores the episode of an asset in source_id.
+          'episode_id' in asset
+            ? { ...asset, source_id: asset.episode_id }
+            : asset,
+          ASSET_PLACEHOLDERS
+        ),
+        { signal }
+      ),
 
     /**
      * Update the metadata of the asset. Keys that are not given are kept.
@@ -361,9 +346,21 @@ export const assetApi = http => {
         .fetchAll(`shots/${idOf(shot)}/asset-types`, {}, { signal })
         .then(sortedByName),
 
-    getAssetType,
+    /**
+     * @param {Model} assetType
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The asset type, null when missing.
+     */
+    getAssetType: async (assetType, { signal } = {}) =>
+      assetTypeOf(assetType, signal),
 
-    getAssetTypeByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} First asset type matching the name.
+     */
+    getAssetTypeByName: async (name, { signal } = {}) =>
+      assetTypeByName(name, signal),
 
     /**
      * Create an asset type, or return the one that already has that name.
@@ -372,7 +369,7 @@ export const assetApi = http => {
      * @returns {Promise<Entity>} The created (or already existing) asset type.
      */
     newAssetType: async (name, { signal } = {}) => {
-      const existing = await getAssetTypeByName(name, { signal })
+      const existing = await assetTypeByName(name, signal)
       if (existing !== null) return existing
       return http.create('entity-types', { name }, { signal })
     },
@@ -596,7 +593,7 @@ export const assetApi = http => {
      * @returns {Promise<Entity|null>} The asset type of the asset.
      */
     getAssetTypeFromAsset: async (asset, { signal } = {}) =>
-      getAssetType(asset.entity_type_id, { signal }),
+      assetTypeOf(asset.entity_type_id, signal),
 
     /**
      * Loads the asset and its project, like gazu: the URL differs in a TV show.
