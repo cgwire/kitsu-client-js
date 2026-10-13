@@ -67,6 +67,13 @@ describe('studio namespace', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Angers', color: '#ff0000' })
   })
 
+  it('updateStudio rejects an id given in place of the studio', async () => {
+    await expect(kitsu.studio.updateStudio(STUDIO_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
   // Zou never reads force on this route: the former option sends nothing.
   it('removeStudio deletes the studio without any query', async () => {
     fake.reply(204).reply(204)
