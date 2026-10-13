@@ -423,6 +423,39 @@ describe('task namespace: comments, previews and time spent', () => {
     expect(fake.calls[0].body).toEqual({ text: 'Thanks' })
   })
 
+  it('replyToComment sends the attachments in a multipart form', async () => {
+    const reply = {
+      id: OTHER_ID,
+      text: 'See the notes',
+      attachment_files: [{ id: ATTACHMENT_ID }]
+    }
+    fake.reply(201, reply)
+    const notes = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    expect(
+      await kitsu.task.replyToComment(TASK_ID, COMMENT_ID, 'See the notes', {
+        attachments: [notes]
+      })
+    ).toEqual(reply)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'POST',
+      path: `/data${COMMENT_PATH}/reply`
+    })
+    const form = fake.calls[0].body
+    expect(form).toBeInstanceOf(FormData)
+    expect([...form.keys()].sort()).toEqual(['file', 'text'])
+    expect(form.get('text')).toBe('See the notes')
+    expect(form.get('file').name).toBe('notes.txt')
+  })
+
+  it('replyToComment creates nothing for an attachment that is not a file', async () => {
+    await expect(
+      kitsu.task.replyToComment(TASK_ID, COMMENT_ID, 'See', {
+        attachments: ['/tmp/notes.txt']
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('deleteCommentAttachment deletes an attachment of a comment', async () => {
     fake.reply(204)
     await kitsu.task.deleteCommentAttachment(TASK_ID, COMMENT_ID, {
