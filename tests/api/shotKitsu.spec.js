@@ -165,8 +165,8 @@ describe('shot namespace: Kitsu web app functions', () => {
     fake.reply(200, [{ id: SHOT_ID, nb_frames: 24 }])
     expect(
       await kitsu.shot.setNbFramesFromTaskTypePreviews(
-        { id: TASK_TYPE_ID },
-        { id: PROJECT_ID }
+        { id: PROJECT_ID },
+        { id: TASK_TYPE_ID }
       )
     ).toEqual([{ id: SHOT_ID, nb_frames: 24 }])
     expect(fake.calls[0]).toMatchObject({
@@ -181,7 +181,7 @@ describe('shot namespace: Kitsu web app functions', () => {
 
   it('setNbFramesFromTaskTypePreviews can be scoped to an episode', async () => {
     fake.reply(200, [])
-    await kitsu.shot.setNbFramesFromTaskTypePreviews(TASK_TYPE_ID, PROJECT_ID, {
+    await kitsu.shot.setNbFramesFromTaskTypePreviews(PROJECT_ID, TASK_TYPE_ID, {
       episode: { id: EPISODE_ID }
     })
     expect(fake.calls[0].method).toBe('POST')

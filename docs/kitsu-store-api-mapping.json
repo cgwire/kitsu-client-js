@@ -2940,7 +2940,7 @@
     "route": "/actions/projects/<id>/task-types/<id>/set-shot-nb-frames",
     "client": "shot.setNbFramesFromTaskTypePreviews",
     "status": "added",
-    "note": "POST without body, optional episode_id query: use http.request (http.post takes no query)."
+    "note": "POST without body, optional episode_id query: use http.request (http.post takes no query). The client takes the project first, like its other project and task type pairs: the Kitsu store takes the task type first."
   },
   {
     "module": "software",

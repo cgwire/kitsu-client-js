@@ -705,16 +705,16 @@ export const shotApi = http => {
     /**
      * Set the number of frames of the shots from the length of their latest
      * preview for the task type.
-     * @param {Model} taskType
      * @param {Model} project
+     * @param {Model} taskType
      * @param {{episode?: Model, signal?: AbortSignal}} [options] episode
      *   limits the change to the shots of that episode.
      * @returns {Promise<{id: string, nb_frames: number}[]>} The new number of
      *   frames of each updated shot.
      */
     setNbFramesFromTaskTypePreviews: async (
-      taskType,
       project,
+      taskType,
       { episode, signal } = {}
     ) =>
       http.request(
