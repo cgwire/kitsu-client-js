@@ -118,6 +118,23 @@ describe('frames', () => {
     expect(formatToTimecode(100, 23.976)).toBe('00:00:04:04')
   })
 
+  it('formatToTimecode counts a fractional fps at its nominal rate', () => {
+    expect(formatToTimecode(1439, 23.976)).toBe('00:00:59:23')
+    expect(formatToTimecode(1440, 23.976)).toBe('00:01:00:00')
+    expect(formatToTimecode(8991, 23.976)).toBe('00:06:14:15')
+    expect(formatToTimecode(86400, 23.976)).toBe('01:00:00:00')
+    expect(formatToTimecode(1799, 29.97)).toBe('00:00:59:29')
+    expect(formatToTimecode(3600, 59.94)).toBe('00:01:00:00')
+  })
+
+  it('formatToTimecode never goes backwards with a fractional fps', () => {
+    const timecodes = Array.from({ length: 10000 }, (_, frame) =>
+      formatToTimecode(frame, 23.976)
+    )
+    // Fixed width: sorting the strings sorts the timecodes.
+    expect([...new Set(timecodes)].sort()).toEqual(timecodes)
+  })
+
   it('formatToTimecode beyond one hour and with the default fps', () => {
     expect(formatToTimecode(93799, 25)).toBe('01:02:31:24')
     expect(formatToTimecode(86400 + 1440 + 24 + 7, 24)).toBe('01:01:01:07')
