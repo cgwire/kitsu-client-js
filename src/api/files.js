@@ -1047,6 +1047,8 @@ export const filesApi = http => {
 
     /**
      * Download the original file of a preview, movie or not.
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the original file.
@@ -1084,6 +1086,8 @@ export const filesApi = http => {
     },
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the PNG thumbnail.
@@ -1095,6 +1099,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the full size PNG
@@ -1188,6 +1194,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the original movie.
@@ -1201,6 +1209,8 @@ export const filesApi = http => {
     },
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the low definition
