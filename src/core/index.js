@@ -57,7 +57,9 @@ const resolveTimeout = (timeout = {}) =>
  *   access token.
  * @property {string} [eventHost] Defaults to the host without "/api".
  * @property {Function} [io] The socket.io-client "io" function. Left out,
- *   the first events.on() imports the optional peer "socket.io-client".
+ *   the first events.on() imports the optional peer "socket.io-client",
+ *   which only works in Node without a bundler: a bundled app, in a browser
+ *   or not, passes io.
  * @property {{response?: number|null, deadline?: number|null}} [timeout]
  *   Milliseconds to the first byte (60 000) and for the whole call
  *   (300 000). A key left out, undefined or null keeps its default; 0 or
