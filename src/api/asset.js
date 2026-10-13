@@ -161,34 +161,58 @@ export const assetApi = http => {
     },
 
     /**
-     * Share assets between projects, or stop sharing them. The scope is the
-     * given assets, narrowed or replaced by a project, or by an asset type of
-     * a project (assets is ignored by Zou in that last case).
+     * Share assets between projects, or stop sharing them: the given assets,
+     * narrowed to a project when one is given, every asset of an asset type
+     * of a project, or every asset of a project with all.
      * @param {{
      *   assets?: Model[],
      *   project?: Model,
      *   assetType?: Model,
+     *   all?: boolean,
      *   isShared?: boolean,
      *   signal?: AbortSignal
-     * }} [options] Without a project, assets is required. assetType needs its
-     *   project.
+     * }} [options] Give one of assets, assetType or all: true. assets cannot
+     *   be empty: Zou would read an empty list as every asset of the project.
+     *   assetType and all need the project.
      * @returns {Promise<Entity[]>} The updated assets.
      */
     shareAssets: async ({
       assets,
       project,
       assetType,
+      all = false,
       isShared = true,
       signal
     } = {}) => {
       const projectId = optionalIdOf(project)
       const assetTypeId = optionalIdOf(assetType)
-      if (projectId === null && assetTypeId !== null) {
+      const listed = assets !== null && assets !== undefined
+      // Zou widens an empty list to the whole project, and ignores the list
+      // on the asset type route: each scope is asked for explicitly.
+      if (listed && !Array.isArray(assets)) {
+        throw new ParameterError('Wrong format: assets must be a list')
+      }
+      if (listed && assets.length === 0) {
         throw new ParameterError(
-          'Missing parameter: project is required with assetType'
+          'Missing parameter: assets is empty, all: true shares every asset of the project'
         )
       }
-      if (projectId === null) requiredOf('assets', assets)
+      const scopes = [listed, assetTypeId !== null, Boolean(all)]
+      if (!scopes.includes(true)) {
+        throw new ParameterError(
+          'Missing parameter: assets, assetType or all: true is required'
+        )
+      }
+      if (scopes.filter(Boolean).length > 1) {
+        throw new ParameterError(
+          'Wrong format: assets, assetType and all: true exclude each other'
+        )
+      }
+      if (projectId === null && !listed) {
+        throw new ParameterError(
+          'Missing parameter: project is required with assetType or all'
+        )
+      }
       const typeScope =
         assetTypeId === null ? '' : `asset-types/${assetTypeId}/`
       const scope =
@@ -196,7 +220,7 @@ export const assetApi = http => {
       return http.post(
         `actions/${scope}assets/share`,
         {
-          ...withoutNil({ asset_ids: assets ? idsOf(assets) : null }),
+          ...(listed ? { asset_ids: idsOf(assets) } : {}),
           is_shared: isShared
         },
         { signal }
