@@ -55,8 +55,9 @@ export const floorToFrame = (time, fps) => {
  * Turn a number of frames into seconds. The production fps wins over the
  * shot fps, and `DEFAULT_FPS` applies when neither is set.
  * @param {number} nbFrames Number of frames.
- * @param {{fps?: number|string}|null} [production] Zou stores fps as a string.
- * @param {{fps?: number|string}|null} [shot]
+ * @param {{fps?: number|string, [field: string]: any}|null} [production] Zou
+ *   stores fps as a string.
+ * @param {{fps?: number|string, [field: string]: any}|null} [shot]
  * @returns {number} Duration in seconds, rounded to the millisecond.
  */
 export const frameToSeconds = (nbFrames, production, shot) => {
@@ -114,7 +115,10 @@ export const formatFrame = frame => `${frame < 0 ? 0 : frame}`.padStart(3, '0')
 /**
  * Get the production start frame of an entity: a shot numbered from
  * `data.frame_in`, for instance 1001.
- * @param {{data?: {frame_in?: number|string}|null}|null} [entity]
+ * @param {{
+ *   data?: {frame_in?: number|string, [field: string]: any}|null,
+ *   [field: string]: any
+ * }|null} [entity]
  * @returns {number|undefined} The start frame, undefined when the entity
  * carries no usable value.
  */

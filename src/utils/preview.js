@@ -88,7 +88,8 @@ export const isFilePreview = extension =>
  * padding, 3 turns 0 into "v000" and 42 into "v042", while a wider number is
  * never truncated (1001 gives "v1001").
  * @param {number|string|null} [revision] Revision of the preview file.
- * @param {{revision_padding?: number}|null} [project] Project of the preview.
+ * @param {{revision_padding?: number, [field: string]: any}|null} [project]
+ *   Project of the preview.
  * @returns {string} The label, or an empty string for a missing revision.
  */
 export const formatRevision = (revision, project) => {
