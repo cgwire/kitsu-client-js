@@ -257,6 +257,8 @@ export const userApi = http => ({
     ),
 
   /**
+   * Only reaches the filters of the user, any filter for an admin: another
+   * one rejects with a NotFoundError.
    * @param {Model} filter
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
@@ -265,6 +267,12 @@ export const userApi = http => ({
     http.remove('user/filters', idOf(filter), {}, { signal }),
 
   /**
+   * Zou only changes name, search_query (the query given to newFilter),
+   * search_filter_group_id, is_shared, project_id and department_id, and
+   * ignores any other key: a query key changes nothing. A filter in a group
+   * keeps the is_shared of the group (ParameterError otherwise). Only
+   * reaches the filters of the user, any filter for an admin: another one
+   * rejects with a NotFoundError.
    * @param {Entity} filter The filter to save, with its id.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated filter.
@@ -345,14 +353,19 @@ export const userApi = http => ({
     ),
 
   /**
+   * Only reaches the groups of the user, any group for an admin.
    * @param {Model} filterGroup
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The filter group, null when missing.
+   * @returns {Promise<Entity|null>} The filter group, null when missing or
+   *   when it belongs to someone else, shared or not.
    */
   getFilterGroup: async (filterGroup, { signal } = {}) =>
     http.fetchOne('user/filter-groups', idOf(filterGroup), { signal }),
 
   /**
+   * Zou only changes name, color, is_shared, project_id and department_id:
+   * the list type and the entity type stay. Only reaches the groups of the
+   * user, any group for an admin: another one rejects with a NotFoundError.
    * @param {Entity} filterGroup The filter group to save, with its id.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated filter group.
@@ -363,6 +376,9 @@ export const userApi = http => ({
     }),
 
   /**
+   * Zou deletes the filters of the group with it, whoever they belong to.
+   * Only reaches the groups of the user, any group for an admin: another
+   * one rejects with a NotFoundError.
    * @param {Model} filterGroup
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
