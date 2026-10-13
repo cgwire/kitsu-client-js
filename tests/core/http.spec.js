@@ -191,6 +191,35 @@ describe('http errors', () => {
       NetworkError
     )
   })
+
+  // undici always says "fetch failed": the reason is in its cause.
+  it('keeps the failure of the fetch, and the reason undici gives, in a network error', async () => {
+    const failure = Object.assign(new TypeError('fetch failed'), {
+      cause: new Error('self-signed certificate')
+    })
+    const failing = async () => {
+      throw failure
+    }
+    const err = await makeHttp(failing)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(NetworkError)
+    expect(err.cause).toBe(failure)
+    expect(err.message).toBe(
+      'GET data/tasks failed: fetch failed: self-signed certificate'
+    )
+  })
+
+  it('tells the reason of a fetch rejecting with a string, as the Tauri http plugin does', async () => {
+    const reason = `error sending request for url (${HOST}/data/tasks)`
+    const tauri = () => Promise.reject(reason)
+    const err = await makeHttp(tauri)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(NetworkError)
+    expect(err.message).toBe(`GET data/tasks failed: ${reason}`)
+    expect(err.cause).toBe(reason)
+  })
 })
 
 // The answers of flask-jwt-extended for a token it cannot decode, which Zou
