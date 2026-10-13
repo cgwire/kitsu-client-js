@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
 
 /**
@@ -5,6 +6,16 @@ import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// null is no filter, as for the other options. Anything but a list, a single
+// person included, is refused before any request.
+const personIdsOf = persons => {
+  if (persons === null || persons === undefined) return []
+  if (Array.isArray(persons)) return idsOf(persons)
+  throw new ParameterError(
+    'Wrong format: persons must be a list of ids or entities'
+  )
+}
 
 export const eventApi = http => ({
   /**
@@ -50,7 +61,7 @@ export const eventApi = http => ({
         cursor_event_id: optionalIdOf(lastEvent),
         project_id: optionalIdOf(project),
         only_files: onlyFiles ? true : null,
-        person_ids: idsOf(persons),
+        person_ids: personIdsOf(persons),
         name,
         name_prefixes: namePrefixes,
         name_suffixes: nameSuffixes
@@ -96,7 +107,7 @@ export const eventApi = http => ({
         before: datetimeOf(before),
         limit,
         cursor_login_log_id: optionalIdOf(lastLoginLog),
-        person_ids: idsOf(persons)
+        person_ids: personIdsOf(persons)
       },
       { signal }
     )
