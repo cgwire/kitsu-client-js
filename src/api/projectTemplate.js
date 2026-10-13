@@ -30,6 +30,23 @@ const withoutLinks = template =>
     Object.entries(template).filter(([key]) => !LINK_FIELDS.includes(key))
   )
 
+// The choices of the board roles of a task status link. Zou stores any
+// string there, then fails on every later read of the link.
+const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
+
+const boardRolesOf = roles => {
+  if (
+    roles === null ||
+    roles === undefined ||
+    (Array.isArray(roles) && roles.every(role => ROLES.includes(role)))
+  ) {
+    return roles
+  }
+  throw new ParameterError(
+    `Wrong format: rolesForBoard must be a list of ${ROLES.join(', ')}`
+  )
+}
+
 export const projectTemplateApi = http => {
   const templatePath = projectTemplate =>
     `data/project-templates/${idOf(projectTemplate)}`
@@ -262,7 +279,7 @@ export const projectTemplateApi = http => {
      *   rolesForBoard?: string[],
      *   signal?: AbortSignal
      * }} [options] rolesForBoard lists the roles allowed to see the status on
-     *   the board.
+     *   the board, among user, admin, supervisor, manager, client and vendor.
      * @returns {Promise<Entity>} The link, created or updated.
      */
     addTaskStatusToProjectTemplate: async (
@@ -276,7 +293,7 @@ export const projectTemplateApi = http => {
         withoutNil({
           task_status_id: idOf(taskStatus),
           priority,
-          roles_for_board: rolesForBoard
+          roles_for_board: boardRolesOf(rolesForBoard)
         }),
         signal
       ),

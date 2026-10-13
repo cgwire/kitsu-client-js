@@ -204,6 +204,25 @@ describe('projectTemplate namespace: links', () => {
     })
   })
 
+  // Zou would store the code, then fail on every read of the link.
+  it('addTaskStatusToProjectTemplate rejects an unknown board role', async () => {
+    await expect(
+      kitsu.projectTemplate.addTaskStatusToProjectTemplate(
+        TEMPLATE_ID,
+        TASK_STATUS_ID,
+        { rolesForBoard: ['artist'] }
+      )
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.addTaskStatusToProjectTemplate(
+        TEMPLATE_ID,
+        TASK_STATUS_ID,
+        { rolesForBoard: 'admin' }
+      )
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('setProjectTemplateDefaultPreviewBackgroundFile sets the default', async () => {
     fake.reply(200, { id: TEMPLATE_ID })
     expect(
