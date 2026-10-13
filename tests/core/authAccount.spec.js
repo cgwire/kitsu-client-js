@@ -88,6 +88,13 @@ describe('TOTP', () => {
     expect(onTokensChange).toHaveBeenCalledWith(NEW_TOKENS)
   })
 
+  // Zou only issues recovery codes with the first method a user enables.
+  it('enableTotp resolves null when the user already has recovery codes', async () => {
+    fake.reply(200, { otp_recovery_codes: null, ...NEW_TOKENS })
+    expect(await kitsu.enableTotp('123456')).toBeNull()
+    expect(kitsu.getTokens()).toEqual(NEW_TOKENS)
+  })
+
   it('enableTotp keeps the tokens when Zou sends none', async () => {
     fake.reply(200, { otp_recovery_codes: CODES })
     await kitsu.enableTotp('123456')
