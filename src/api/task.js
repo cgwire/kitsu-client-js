@@ -611,12 +611,14 @@ export const taskApi = http => {
       allTasksForEntity(sequence, 'sequences', 'tasks', options),
 
     /**
+     * Zou reads no relations option on this route: the tasks come without
+     * their assignees.
      * @param {Model} scene
-     * @param {RelationsOptions} [options]
+     * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Tasks of the scene, sorted by name.
      */
-    allTasksForScene: async (scene, options) =>
-      allTasksForEntity(scene, 'scenes', 'tasks', options),
+    allTasksForScene: async (scene, { signal } = {}) =>
+      allTasksForEntity(scene, 'scenes', 'tasks', { signal }),
 
     /**
      * @param {Model} asset
@@ -627,12 +629,14 @@ export const taskApi = http => {
       allTasksForEntity(asset, 'assets', 'tasks', options),
 
     /**
+     * Zou reads no relations option on this route: the tasks come without
+     * their assignees.
      * @param {Model} episode
-     * @param {RelationsOptions} [options]
+     * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Tasks of the episode, sorted by name.
      */
-    allTasksForEpisode: async (episode, options) =>
-      allTasksForEntity(episode, 'episodes', 'tasks', options),
+    allTasksForEpisode: async (episode, { signal } = {}) =>
+      allTasksForEntity(episode, 'episodes', 'tasks', { signal }),
 
     /**
      * @param {Model} sequence
