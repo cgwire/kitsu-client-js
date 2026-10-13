@@ -547,7 +547,8 @@ export const userApi = http => ({
    *   the first file: Zou stores a bare Blob as "blob". onProgress only
    *   applies to attachments and needs XMLHttpRequest (browsers, webviews):
    *   fetch cannot report it. A client given its own fetch (Tauri) uploads
-   *   through it and never calls onProgress.
+   *   through it and never calls onProgress, unless created with
+   *   xhrUploads: true.
    * @returns {Promise<Entity>} The created message.
    */
   newChatMessage: async (
