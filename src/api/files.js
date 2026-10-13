@@ -98,6 +98,15 @@ const outputFileFilters = ({
   file_status_id: optionalIdOf(fileStatus)
 })
 
+// Zou counts preview positions and movie frames from 1: below, a position
+// changes nothing and a frame number seeks before the first frame.
+const fromOneOf = (label, value) => {
+  if (Number.isInteger(value) && value >= 1) return value
+  throw new ParameterError(
+    `Wrong format: ${label} must be an integer counted from 1`
+  )
+}
+
 // The backslash is the escape character of the LIKE patterns of PostgreSQL.
 const likeEscaped = name => String(name).replace(/[\\%_]/g, '\\$&')
 
@@ -1189,7 +1198,8 @@ export const filesApi = http => {
 
     /**
      * @param {Model} previewFile
-     * @param {number} frameNumber
+     * @param {number} frameNumber Counted from 1, as the frame of an
+     *   annotation.
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the frame picture.
      */
@@ -1201,20 +1211,26 @@ export const filesApi = http => {
       http.request(
         'GET',
         `actions/preview-files/${idOf(previewFile)}/extract-frame`,
-        { raw: true, query: { frame_number: frameNumber }, signal }
+        {
+          raw: true,
+          query: { frame_number: fromOneOf('frameNumber', frameNumber) },
+          signal
+        }
       ),
 
     /**
      * Set the displayed order of a preview among those of its revision.
      * @param {Model} previewFile
-     * @param {number} position
+     * @param {number} position Counted from 1, up to the number of previews
+     *   of the revision: Zou keeps the order as it is for a position past
+     *   the last one.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated preview file.
      */
     updatePreviewPosition: async (previewFile, position, { signal } = {}) =>
       http.put(
         `actions/preview-files/${idOf(previewFile)}/update-position`,
-        { position },
+        { position: fromOneOf('position', position) },
         { signal }
       ),
 
