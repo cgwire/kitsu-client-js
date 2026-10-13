@@ -1006,6 +1006,9 @@ export const taskApi = http => {
     },
 
     /**
+     * Delete the task with its whole history: comments, previews, working
+     * and output files, time spent, notifications and subscriptions. Nothing
+     * brings them back.
      * @param {Model} task
      * @param {RequestOptions} [options]
      * @returns {Promise<null>}
@@ -1119,7 +1122,8 @@ export const taskApi = http => {
     },
 
     /**
-     * Delete every task of a task type in a project.
+     * Delete every task of a task type in a project, each with its whole
+     * history, like removeTask. Reserved to studio admins.
      * @param {Model} project
      * @param {Model} taskType
      * @param {RequestOptions} [options]
@@ -1133,6 +1137,8 @@ export const taskApi = http => {
       ),
 
     /**
+     * Delete tasks of the project, each with its whole history, like
+     * removeTask.
      * @param {Model} project
      * @param {Model[]} tasks
      * @param {RequestOptions} [options]
