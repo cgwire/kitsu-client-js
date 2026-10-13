@@ -7,6 +7,7 @@ import {
   ENTITY_ID,
   EPISODE_ID,
   OTHER_ID,
+  PERSON_ID,
   PLAYLIST_ID,
   PREVIEW_FILE_ID,
   PROJECT_ID,
@@ -32,10 +33,23 @@ const STORED_ENTRIES = [
 ]
 const STORED = { id: PLAYLIST_ID, name: 'Dailies', shots: STORED_ENTRIES }
 
-// Bodies are compared without their id: an update sends it in its path, and
-// whether the body repeats it is up to http.update.
-const withoutId = body =>
-  Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
+// What getPlaylist answers: the CRUD read, its build jobs included.
+const READ = {
+  type: 'Playlist',
+  id: PLAYLIST_ID,
+  name: 'Dailies',
+  shots: STORED_ENTRIES,
+  project_id: PROJECT_ID,
+  episode_id: null,
+  task_type_id: null,
+  for_client: false,
+  for_entity: 'shot',
+  is_for_all: false,
+  created_by: PERSON_ID,
+  build_jobs: [BUILD_JOB_ID],
+  created_at: '2026-10-01T10:00:00',
+  updated_at: '2026-10-02T10:00:00'
+}
 
 describe('playlist namespace: writes', () => {
   let kitsu, fake
@@ -338,8 +352,25 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    expect(fake.calls[1].body).toEqual({ shots: updated.shots })
     expect(row).toEqual(LIST_ROW)
+  })
+
+  // Its build_jobs would drop a build job started since the read (Zou then
+  // answers a 400), its other fields would revert the changes made since.
+  it.each([
+    ['removeEntityFromPlaylist', [SHOT_ID]],
+    ['updateEntityPreview', [SHOT_ID, NEWER_PREVIEW_ID]]
+  ])('%s saves only the entries of a read playlist', async (name, args) => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    const updated = await kitsu.playlist[name](READ, ...args)
+    expect(updated).toMatchObject({ ...READ, shots: expect.any(Array) })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+    expect(fake.calls[0].body).toEqual({ shots: updated.shots })
   })
 
   it('updateEntityPreview keeps the stored entries of a list row', async () => {
@@ -362,7 +393,7 @@ describe('playlist namespace: writes', () => {
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    expect(fake.calls[1].body).toEqual({ shots: updated.shots })
   })
 
   it.each([[PLAYLIST_ID], [{ id: PLAYLIST_ID }]])(
@@ -381,7 +412,7 @@ describe('playlist namespace: writes', () => {
         method: 'PUT',
         path: `/data/playlists/${PLAYLIST_ID}`
       })
-      expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+      expect(fake.calls[1].body).toEqual({ shots: updated.shots })
     }
   )
 
@@ -412,7 +443,7 @@ describe('playlist namespace: writes', () => {
     await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
       id: NEWER_PREVIEW_ID
     })
-    expect(withoutId(fake.calls[1].body)).toEqual({ shots: [] })
+    expect(fake.calls[1].body).toEqual({ shots: [] })
   })
 
   it('addEntityToPlaylist without persist adds to the stored entries', async () => {
