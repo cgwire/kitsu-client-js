@@ -113,7 +113,11 @@ export const conceptApi = http => {
       const body = {
         name,
         data: { ...data },
-        entity_concept_links: idsOf(entityConceptLinks || []),
+        // Zou validates the links as dicts and reads the id of each: a list
+        // of id strings is refused (400) and the concept is not created.
+        entity_concept_links: idsOf(entityConceptLinks || []).map(id => ({
+          id
+        })),
         ...withoutNil({ description })
       }
       const path = `data/projects/${idOf(project)}/concepts`
