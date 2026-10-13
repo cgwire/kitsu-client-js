@@ -1,3 +1,4 @@
+import { KitsuError } from '../core/errors.js'
 import {
   idOf,
   optionalIdOf,
@@ -22,6 +23,19 @@ const otioNamingConvention = episodeId =>
   episodeId
     ? '${project_name}_${episode_name}-${sequence_name}-${shot_name}'
     : '${project_name}_${sequence_name}-${shot_name}'
+
+// Zou serves its CSV exports as text/csv: a page answered with a 2xx
+// instead (a host given without /api, an SSO portal) is not the export.
+const readCsv = path => async response => {
+  const type = response.headers.get('Content-Type') || ''
+  if (type.includes('csv')) return response.text()
+  throw new KitsuError(`GET ${path} answered ${response.status} without CSV`, {
+    status: response.status,
+    path,
+    method: 'GET',
+    body: await response.text()
+  })
+}
 
 const idKey = id => (id ? String(id).toLowerCase() : null)
 
@@ -579,8 +593,12 @@ export const shotApi = http => {
      *   the shots with at least one task assigned to that person.
      * @returns {Promise<string>} The shots of the project, as CSV.
      */
-    exportShotsWithCsv: async (project, { episode, assignedTo, signal } = {}) =>
-      http.request('GET', `export/csv/projects/${idOf(project)}/shots.csv`, {
+    exportShotsWithCsv: async (
+      project,
+      { episode, assignedTo, signal } = {}
+    ) => {
+      const path = `export/csv/projects/${idOf(project)}/shots.csv`
+      return http.request('GET', path, {
         query: {
           episode_id: optionalIdOf(episode),
           assigned_to: optionalIdOf(assignedTo)
@@ -588,8 +606,9 @@ export const shotApi = http => {
         signal,
         // A CSV table: the http core refuses a non-JSON body unless told how
         // to read it.
-        read: response => response.text()
-      }),
+        read: readCsv(path)
+      })
+    },
 
     /**
      * The shots with their tasks, as the shot list of the Kitsu web app loads

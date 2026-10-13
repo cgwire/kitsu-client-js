@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ParameterError } from '../../src/index.js'
+import { KitsuError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { EPISODE_ID, PERSON_ID, PROJECT_ID, SHOT_ID } from '../helpers/ids.js'
 
@@ -143,6 +143,25 @@ describe('shot namespace: transfers', () => {
     expect(fake.calls[0].query.get('assigned_to')).toBe(PERSON_ID)
   })
 
+  // A host given without /api serves the web app with a 200.
+  it('exportShotsWithCsv refuses a page that is not CSV', async () => {
+    fake.on(
+      'GET',
+      `/export/csv/projects/${PROJECT_ID}/shots.csv`,
+      () =>
+        new Response('<!doctype html><title>Kitsu</title>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        })
+    )
+    const err = await kitsu.shot.exportShotsWithCsv(PROJECT_ID).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      method: 'GET',
+      path: `export/csv/projects/${PROJECT_ID}/shots.csv`
+    })
+  })
+
   // The core aborts its own request signal as soon as the caller signal is
   // aborted: an aborted request signal proves the option went through.
   it.each([
@@ -152,6 +171,9 @@ describe('shot namespace: transfers', () => {
   ])('%s forwards the caller signal', async (name, args) => {
     const controller = new AbortController()
     controller.abort()
+    fake.on('GET', `/export/csv/projects/${PROJECT_ID}/shots.csv`, () =>
+      csvResponse('Sequence;Name\n')
+    )
     fake.reply(200, [])
     await kitsu.shot[name](...args, { signal: controller.signal })
     expect(fake.calls[0].signal.aborted).toBe(true)
