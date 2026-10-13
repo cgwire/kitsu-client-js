@@ -168,13 +168,13 @@ export const playlistApi = http => {
      * @param {Model} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Record<string, any>[]>} The entries of the playlist,
-     *   sorted by name.
+     *   in the playlist order: an entity_id and a preview_file_id each
+     *   (missing or null when the entry has no preview).
      */
     allShotsForPlaylist: async (playlist, { signal } = {}) =>
       http
         .get(`data/playlists/${idOf(playlist)}`, {}, { signal })
-        .then(entriesOf)
-        .then(sortedByName),
+        .then(entriesOf),
 
     /**
      * @param {Model} project

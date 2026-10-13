@@ -8,6 +8,7 @@ import {
   EPISODE_ID,
   OTHER_ID,
   PLAYLIST_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
   SHOT_ID
 } from '../helpers/ids.js'
@@ -32,20 +33,15 @@ describe('playlist namespace: reads', () => {
     })
   })
 
-  it('allShotsForPlaylist returns the entries of the playlist', async () => {
-    fake.reply(200, {
-      id: PLAYLIST_ID,
-      shots: [
-        { entity_id: SHOT_ID, name: 'SH020' },
-        { entity_id: OTHER_ID, name: 'SH010' }
-      ]
-    })
+  it('allShotsForPlaylist returns the entries in the playlist order', async () => {
+    const shots = [
+      { entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID },
+      { entity_id: OTHER_ID }
+    ]
+    fake.reply(200, { id: PLAYLIST_ID, shots })
     expect(
       await kitsu.playlist.allShotsForPlaylist({ id: PLAYLIST_ID })
-    ).toEqual([
-      { entity_id: OTHER_ID, name: 'SH010' },
-      { entity_id: SHOT_ID, name: 'SH020' }
-    ])
+    ).toEqual(shots)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}`
