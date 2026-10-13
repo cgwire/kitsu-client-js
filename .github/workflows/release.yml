@@ -17,6 +17,10 @@ on:
           - patch
           - minor
           - major
+      confirm:
+        description: Major only, the new version typed again (for instance 1.0.0)
+        required: false
+        type: string
       notes:
         description: Line shown above the generated release notes (optional)
         required: false
@@ -48,6 +52,18 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
+      # A major version freezes the API and can never be reused on npm: a wrong
+      # pick in the list stops here, before anything is committed or tagged.
+      - name: Confirm a major release
+        if: inputs.bump == 'major'
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          next="$(node -p "Number(require('./package.json').version.split('.')[0]) + 1").0.0"
+          if [ "$CONFIRM" != "$next" ]; then
+            echo "::error::A major release needs its version in the confirm field: $next"
+            exit 1
+          fi
       - name: Install npm dependencies
         run: |
           echo "Node.js $(node -v)"
