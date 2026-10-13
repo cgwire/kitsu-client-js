@@ -22,3 +22,13 @@ CRUD route `/data/tasks/<id>`.
 [`docs/kitsu-store-api-mapping.json`](./kitsu-store-api-mapping.json) maps every API function of the Kitsu web
 app to the client function covering it. `tests/mapping.spec.js` fails when a
 mapped function does not exist.
+
+## Releases
+
+Run the "Release Kitsu Client" workflow from the Actions tab, on `main`, and
+pick the part of the version to increase: in 0.x, a minor release may break
+the API. The optional line goes above the generated release notes, for
+instance a new minimum Zou version. The workflow runs the checks, commits and
+tags the version, creates the GitHub release and starts "Publish Kitsu Client
+to npm" on the tag. If that publish fails, fix the cause and re-run it: the
+version is already tagged.
