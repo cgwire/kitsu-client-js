@@ -153,6 +153,28 @@ describe('playlist namespace: writes', () => {
     expect(playlist).toEqual(copy)
   })
 
+  // Its build_jobs would drop a build job started since the read, which Zou
+  // refuses with a 400.
+  it('updatePlaylist leaves out the build jobs and the read-only keys', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist({
+      ...READ,
+      name: 'Renamed',
+      first_preview_file_id: PREVIEW_FILE_ID
+    })
+    expect(fake.calls[0].body).toEqual({
+      name: 'Renamed',
+      shots: STORED_ENTRIES,
+      project_id: PROJECT_ID,
+      episode_id: null,
+      task_type_id: null,
+      for_client: false,
+      for_entity: 'shot',
+      is_for_all: false,
+      created_by: PERSON_ID
+    })
+  })
+
   // A playlist read before its first entry carries shots: null, which Zou
   // answers with a 400.
   it('updatePlaylist leaves out shots: null', async () => {
