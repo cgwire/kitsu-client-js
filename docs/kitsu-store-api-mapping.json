@@ -2157,7 +2157,7 @@
     "route": "/data/projects/<id>/metadata-descriptors",
     "client": "project.addMetadataDescriptor",
     "status": "existing",
-    "note": "Same body: Kitsu maps descriptor.values to choices; the client takes name, entityType and options (dataType, choices, forClient, departments, taskTypeId)"
+    "note": "Same body: Kitsu maps descriptor.values to choices; the client takes name, entityType and options (dataType, choices, forClient, departments, taskType)"
   },
   {
     "module": "productions",

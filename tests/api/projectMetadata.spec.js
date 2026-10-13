@@ -65,7 +65,7 @@ describe('project namespace: metadata descriptors', () => {
       choices: ['yes', 'no'],
       forClient: true,
       departments: [{ id: DEPARTMENT_ID }, OTHER_ID],
-      taskTypeId: { id: TASK_TYPE_ID }
+      taskType: { id: TASK_TYPE_ID }
     })
     expect(fake.calls[0].body).toEqual({
       name: 'Retake',
