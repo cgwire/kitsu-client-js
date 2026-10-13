@@ -521,15 +521,25 @@ export const playlistApi = http => {
       }),
 
     /**
-     * Tell the clients that the playlist is ready.
+     * Tell the clients of the project that the playlist is ready.
      * @param {Model} playlist
-     * @param {RequestOptions} [options]
+     * @param {{
+     *   studio?: Model|null,
+     *   department?: Model|null,
+     *   signal?: AbortSignal
+     * }} [options] studio and department only tell the clients of theirs.
      * @returns {Promise<Record<string, any>>}
      */
-    notifyClientsPlaylistReady: async (playlist, { signal } = {}) =>
+    notifyClientsPlaylistReady: async (
+      playlist,
+      { studio = null, department = null, signal } = {}
+    ) =>
       http.post(
         `data/playlists/${idOf(playlist)}/notify-clients`,
-        {},
+        withoutNil({
+          studio_id: optionalIdOf(studio),
+          department_id: optionalIdOf(department)
+        }),
         { signal }
       ),
 
