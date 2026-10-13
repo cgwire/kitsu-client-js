@@ -61,3 +61,10 @@ Nothing is shared between two clients: tokens, in-flight requests and the
 event socket all belong to the instance. Two clients can talk to two servers,
 or to the same server under two accounts. `kitsu.close()` aborts the
 in-flight requests and closes the socket.
+
+Session changes apply in call order, whatever order the answers land in.
+`logOut` drops the session at once, then asks Zou to revoke it. A `logIn`
+overtaken by a later `logIn`, `logOut`, `setToken` or two-factor setup keeps
+nothing of its answer and rejects with an `AbortError`, even when the later
+call fails: a login sent twice with a single-use code (a recovery code, an
+email OTP) can end with no session at all.
