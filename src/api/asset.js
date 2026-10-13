@@ -729,12 +729,28 @@ export const assetApi = http => {
     },
 
     /**
-     * @param {{entity_type_id: string}} asset
+     * @param {Model|{
+     *   id: string,
+     *   entity_type_id?: string,
+     *   asset_type_id?: string,
+     *   [field: string]: any
+     * }} asset An asset given as an id, or as an object without its
+     *   entity_type_id (getAsset) or asset_type_id (allAssetsWithTasks), is
+     *   read first.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The asset type of the asset.
+     * @returns {Promise<Entity|null>} The asset type of the asset, null when
+     *   the asset does not exist.
      */
-    getAssetTypeFromAsset: async (asset, { signal } = {}) =>
-      assetTypeOf(asset.entity_type_id, signal),
+    getAssetTypeFromAsset: async (asset, { signal } = {}) => {
+      const typeIdOf = source =>
+        source.entity_type_id || source.asset_type_id || null
+      const known =
+        typeof asset === 'object' && asset !== null && typeIdOf(asset) !== null
+      const source = known
+        ? asset
+        : await http.fetchOne('assets', idOf(asset), { signal })
+      return source === null ? null : assetTypeOf(typeIdOf(source), signal)
+    },
 
     /**
      * Loads the asset and its project, like gazu: the URL differs in a TV show.
