@@ -3102,7 +3102,7 @@
     "route": "/data/tasks/open-tasks/burndown",
     "client": "task.getOpenTasksBurndown",
     "status": "added",
-    "note": "Takes the same filters object as the open tasks list."
+    "note": "Kitsu sends the filters object of the open tasks list; the client takes the same named options as task.allOpenTasks, through one shared query builder."
   },
   {
     "module": "tasks",

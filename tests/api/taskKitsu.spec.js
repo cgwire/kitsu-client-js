@@ -5,11 +5,13 @@ import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   COMMENT_ID,
+  DEPARTMENT_ID,
   EPISODE_ID,
   OTHER_ID,
   PERSON_ID,
   PROJECT_ID,
   SHOT_ID,
+  STUDIO_ID,
   TASK_ID,
   TASK_STATUS_ID,
   TASK_TYPE_ID
@@ -17,6 +19,15 @@ import {
 
 const CSV = 'Parent;Entity;Estimation\nSQ01;SH01;2\n'
 const CREATE_TASKS = `/actions/projects/${PROJECT_ID}/task-types/${TASK_TYPE_ID}`
+
+// The answer of Zou 1.0.94: an object, not a list of days.
+const BURNDOWN = {
+  total: 3,
+  total_estimation: 1440,
+  start_date: '2026-09-01',
+  end_date: '2026-09-30',
+  done_by_day: [{ date: '2026-09-19', done: 1, done_estimation: 480 }]
+}
 
 describe('task namespace: Kitsu store API coverage', () => {
   let kitsu, fake
@@ -66,24 +77,55 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect([...fake.calls[1].query.keys()]).toEqual([])
   })
 
-  it('getOpenTasksBurndown sends the open tasks filters as the query', async () => {
-    fake.reply(200, [{ date: '2026-09-19', open: 3 }]).reply(200, [])
-    expect(
-      await kitsu.task.getOpenTasksBurndown({
-        filters: { project_id: PROJECT_ID, person_id: 'unassigned' }
-      })
-    ).toEqual([{ date: '2026-09-19', open: 3 }])
-    await kitsu.task.getOpenTasksBurndown()
+  it('getOpenTasksBurndown takes the filters of allOpenTasks', async () => {
+    fake.reply(200, BURNDOWN).reply(200, BURNDOWN).reply(200, BURNDOWN)
+    expect(await kitsu.task.getOpenTasksBurndown()).toEqual(BURNDOWN)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/tasks/open-tasks/burndown'
     })
-    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+    await kitsu.task.getOpenTasksBurndown({
+      project: PROJECT_ID,
+      taskType: { id: TASK_TYPE_ID },
+      taskStatus: TASK_STATUS_ID,
+      persons: [PERSON_ID, { id: OTHER_ID }],
+      department: DEPARTMENT_ID,
+      studio: { id: STUDIO_ID },
+      startDate: new Date(2026, 8, 1),
+      dueDate: '2026-09-30',
+      priority: 2
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
       project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      person_id: `${PERSON_ID},${OTHER_ID}`,
+      department_id: DEPARTMENT_ID,
+      studio_id: STUDIO_ID,
+      start_date: '2026-09-01',
+      due_date: '2026-09-30',
+      priority: '2'
+    })
+    await kitsu.task.getOpenTasksBurndown({ persons: 'unassigned' })
+    expect(Object.fromEntries(fake.calls[2].query)).toEqual({
       person_id: 'unassigned'
     })
-    expect([...fake.calls[1].query.keys()]).toEqual([])
   })
+
+  it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
+    '%s refuses the filters object of 0.2 without any request',
+    async name => {
+      // Dropped without a word, it would cover every production.
+      await expect(
+        kitsu.task[name]({ filters: { project_id: PROJECT_ID } })
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.task[name]({ project: 'Agent 327' })
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
 
   it('removeTaskComment deletes the comment through its task', async () => {
     fake.reply(204)
