@@ -62,6 +62,20 @@ const withLocalDays = (fields, keys) =>
  *   or by the people of that studio.
  * @typedef {{project?: Model, signal?: AbortSignal}} PersonTimeSpentOptions
  *   project keeps the time spent on that project.
+ * @typedef {{
+ *   task_id: string,
+ *   task_type_id: string,
+ *   project_id: string,
+ *   project_name: string,
+ *   entity_name: string,
+ *   entity_type_name: string,
+ *   sequence_name: string|null,
+ *   episode_name: string|null,
+ *   duration: number
+ * }} TaskTimeTotal The time a person spent on a task over a period, in
+ *   minutes, with the names a timesheet shows.
+ * @typedef {Record<string, Record<string, number>>} TimeTable Minutes spent
+ *   by each person, keyed by period, then by person id.
  * @typedef {{countMode?: string, signal?: AbortSignal}} QuotaOptions
  *   countMode is weighted (default of the API), weighteddone, feedback or
  *   done.
@@ -579,8 +593,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} week
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the week,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the week, null when the person does not exist.
    */
   getWeekTimeSpents: async (person, year, week, options) =>
     getPersonTimeSpents(
@@ -594,8 +608,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the
-   *   month, null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the month, null when the person does not exist.
    */
   getMonthTimeSpents: async (person, year, month, options) =>
     getPersonTimeSpents(
@@ -610,8 +624,8 @@ export const personApi = http => ({
    * @param {number} month From 1 (January) to 12.
    * @param {number} day
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the day,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task that day, null when the person does not exist.
    */
   getDayTimeSpents: async (person, year, month, day, options) =>
     getPersonTimeSpents(
@@ -624,8 +638,8 @@ export const personApi = http => ({
    * @param {Model} person
    * @param {number} year
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the year,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the year, null when the person does not exist.
    */
   getYearTimeSpents: async (person, year, options) =>
     getPersonTimeSpents(
@@ -638,8 +652,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each day of the
-   *   month.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each day
+   *   of the month, keyed by day (1 to 31), then by person id.
    */
   getTimeSpentsDayTable: async (year, month, options) =>
     getTimeSpents(
@@ -651,8 +665,8 @@ export const personApi = http => ({
   /**
    * @param {number} year
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each week of the
-   *   year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each week
+   *   of the year, keyed by ISO week number, then by person id.
    */
   getTimeSpentsWeekTable: async (year, options) =>
     getTimeSpents(
@@ -664,8 +678,8 @@ export const personApi = http => ({
   /**
    * @param {number} year
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each month of the
-   *   year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each
+   *   month of the year, keyed by month (1 to 12), then by person id.
    */
   getTimeSpentsMonthTable: async (year, options) =>
     getTimeSpents(
@@ -676,7 +690,8 @@ export const personApi = http => ({
 
   /**
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each
+   *   year, keyed by year, then by person id.
    */
   getTimeSpentsYearTable: async options =>
     getTimeSpents(http, 'data/persons/time-spents/year-table', options),
