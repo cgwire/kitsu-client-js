@@ -419,8 +419,13 @@ export const projectApi = http => ({
       ),
 
   /**
+   * Change fields of the descriptor. The others keep their value: the
+   * descriptor is read first and saved with the given fields merged in. A
+   * new name also renames the field, and its values move with it.
    * @param {Model} project
-   * @param {{id: string, [field: string]: any}} metadataDescriptor
+   * @param {{id: string, [field: string]: any}} metadataDescriptor The id
+   *   and the fields to change: name, data_type, choices, for_client and
+   *   departments (entities or ids).
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated metadata descriptor.
    */
@@ -428,18 +433,31 @@ export const projectApi = http => ({
     project,
     metadataDescriptor,
     { signal } = {}
-  ) =>
-    http.update(
-      descriptorsOf(project),
-      idOf(metadataDescriptor),
-      Array.isArray(metadataDescriptor.departments)
-        ? {
-            ...metadataDescriptor,
-            departments: idsOf(metadataDescriptor.departments)
-          }
-        : metadataDescriptor,
+  ) => {
+    const id = idOf(metadataDescriptor)
+    const current = await http.get(
+      `data/${descriptorsOf(project)}/${id}`,
+      {},
       { signal }
-    ),
+    )
+    // Zou writes every field of the descriptor, its default for a missing
+    // one: a partial body would reset the type, the choices, the departments
+    // and the client visibility. The name is the exception: kept when it is
+    // missing, and any name sent sets the field name from it.
+    const merged = { ...current, ...metadataDescriptor }
+    return http.update(
+      descriptorsOf(project),
+      id,
+      withoutNil({
+        name: metadataDescriptor.name,
+        data_type: merged.data_type,
+        choices: merged.choices,
+        for_client: merged.for_client,
+        departments: idsOf(merged.departments || [])
+      }),
+      { signal }
+    )
+  },
 
   /**
    * Remove the descriptor. Zou also erases the values of its field from

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { NotFoundError } from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import {
   DEPARTMENT_ID,
@@ -9,6 +10,24 @@ import {
 } from '../helpers/ids.js'
 
 const DESCRIPTOR_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+
+// A descriptor as the route of a project serves it, with its departments.
+const STORED_DESCRIPTOR = {
+  id: DESCRIPTOR_ID,
+  project_id: PROJECT_ID,
+  entity_type: 'Asset',
+  task_type_id: null,
+  name: 'Difficulty',
+  field_name: 'difficulty',
+  data_type: 'list',
+  choices: ['easy', 'hard'],
+  for_client: true,
+  position: 1,
+  departments: [DEPARTMENT_ID],
+  created_at: '2026-10-01T09:00:00',
+  updated_at: '2026-10-01T09:00:00',
+  type: 'MetadataDescriptor'
+}
 
 describe('project namespace: metadata descriptors', () => {
   let kitsu, fake
@@ -126,34 +145,61 @@ describe('project namespace: metadata descriptors', () => {
     expect(fake.calls[0].query.has('entity_type')).toBe(false)
   })
 
-  it('updateMetadataDescriptor saves the descriptor with department ids', async () => {
-    fake.reply(200, { id: DESCRIPTOR_ID, name: 'Renamed' })
+  it('updateMetadataDescriptor merges the given fields into the descriptor', async () => {
+    fake
+      .reply(200, STORED_DESCRIPTOR)
+      .reply(200, { ...STORED_DESCRIPTOR, departments: [OTHER_ID] })
     const descriptor = {
       id: DESCRIPTOR_ID,
-      name: 'Renamed',
-      departments: [{ id: DEPARTMENT_ID }]
+      departments: [{ id: OTHER_ID }]
     }
     expect(
       await kitsu.project.updateMetadataDescriptor(PROJECT_ID, descriptor)
-    ).toEqual({ id: DESCRIPTOR_ID, name: 'Renamed' })
+    ).toEqual({ ...STORED_DESCRIPTOR, departments: [OTHER_ID] })
     expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/projects/${PROJECT_ID}/metadata-descriptors/${DESCRIPTOR_ID}`
+    })
+    expect(fake.calls[1]).toMatchObject({
       method: 'PUT',
       path: `/data/projects/${PROJECT_ID}/metadata-descriptors/${DESCRIPTOR_ID}`
     })
-    expect(fake.calls[0].body).toEqual({
-      name: 'Renamed',
-      departments: [DEPARTMENT_ID]
+    // Zou keeps the name it is not given, and sets the field name from any
+    // name it is given.
+    expect(fake.calls[1].body).toEqual({
+      data_type: 'list',
+      choices: ['easy', 'hard'],
+      for_client: true,
+      departments: [OTHER_ID]
     })
-    expect(descriptor.departments).toEqual([{ id: DEPARTMENT_ID }])
+    expect(descriptor.departments).toEqual([{ id: OTHER_ID }])
   })
 
-  it('updateMetadataDescriptor leaves out missing departments', async () => {
-    fake.reply(200, {})
+  // Zou resets every field left out of the body to its default.
+  it('updateMetadataDescriptor keeps the fields it is not given', async () => {
+    fake.reply(200, STORED_DESCRIPTOR).reply(200, {})
     await kitsu.project.updateMetadataDescriptor(
       { id: PROJECT_ID },
-      { id: DESCRIPTOR_ID, name: 'Renamed' }
+      { id: DESCRIPTOR_ID, name: 'Shot difficulty' }
     )
-    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Shot difficulty',
+      data_type: 'list',
+      choices: ['easy', 'hard'],
+      for_client: true,
+      departments: [DEPARTMENT_ID]
+    })
+  })
+
+  it('updateMetadataDescriptor rejects when the descriptor does not exist', async () => {
+    fake.reply(404, { message: 'Metadata descriptor not found' })
+    await expect(
+      kitsu.project.updateMetadataDescriptor(PROJECT_ID, {
+        id: DESCRIPTOR_ID,
+        name: 'Renamed'
+      })
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(fake.calls).toHaveLength(1)
   })
 
   // Zou never reads force on this route: the former option sends nothing.
