@@ -38,13 +38,9 @@ const twoDigits = value => String(intOf(value)).padStart(2, '0')
  *   or by the people of that studio.
  * @typedef {{project?: Model, signal?: AbortSignal}} PersonTimeSpentOptions
  *   project keeps the time spent on that project.
- * @typedef {{
- *   project?: Model,
- *   taskType?: Model,
- *   countMode?: string,
- *   signal?: AbortSignal
- * }} QuotaOptions countMode is weighted (default of the API), weighteddone,
- *   feedback or done.
+ * @typedef {{countMode?: string, signal?: AbortSignal}} QuotaOptions
+ *   countMode is weighted (default of the API), weighteddone, feedback or
+ *   done.
  */
 
 /**
@@ -68,22 +64,28 @@ const getTimeSpents = (http, path, { project, studio, signal } = {}) =>
 const getPersonTimeSpents = (http, path, { project, signal } = {}) =>
   orNull(getTimeSpents(http, path, { project, signal }))
 
+// Zou filters the quota shots on the project and the task type even when
+// they are missing: without both, the answer is always empty.
 /**
  * @param {any} http
  * @param {string} path
+ * @param {Model} project
+ * @param {Model} taskType
  * @param {QuotaOptions} [options]
  */
 const getQuotaShots = (
   http,
   path,
-  { project, taskType, countMode, signal } = {}
+  project,
+  taskType,
+  { countMode, signal } = {}
 ) =>
   orNull(
     http.get(
       path,
       {
-        project_id: optionalIdOf(project),
-        task_type_id: optionalIdOf(taskType),
+        project_id: idOf(project),
+        task_type_id: idOf(taskType),
         count_mode: countMode
       },
       { signal }
@@ -657,47 +659,70 @@ export const personApi = http => ({
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered each day of
-   *   the month, null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the month, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getMonthQuotaShots: async (person, year, month, options) =>
+  getMonthQuotaShots: async (person, project, taskType, year, month, options) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/month/${intOf(year)}/${intOf(month)}`,
+      project,
+      taskType,
       options
     ),
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} week
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered during the
-   *   week, null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the week, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getWeekQuotaShots: async (person, year, week, options) =>
+  getWeekQuotaShots: async (person, project, taskType, year, week, options) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/week/${intOf(year)}/${intOf(week)}`,
+      project,
+      taskType,
       options
     ),
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {number} day
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered on that day,
-   *   null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the day, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getDayQuotaShots: async (person, year, month, day, options) =>
+  getDayQuotaShots: async (
+    person,
+    project,
+    taskType,
+    year,
+    month,
+    day,
+    options
+  ) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
+      project,
+      taskType,
       options
     ),
 

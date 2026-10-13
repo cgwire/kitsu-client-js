@@ -1599,7 +1599,7 @@
     "route": "/data/persons/<id>/quota-shots/month/<id>/<id> | /data/persons/<id>/quota-shots/week/<id>/<id> | /data/persons/<id>/quota-shots/day/<id>/<id>/<id> | /data/persons/<id>/quota-shots/year/<id>",
     "client": "person.getMonthQuotaShots | person.getWeekQuotaShots | person.getDayQuotaShots",
     "status": "added",
-    "note": "Dispatcher on detailLevel, one client function per route: add person.getMonthQuotaShots, person.getWeekQuotaShots and person.getDayQuotaShots. Query: project_id, task_type_id, count_mode. The last route (year) has no client function: Zou declares no quota-shots/year route, skip that branch. Kitsu builds a malformed query string (double ampersand) here: go through the query argument."
+    "note": "Dispatcher on detailLevel, one client function per route: add person.getMonthQuotaShots, person.getWeekQuotaShots and person.getDayQuotaShots. Query: project_id, task_type_id, count_mode. Zou answers nothing without the project and the task type, which the client takes as required arguments after the person. The last route (year) has no client function: Zou declares no quota-shots/year route, skip that branch. Kitsu builds a malformed query string (double ampersand) here: go through the query argument."
   },
   {
     "module": "people",
