@@ -103,7 +103,9 @@ export const scheduleApi = http => ({
     http.remove('milestones', idOf(milestone), undefined, { signal }),
 
   /**
-   * Schedule items of a project at the task type level.
+   * Schedule items of a project at the task type level. Zou creates the item
+   * of each task type of the project that has none, from today to tomorrow,
+   * and announces it with a schedule-item:new event.
    * @param {Model} project
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>}
@@ -127,7 +129,9 @@ export const scheduleApi = http => ({
     }),
 
   /**
-   * Schedule items of a task type for one kind of entity.
+   * Schedule items of a task type for one kind of entity. Zou creates the
+   * item of each asset type, sequence, edit or episode that has none, from
+   * today to tomorrow, and announces it with a schedule-item:new event.
    * @param {Model} project
    * @param {Model} taskType
    * @param {ScheduleItemKind} kind
@@ -147,7 +151,10 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Create a schedule item for a task type of a project.
+   * Create a schedule item for a task type of a project. Zou keeps one such
+   * item per task type and refuses a second one (ParameterError), and
+   * allTaskTypeScheduleItems creates the missing ones: change an existing
+   * item with updateScheduleItem.
    * @param {Model} project
    * @param {Model} taskType
    * @param {Date|string} startDate A Date (its local day) or "YYYY-MM-DD".
