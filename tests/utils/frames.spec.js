@@ -58,6 +58,34 @@ describe('frames', () => {
   it('frameToSeconds accepts the fps string stored by Zou', () => {
     expect(frameToSeconds(48, { fps: '24' })).toBe(2)
     expect(frameToSeconds(47, { fps: '23.976' })).toBe(1.96)
+    expect(frameToSeconds(47, { fps: '23,976' })).toBe(1.96)
+  })
+
+  it('frameToSeconds skips a production fps that is not usable', () => {
+    expect(frameToSeconds(48, { fps: '0' }, { fps: 24 })).toBe(2)
+    expect(frameToSeconds(48, { fps: 'abc' }, { fps: '24' })).toBe(2)
+    expect(frameToSeconds(50, { fps: '0' }, { fps: '' })).toBe(2)
+  })
+
+  // Zou stores the fps of a project as a nullable string and reads an empty
+  // one as 25.
+  it('every helper falls back to DEFAULT_FPS for a missing or empty fps', () => {
+    for (const fps of [null, undefined, '', '0', 0, -24, 'abc']) {
+      expect(roundToFrame(49.13, fps)).toBe(roundToFrame(49.13, DEFAULT_FPS))
+      expect(ceilToFrame(49.12, fps)).toBe(ceilToFrame(49.12, DEFAULT_FPS))
+      expect(floorToFrame(49.16, fps)).toBe(floorToFrame(49.16, DEFAULT_FPS))
+      expect(formatTime(2.416, fps)).toBe('00:00:02:10')
+      expect(formatToTimecode(37, fps)).toBe('00:00:01:12')
+      expect(frameToSeconds(50, { fps }, { fps })).toBe(2)
+    }
+  })
+
+  it('every helper reads the fps string stored by Zou', () => {
+    expect(roundToFrame(1, '24')).toBe(roundToFrame(1, 24))
+    expect(ceilToFrame(0.95, '24')).toBe(ceilToFrame(0.95, 24))
+    expect(floorToFrame(1, '24,000')).toBe(floorToFrame(1, 24))
+    expect(formatTime(1.99, '24')).toBe('00:00:01:23')
+    expect(formatToTimecode(100, '23.976')).toBe('00:00:04:04')
   })
 
   it('formatFrame', () => {
@@ -65,6 +93,11 @@ describe('frames', () => {
     expect(formatFrame(123)).toBe('123')
     expect(formatFrame(1001)).toBe('1001')
     expect(formatFrame(-4)).toBe('000')
+  })
+
+  it('formatFrame counts a missing frame as 0', () => {
+    expect(formatFrame(null)).toBe('000')
+    expect(formatFrame(undefined)).toBe('000')
   })
 
   it('formatTime', () => {

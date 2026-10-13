@@ -8,6 +8,8 @@ Pure functions, importable on their own from `@cgwire/kitsu-client/utils`:
   `sortTasks`, `sortTaskStatuses`, `sortPeople`, `sortByName`... They return
   new arrays;
 - frames and timecodes: `frameToSeconds`, `formatToTimecode`, `roundToFrame`...
+  They read the fps string that Zou stores and, like Zou, count an empty one
+  as 25;
 - previews: `isMoviePreview`, `isPicturePreview`, `formatRevision`...
 - Kitsu web URLs: `getProjectUrl`, `getShotUrl`, `getTaskUrl`... They take
   the host of the web app, which `webHostOf(apiHost)` derives from the API
