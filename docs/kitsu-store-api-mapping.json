@@ -600,7 +600,7 @@
     "route": "/data/departments",
     "client": "person.newDepartment",
     "status": "existing",
-    "note": "Client signature is (name, { color, archived }) and first looks the department up by name (extra GET /data/departments?name=) before the POST."
+    "note": "Client signature is (name, { color, archived }) and first looks the department up by name, whatever the case (extra GET /data/departments?name=, its LIKE wildcards escaped), before the POST."
   },
   {
     "module": "departments",
