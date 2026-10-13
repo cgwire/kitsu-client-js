@@ -61,6 +61,20 @@ describe('person namespace', () => {
       method: 'GET',
       path: '/data/persons'
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('allPersons keeps the guests or the others, departments on demand', async () => {
+    fake.reply(200, []).reply(200, [])
+    await kitsu.person.allPersons({ relations: true, isGuest: false })
+    await kitsu.person.allPersons({ isGuest: true })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      relations: 'true',
+      is_guest: 'false'
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
+      is_guest: 'true'
+    })
   })
 
   it('getDepartmentByName filters by name, null when nothing matches', async () => {
