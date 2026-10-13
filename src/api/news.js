@@ -7,8 +7,13 @@ import { datetimeOf, idOf, optionalIdOf, orNull } from '../core/params.js'
  * @typedef {{
  *   data: Entity[],
  *   total: number,
+ *   nb_pages: number,
+ *   limit: number,
+ *   offset: number,
+ *   page: number,
  *   stats: Record<string, number>
- * }} NewsFeed One page of news, the total and the count per task status.
+ * }} NewsFeed One page of news, 50 by default, with the paging of the feed
+ *   and the count of news per task status id.
  */
 
 export const newsApi = http => ({
