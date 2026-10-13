@@ -7,6 +7,10 @@ import { idOf, requiredOf, sortedByName } from '../core/params.js'
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+// Zou filters a name with ILIKE, whose escape character is the backslash:
+// escaped, "%" and "_" only match themselves. The case is still ignored.
+const likeEscaped = name => String(name).replace(/[\\%_]/g, '\\$&')
+
 /** @param {any} http */
 export const studioApi = http => ({
   /**
@@ -27,10 +31,15 @@ export const studioApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First studio matching the name.
+   * @returns {Promise<Entity|null>} The studio of this name, case ignored,
+   *   null when there is none.
    */
   getStudioByName: async (name, { signal } = {}) =>
-    http.fetchFirst('studios', { name: requiredOf('name', name) }, { signal }),
+    http.fetchFirst(
+      'studios',
+      { name: likeEscaped(requiredOf('name', name)) },
+      { signal }
+    ),
 
   /**
    * Studio names are unique: the API refuses a name already in use.

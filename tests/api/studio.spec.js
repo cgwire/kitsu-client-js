@@ -49,6 +49,13 @@ describe('studio namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Angers')
   })
 
+  // Left as is, "Studio_A" would also find "Studio-A".
+  it('getStudioByName escapes the LIKE wildcards', async () => {
+    fake.reply(200, [])
+    await kitsu.studio.getStudioByName('Studio_A 100%')
+    expect(fake.calls[0].query.get('name')).toBe('Studio\\_A 100\\%')
+  })
+
   it('getStudioByName rejects a blank name', async () => {
     await expect(kitsu.studio.getStudioByName('')).rejects.toThrow(
       ParameterError
