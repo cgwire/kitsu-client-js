@@ -210,6 +210,18 @@ describe('shot namespace: reads', () => {
     ])
   })
 
+  it('the parent getters reject a missing entity before any request', async () => {
+    const errors = await Promise.all(
+      [
+        kitsu.shot.getEpisodeFromSequence(null),
+        kitsu.shot.getSequenceFromShot(null),
+        kitsu.shot.getSequenceFromShot(undefined)
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getSequence accepts an object or an id and returns null on 404', async () => {
     fake.reply(200, { id: SEQUENCE_ID }).reply(404, {})
     expect(await kitsu.shot.getSequence({ id: SEQUENCE_ID })).toEqual({

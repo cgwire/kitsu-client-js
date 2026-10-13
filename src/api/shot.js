@@ -63,7 +63,8 @@ export const shotApi = http => {
   // An id or an object without its parent_id key says nothing about the
   // parent: the entity is read first. A missing entity has no parent.
   const parentIdOf = async (model, entity, signal) => {
-    const known = typeof entity === 'object' && 'parent_id' in entity
+    const known =
+      entity !== null && typeof entity === 'object' && 'parent_id' in entity
     const source = known ? entity : await fetchOne(model, entity, signal)
     return source ? source.parent_id : null
   }
