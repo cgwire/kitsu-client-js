@@ -42,10 +42,13 @@ const entryOf = entry => ({
   preview_file_id: entry.preview_file_id ?? null
 })
 
-const withSavedEntries = playlist =>
-  Array.isArray(playlist?.shots)
-    ? { ...playlist, shots: playlist.shots.map(entryOf) }
-    : playlist
+// Zou answers a 400 to shots: null, which a playlist read before its first
+// entry carries: the stored entries are then left as they are, as Kitsu does.
+const withSavedEntries = playlist => {
+  if (!carriesEntries(playlist)) return playlist
+  const { shots, ...fields } = playlist
+  return shots === null ? fields : { ...fields, shots: shots.map(entryOf) }
+}
 
 // An entry is an entity, or an (entity, preview file) couple.
 const coupleOf = entry => {
@@ -221,6 +224,8 @@ export const playlistApi = http => {
     /**
      * Save the playlist. Its entries (shots) replace the stored ones, each
      * sent as an entity_id and a preview_file_id, null when it has none.
+     * shots: null, the entries of a playlist read before its first one,
+     * leaves the stored entries as they are.
      * @param {Entity} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>}

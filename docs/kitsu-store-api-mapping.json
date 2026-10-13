@@ -1734,7 +1734,7 @@
     "route": "/data/playlists/<id>",
     "client": "playlist.updatePlaylist",
     "status": "existing",
-    "note": "Client sends the whole playlist object as body; Kitsu sends a whitelist (name, for_client, shots, for_entity, task_type_id). Both send each entry as an entity_id and a preview_file_id, null when unset."
+    "note": "Client sends the whole playlist object as body; Kitsu sends a whitelist (name, for_client, shots, for_entity, task_type_id). Both send each entry as an entity_id and a preview_file_id, null when unset, and leave out shots: null (Zou answers a 400 to it)."
   },
   {
     "module": "playlists",

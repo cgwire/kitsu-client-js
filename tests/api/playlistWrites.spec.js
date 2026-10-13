@@ -139,6 +139,18 @@ describe('playlist namespace: writes', () => {
     expect(playlist).toEqual(copy)
   })
 
+  // A playlist read before its first entry carries shots: null, which Zou
+  // answers with a 400.
+  it('updatePlaylist leaves out shots: null', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist({
+      id: PLAYLIST_ID,
+      name: 'Renamed',
+      shots: null
+    })
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
+  })
+
   it('updatePlaylist rejects a playlist without id', async () => {
     await expect(
       kitsu.playlist.updatePlaylist({ name: 'Renamed' })
