@@ -7,6 +7,7 @@ import {
   PERSON_ID,
   PREVIEW_FILE_ID,
   PROJECT_ID,
+  SHOT_ID,
   TASK_ID,
   TASK_STATUS_ID
 } from '../helpers/ids.js'
@@ -291,8 +292,16 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('setMainPreview sets the entity thumbnail, from a frame on demand', async () => {
-    fake.reply(200, {}).reply(200, {})
-    await kitsu.task.setMainPreview({ id: PREVIEW_FILE_ID })
+    // Zou answers the entity, not the preview file.
+    const shot = {
+      id: SHOT_ID,
+      preview_file_id: PREVIEW_FILE_ID,
+      preview_file_status: 'ready'
+    }
+    fake.reply(200, shot).reply(200, shot)
+    expect(await kitsu.task.setMainPreview({ id: PREVIEW_FILE_ID })).toEqual(
+      shot
+    )
     await kitsu.task.setMainPreview(PREVIEW_FILE_ID, { frameNumber: 0 })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
