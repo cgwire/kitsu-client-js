@@ -29,3 +29,20 @@ token, the client checks the session with a request. An expired access token
 is renewed on the way, as for any request, and the socket reopens with the new
 one; a refresh that Zou refuses calls `onUnauthorized`. A token that the API
 still accepts leaves the socket closed until the next session change.
+
+## Platforms
+
+Zou authenticates the socket once, at its handshake. In bearer mode the token
+travels in an `Authorization` header, which only a socket opened from Node
+can send: listen from Node, or from the main process of Electron. A browser or
+a webview cannot authenticate a bearer socket:
+
+- from another origin (a Tauri or Electron window, a web app hosted
+  elsewhere), the header needs a CORS answer that the event stream of Zou
+  never gives: the socket keeps retrying in vain, as `onConnectError` tells;
+- on the Kitsu origin, the browser adds the Kitsu session cookie, which Zou
+  reads before the header: the socket acts as the user logged in to Kitsu in
+  that browser, or Zou refuses it when that cookie is stale.
+
+There, use cookie mode on the Kitsu origin:
+`createClient({ host: '/api', auth: 'cookie', io })`.
