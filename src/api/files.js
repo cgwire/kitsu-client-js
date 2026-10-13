@@ -96,6 +96,9 @@ const outputFileFilters = ({
   file_status_id: optionalIdOf(fileStatus)
 })
 
+// The backslash is the escape character of the LIKE patterns of PostgreSQL.
+const likeEscaped = name => String(name).replace(/[\\%_]/g, '\\$&')
+
 const instanceEntityPath = (assetInstance, temporalEntity) =>
   `data/asset-instances/${idOf(assetInstance)}/entities/${idOf(temporalEntity)}`
 
@@ -104,13 +107,19 @@ export const filesApi = http => {
   // returned by its name would lose its JSDoc in the declarations.
 
   /**
+   * Zou filters a name with ILIKE: escaped, "%" and "_" only match
+   * themselves. The case is still ignored.
    * @param {string} model
    * @param {string} name
    * @param {AbortSignal} [signal]
    * @returns {Promise<Entity|null>}
    */
   const firstByName = (model, name, signal) =>
-    http.fetchFirst(model, { name: requiredOf('name', name) }, { signal })
+    http.fetchFirst(
+      model,
+      { name: likeEscaped(requiredOf('name', name)) },
+      { signal }
+    )
 
   /**
    * @param {string} path
@@ -358,13 +367,15 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First output type matching the name.
+     * @returns {Promise<Entity|null>} The output type of this name, case
+     *   ignored, null when there is none.
      */
     getOutputTypeByName: async (name, { signal } = {}) =>
       firstByName('output-types', name, signal),
 
     /**
-     * Create an output type, or return the one that already has this name.
+     * Create an output type, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} shortName
      * @param {RequestOptions} [options]
@@ -517,13 +528,15 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First software matching the name.
+     * @returns {Promise<Entity|null>} The software of this name, case
+     *   ignored, null when there is none.
      */
     getSoftwareByName: async (name, { signal } = {}) =>
       firstByName('softwares', name, signal),
 
     /**
-     * Create a software, or return the one that already has this name.
+     * Create a software, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} shortName
      * @param {string} fileExtension Main extension written by the software.
@@ -1279,7 +1292,8 @@ export const filesApi = http => {
       http.fetchAll('file-status', {}, { signal }),
 
     /**
-     * Create a file status, or return the one that already has this name.
+     * Create a file status, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} color Hex string, "#00FF00" for instance.
      * @param {RequestOptions} [options]
@@ -1300,7 +1314,8 @@ export const filesApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First file status matching the name.
+     * @returns {Promise<Entity|null>} The file status of this name, case
+     *   ignored, null when there is none.
      */
     getFileStatusByName: async (name, { signal } = {}) =>
       firstByName('file-status', name, signal),
