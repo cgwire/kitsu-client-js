@@ -1,4 +1,4 @@
-import { ParameterError } from '../core/errors.js'
+import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   idOf,
   idsOf,
@@ -60,6 +60,19 @@ const assetTypeFieldsOf = assetType => {
       key === 'task_types' && listed ? idsOf(taskTypes) : assetType[key]
     ])
   )
+}
+
+// Zou serves its CSV exports as text/csv: a page answered with a 2xx
+// instead (a host given without /api, an SSO portal) is not the export.
+const readCsv = path => async response => {
+  const type = response.headers.get('Content-Type') || ''
+  if (type.includes('csv')) return response.text()
+  throw new KitsuError(`GET ${path} answered ${response.status} without CSV`, {
+    status: response.status,
+    path,
+    method: 'GET',
+    body: await response.text()
+  })
 }
 
 // Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
@@ -671,15 +684,17 @@ export const assetApi = http => {
     exportAssetsWithCsv: async (
       project,
       { episode, assignedTo, signal } = {}
-    ) =>
-      http.request('GET', `export/csv/projects/${idOf(project)}/assets.csv`, {
+    ) => {
+      const path = `export/csv/projects/${idOf(project)}/assets.csv`
+      return http.request('GET', path, {
         query: {
           episode_id: optionalIdOf(episode),
           assigned_to: optionalIdOf(assignedTo)
         },
         signal,
-        read: response => response.text()
-      }),
+        read: readCsv(path)
+      })
+    },
 
     /**
      * @param {Model|{

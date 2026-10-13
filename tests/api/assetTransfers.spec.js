@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KitsuError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { ASSET_ID, EPISODE_ID, PERSON_ID, PROJECT_ID } from '../helpers/ids.js'
 
@@ -137,6 +138,26 @@ describe('asset namespace: CSV transfers', () => {
       signal: controller.signal
     })
     expect(fake.calls[0].signal.aborted).toBe(true)
+  })
+
+  // A host given without /api serves the web app with a 200.
+  it('exportAssetsWithCsv refuses a page that is not CSV', async () => {
+    fake.on(
+      'GET',
+      `/export/csv/projects/${PROJECT_ID}/assets.csv`,
+      () =>
+        new Response('<!doctype html><title>Kitsu</title>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        })
+    )
+    const err = await kitsu.asset.exportAssetsWithCsv(PROJECT_ID).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      method: 'GET',
+      path: `export/csv/projects/${PROJECT_ID}/assets.csv`,
+      body: '<!doctype html><title>Kitsu</title>'
+    })
   })
 
   it('exportAssetsWithCsv raises the typed error of the API', async () => {
