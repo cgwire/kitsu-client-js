@@ -206,6 +206,46 @@ describe('files namespace: output types, softwares and file status', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
+  // Zou filters a name with ILIKE, whose escape character is the backslash:
+  // left as is, "Rig_Cache" would also find "Rig Cache".
+  it('name lookups escape the LIKE wildcards', async () => {
+    fake.reply(200, []).reply(200, []).reply(200, [])
+    await kitsu.files.getOutputTypeByName('Rig_Cache')
+    await kitsu.files.getSoftwareByName('100%\\maya')
+    await kitsu.files.getFileStatusByName('WIP_%')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Rig\\_Cache',
+      '100\\%\\\\maya',
+      'WIP\\_\\%'
+    ])
+  })
+
+  it('new* functions create the record under its raw name', async () => {
+    fake
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+    await kitsu.files.newOutputType('Rig_Cache', 'rc')
+    await kitsu.files.newSoftware('Maya_2026', 'maya', 'ma')
+    await kitsu.files.newFileStatus('WIP_internal', '#ff0000')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Rig\\_Cache',
+      null,
+      'Maya\\_2026',
+      null,
+      'WIP\\_internal',
+      null
+    ])
+    expect([1, 3, 5].map(index => fake.calls[index].body.name)).toEqual([
+      'Rig_Cache',
+      'Maya_2026',
+      'WIP_internal'
+    ])
+  })
+
   it('first-match lookups reject a blank filter before any request', async () => {
     const lookups = [
       () => kitsu.files.getOutputTypeByName(''),
