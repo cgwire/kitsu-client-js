@@ -120,6 +120,42 @@ describe('project namespace: Kitsu store coverage', () => {
       ).rejects.toBeInstanceOf(ParameterError)
       expect(fake.calls).toHaveLength(0)
     })
+
+    it('uploadPreviewBackgroundFile sends a File under its own name', async () => {
+      fake.reply(201, { id: PREVIEW_BACKGROUND_FILE_ID })
+      await kitsu.project.uploadPreviewBackgroundFile(
+        PREVIEW_BACKGROUND_FILE_ID,
+        new File(['hdr'], 'Studio.HDR')
+      )
+      expect(fake.calls[0].body.get('file').name).toBe('Studio.HDR')
+    })
+
+    // Zou deletes the background and its stored files for any other name,
+    // "blob" for a bare Blob, before refusing the upload.
+    it('uploadPreviewBackgroundFile refuses a name that does not end in .hdr', async () => {
+      const uploads = [
+        [new Blob(['hdr'])],
+        [new File(['exr'], 'sky.exr')],
+        [new Blob(['exr']), { fileName: 'sky.exr' }],
+        [new File(['hdr'], 'sky.hdr'), { fileName: 'sky.hdr.png' }]
+      ]
+      const errors = await Promise.all(
+        uploads.map(([file, options]) =>
+          kitsu.project
+            .uploadPreviewBackgroundFile(
+              PREVIEW_BACKGROUND_FILE_ID,
+              file,
+              options
+            )
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => {
+        expect(err).toBeInstanceOf(ParameterError)
+        expect(err.message).toMatch(/\.hdr/)
+      })
+      expect(fake.calls).toHaveLength(0)
+    })
   })
 
   describe('status automations', () => {

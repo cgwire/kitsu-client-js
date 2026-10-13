@@ -186,7 +186,7 @@
     "route": "/pictures/preview-background-files/<id>",
     "client": "project.uploadPreviewBackgroundFile",
     "status": "added",
-    "note": "FormData upload (field file): build on http.upload like task preview uploads."
+    "note": "FormData upload (field file): build on http.upload like task preview uploads. The client refuses a file name that does not end in .hdr, a bare Blob without fileName included: Zou deletes the background and its stored files for any other name."
   },
   {
     "module": "breakdown",

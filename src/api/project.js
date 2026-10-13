@@ -88,6 +88,23 @@ const withLinkIds = project =>
     project
   )
 
+/**
+ * Zou reads the type of a background from the name of its file, and only
+ * takes hdr: for any other name, "blob" for a bare Blob, it deletes the
+ * background and its stored files before refusing the upload. A file that is
+ * not a Blob is left to the upload, which refuses it.
+ * @param {Blob & {name?: string}} file
+ * @param {string} [fileName]
+ */
+const checkHdrName = (file, fileName) => {
+  if (!(file instanceof Blob) || /\.hdr$/i.test(fileName || file.name || '')) {
+    return
+  }
+  throw new ParameterError(
+    'Wrong format: the file name must end in .hdr (fileName names a bare Blob)'
+  )
+}
+
 const settingsOf = (project, section) =>
   `projects/${idOf(project)}/settings/${section}`
 
@@ -1341,29 +1358,33 @@ export const projectApi = http => ({
     ),
 
   /**
+   * Send the HDR file of the background. Its name must end in .hdr: Zou
+   * deletes the background, record and stored files, when it gets any other
+   * name, so it is refused here.
    * @param {Model} backgroundFile
-   * @param {Blob} file The HDR file, a Blob or a File.
+   * @param {Blob} file The HDR file, a Blob or a File. A bare Blob needs
+   *   fileName.
    * @param {{
    *   fileName?: string,
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal
-   * }} [options] fileName names a Blob that has no name. onProgress needs
-   *   XMLHttpRequest (browsers, webviews): fetch cannot report it. A client
-   *   given its own fetch (Tauri) uploads through it and never calls
-   *   onProgress.
+   * }} [options] fileName names the file in place of its own name.
+   *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
+   *   report it. A client given its own fetch (Tauri) uploads through it and
+   *   never calls onProgress.
    * @returns {Promise<Entity>} The preview background file.
    */
   uploadPreviewBackgroundFile: async (
     backgroundFile,
     file,
     { fileName, onProgress, signal } = {}
-  ) =>
-    http.upload(`pictures/preview-background-files/${idOf(backgroundFile)}`, {
-      file,
-      fileName,
-      onProgress,
-      signal
-    }),
+  ) => {
+    checkHdrName(file, fileName)
+    return http.upload(
+      `pictures/preview-background-files/${idOf(backgroundFile)}`,
+      { file, fileName, onProgress, signal }
+    )
+  },
 
   /**
    * @param {Model} project
