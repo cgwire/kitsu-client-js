@@ -49,7 +49,7 @@ describe('task namespace: task types and task statuses', () => {
     }
   )
 
-  it('getDefaultTaskStatus returns the status flagged as default', async () => {
+  it('getDefaultTaskStatus returns the default status of the tasks', async () => {
     fake.reply(200, [{ id: TASK_STATUS_ID }]).reply(200, [])
     expect(await kitsu.task.getDefaultTaskStatus()).toEqual({
       id: TASK_STATUS_ID
@@ -59,7 +59,11 @@ describe('task namespace: task types and task statuses', () => {
       method: 'GET',
       path: '/data/task-status'
     })
-    expect(fake.calls[0].query.get('is_default')).toBe('true')
+    // Neutral, the default status of the concepts, is flagged too.
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      is_default: 'true',
+      for_concept: 'false'
+    })
   })
 
   it.each([

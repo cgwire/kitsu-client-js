@@ -340,7 +340,10 @@ describe('task namespace: tasks, types and statuses', () => {
       id: TASK_ID
     })
     expect(fake.calls[1].path).toBe('/data/task-status')
-    expect(fake.calls[1].query.get('is_default')).toBe('true')
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
+      is_default: 'true',
+      for_concept: 'false'
+    })
     expect(fake.calls[2]).toMatchObject({ method: 'POST', path: '/data/tasks' })
     expect(fake.calls[2].body).toEqual({
       project_id: PROJECT_ID,
