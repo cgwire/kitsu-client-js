@@ -141,16 +141,52 @@ describe('playlist namespace: reads', () => {
   })
 
   it('getPlaylistByName looks the name up in the project', async () => {
-    fake.reply(200, [{ id: PLAYLIST_ID, name: 'Dailies' }])
+    const playlist = { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    fake.reply(200, [playlist])
     expect(
       await kitsu.playlist.getPlaylistByName({ id: PROJECT_ID }, 'Dailies')
-    ).toEqual({ id: PLAYLIST_ID, name: 'Dailies' })
+    ).toEqual(playlist)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/playlists'
     })
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[0].query.get('name')).toBe('Dailies')
+    expect(fake.calls[0].query.has('episode_id')).toBe(false)
+  })
+
+  // Zou filters the name case insensitively, and lists the playlists of
+  // every episode without an episode filter.
+  it('getPlaylistByName keeps the exact name of the project itself', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'dailies', episode_id: null },
+      { id: ENTITY_ID, name: 'Dailies', episode_id: EPISODE_ID },
+      { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    ])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toMatchObject({ id: PLAYLIST_ID })
+  })
+
+  it('getPlaylistByName looks the name up in the episode', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'DAILIES', episode_id: EPISODE_ID },
+      { id: ENTITY_ID, name: 'Dailies', episode_id: EPISODE_ID }
+    ])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        episode: { id: EPISODE_ID }
+      })
+    ).toMatchObject({ id: ENTITY_ID })
+    expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
+  })
+
+  // _ is a wildcard of the name filter.
+  it('getPlaylistByName gives null when only an alike name exists', async () => {
+    fake.reply(200, [{ id: OTHER_ID, name: 'Review-1', episode_id: null }])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Review_1')
+    ).toBeNull()
   })
 
   it('getPlaylistByName gives null when nothing matches', async () => {
