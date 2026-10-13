@@ -105,6 +105,40 @@ describe('playlist namespace: writes', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Renamed', shots: [] })
   })
 
+  // Zou serves an entry without preview without the key, and the enriched
+  // reads (getPlaylistForProject) add id and the preview details.
+  it('updatePlaylist sends each entry as its entity and its preview', async () => {
+    const playlist = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      shots: [
+        { entity_id: SHOT_ID },
+        {
+          entity_id: OTHER_ID,
+          id: OTHER_ID,
+          preview_file_id: PREVIEW_FILE_ID,
+          preview_file_extension: 'mp4',
+          preview_files: {}
+        },
+        { entity_id: ENTITY_ID, id: ENTITY_ID, preview_files: {} },
+        { id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    }
+    const copy = structuredClone(playlist)
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist(playlist)
+    expect(fake.calls[0].body).toEqual({
+      name: 'Dailies',
+      shots: [
+        { entity_id: SHOT_ID, preview_file_id: null },
+        { entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID },
+        { entity_id: ENTITY_ID, preview_file_id: null },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    })
+    expect(playlist).toEqual(copy)
+  })
+
   it('updatePlaylist rejects a playlist without id', async () => {
     await expect(
       kitsu.playlist.updatePlaylist({ name: 'Renamed' })
@@ -212,7 +246,9 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(fake.calls[0].body).toEqual({ shots: [{ entity_id: OTHER_ID }] })
+    expect(fake.calls[0].body).toEqual({
+      shots: [{ entity_id: OTHER_ID, preview_file_id: null }]
+    })
   })
 
   it('removeEntityFromPlaylist without persist sends nothing', async () => {
