@@ -119,10 +119,19 @@ describe('shot namespace: Kitsu web app functions', () => {
   })
 
   it('allVersionsForShot lists the data history of a shot', async () => {
-    fake.reply(200, [{ id: OTHER_ID, shot_id: SHOT_ID }])
-    expect(await kitsu.shot.allVersionsForShot({ id: SHOT_ID })).toEqual([
-      { id: OTHER_ID, shot_id: SHOT_ID }
-    ])
+    const versions = [
+      {
+        id: OTHER_ID,
+        entity_id: SHOT_ID,
+        name: 'SH010',
+        data: { frame_in: 1, frame_out: 24 },
+        type: 'ShotVersion'
+      }
+    ]
+    fake.reply(200, versions)
+    expect(await kitsu.shot.allVersionsForShot({ id: SHOT_ID })).toEqual(
+      versions
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/shots/${SHOT_ID}/versions`
