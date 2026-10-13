@@ -64,12 +64,27 @@ describe('http verbs', () => {
     expect(fake.calls[0].headers['Content-Type']).toBeUndefined()
   })
 
-  it('returns the Response untouched in raw mode', async () => {
-    const fake = createFakeFetch().reply(200, { ok: true })
-    const response = await makeHttp(fake).request('GET', 'data/tasks', {
-      raw: true
+  it('returns the Response in raw mode, with its url, redirected and type', async () => {
+    const url = `${HOST}/data/tasks`
+    const answer = Object.defineProperties(jsonResponse(200, { ok: true }), {
+      url: { value: url },
+      redirected: { value: true },
+      type: { value: 'cors' }
     })
+    const response = await makeHttp(async () => answer).request(
+      'GET',
+      'data/tasks',
+      { raw: true }
+    )
     expect(response).toBeInstanceOf(Response)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+    expect([response.url, response.redirected, response.type]).toEqual([
+      url,
+      true,
+      'cors'
+    ])
+    expect(await response.json()).toEqual({ ok: true })
   })
 })
 
