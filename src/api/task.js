@@ -171,6 +171,16 @@ const namedPreviewOf = (file, fileName) => {
 }
 
 /**
+ * Zou matches a name filter with ILIKE, where % and _ are wildcards: a name
+ * holding one would match other rows. Escaped, it matches literally, case
+ * aside.
+ * @param {string} name
+ * @returns {string}
+ */
+const literalNameOf = name =>
+  String(requiredOf('name', name)).replace(/[\\%_]/g, '\\$&')
+
+/**
  * Zou reads an empty list as no selection at all and widens the request to
  * everything in scope: a selection that came out empty is refused instead.
  * @param {string} label Name of the parameter, for the error message.
@@ -301,7 +311,7 @@ export const taskApi = http => {
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
    * @returns {Promise<Entity|null>} The task of the entity for this task type
-   *   and name, null when missing.
+   *   and name, whatever its case, null when missing.
    */
   const getTaskByEntity = async (
     entity,
@@ -311,7 +321,7 @@ export const taskApi = http => {
     http.fetchFirst(
       'tasks',
       {
-        name: requiredOf('name', name),
+        name: literalNameOf(name),
         task_type_id: idOf(taskType),
         entity_id: idOf(entity)
       },
@@ -322,7 +332,8 @@ export const taskApi = http => {
    * @param {string} name
    * @param {TaskTypeFilters} [options] forEntity is the entity type the task
    *   type applies to ("Asset", "Shot", ...).
-   * @returns {Promise<Entity|null>} First task type matching the name.
+   * @returns {Promise<Entity|null>} First task type with this name, whatever
+   *   its case.
    */
   const getTaskTypeByName = async (
     name,
@@ -331,7 +342,7 @@ export const taskApi = http => {
     http.fetchFirst(
       'task-types',
       {
-        name: requiredOf('name', name),
+        name: literalNameOf(name),
         for_entity: forEntity,
         department_id: optionalIdOf(department)
       },
@@ -927,14 +938,11 @@ export const taskApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First task status matching the name.
+     * @returns {Promise<Entity|null>} First task status with this name,
+     *   whatever its case.
      */
     getTaskStatusByName: async (name, { signal } = {}) =>
-      http.fetchFirst(
-        'task-status',
-        { name: requiredOf('name', name) },
-        { signal }
-      ),
+      http.fetchFirst('task-status', { name: literalNameOf(name) }, { signal }),
 
     getTaskStatusByShortName,
 

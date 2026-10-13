@@ -171,6 +171,28 @@ describe('task namespace: task types and task statuses', () => {
     }
   )
 
+  it('name lookups match the % and _ of a name literally', async () => {
+    // Zou matches names with ILIKE: FX_Sim would find FX-Sim.
+    fake.reply(200, []).reply(200, []).reply(200, [])
+    await kitsu.task.getTaskTypeByName('FX_Sim\\1')
+    await kitsu.task.getTaskStatusByName('100%')
+    await kitsu.task.getTaskByEntity(TASK_TYPE_ID, TASK_TYPE_ID, {
+      name: 'v_2'
+    })
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'FX\\_Sim\\\\1',
+      '100\\%',
+      'v\\_2'
+    ])
+  })
+
+  it('newTaskType looks the name up literally and creates it as given', async () => {
+    fake.reply(200, []).reply(201, { id: TASK_TYPE_ID, name: 'FX_Sim' })
+    await kitsu.task.newTaskType('FX_Sim', { forEntity: 'Shot' })
+    expect(fake.calls[0].query.get('name')).toBe('FX\\_Sim')
+    expect(fake.calls[1].body.name).toBe('FX_Sim')
+  })
+
   it('first-match lookups reject a blank filter before any request', async () => {
     const lookups = [
       () => kitsu.task.getTaskTypeByName(''),
