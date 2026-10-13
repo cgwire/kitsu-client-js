@@ -90,6 +90,22 @@ describe('person namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Rigging')
   })
 
+  // Zou matches the name with ILIKE: "FX_2D" would find "FX 2D" unescaped.
+  it('getDepartmentByName matches the name literally', async () => {
+    fake
+      .reply(200, [])
+      .reply(200, [])
+      .reply(200, [])
+      .reply(201, { id: DEPARTMENT_ID })
+    expect(await kitsu.person.getDepartmentByName('FX_2D 100%')).toBeNull()
+    await kitsu.person.getDepartmentByName('Comp\\Paint')
+    await kitsu.person.newDepartment('FX_2D')
+    expect(fake.calls[0].query.get('name')).toBe('FX\\_2D 100\\%')
+    expect(fake.calls[1].query.get('name')).toBe('Comp\\\\Paint')
+    expect(fake.calls[2].query.get('name')).toBe('FX\\_2D')
+    expect(fake.calls[3].body).toMatchObject({ name: 'FX_2D' })
+  })
+
   it('getDepartment returns the department, null on 404', async () => {
     fake.reply(200, { id: DEPARTMENT_ID }).reply(404, {})
     expect(await kitsu.person.getDepartment({ id: DEPARTMENT_ID })).toEqual({

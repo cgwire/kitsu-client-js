@@ -130,13 +130,21 @@ const getQuotaShots = (
     )
   )
 
+// Zou matches ?name= with ILIKE, where "_" and "%" are wildcards: escaped,
+// a name only matches itself, whatever the case.
+const likeLiteralOf = name => String(name).replace(/[\\%_]/g, '\\$&')
+
 /**
  * @param {any} http
  * @param {string} name
  * @param {RequestOptions} [options]
  */
 const getDepartmentByName = (http, name, { signal } = {}) =>
-  http.fetchFirst('departments', { name: requiredOf('name', name) }, { signal })
+  http.fetchFirst(
+    'departments',
+    { name: likeLiteralOf(requiredOf('name', name)) },
+    { signal }
+  )
 
 /**
  * @param {any} http
@@ -255,7 +263,8 @@ export const personApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First department matching the name.
+   * @returns {Promise<Entity|null>} The department bearing the name, whatever
+   *   the case, null when there is none.
    */
   getDepartmentByName: async (name, options) =>
     getDepartmentByName(http, name, options),
