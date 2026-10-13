@@ -112,7 +112,9 @@ describe('schedule namespace: milestones', () => {
 
   it('removeMilestone deletes the milestone', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeMilestone({ id: MILESTONE_ID })
+    expect(
+      await kitsu.schedule.removeMilestone({ id: MILESTONE_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/milestones/${MILESTONE_ID}`
@@ -285,7 +287,7 @@ describe('schedule namespace: schedule items', () => {
 
   it('removeScheduleItem deletes the schedule item', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleItem({ id: ITEM_ID })
+    expect(await kitsu.schedule.removeScheduleItem({ id: ITEM_ID })).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/schedule-items/${ITEM_ID}`
@@ -390,7 +392,9 @@ describe('schedule namespace: schedule versions', () => {
 
   it('removeScheduleVersion deletes the version', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleVersion({ id: VERSION_ID })
+    expect(
+      await kitsu.schedule.removeScheduleVersion({ id: VERSION_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/production-schedule-versions/${VERSION_ID}`
@@ -577,7 +581,9 @@ describe('schedule namespace: schedule version task links', () => {
 
   it('removeScheduleVersionTaskLink deletes the task link', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleVersionTaskLink({ id: LINK_ID })
+    expect(
+      await kitsu.schedule.removeScheduleVersionTaskLink({ id: LINK_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/production-schedule-version-task-links/${LINK_ID}`
