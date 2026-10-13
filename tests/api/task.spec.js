@@ -241,7 +241,18 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('allOpenTasks returns the page of Zou, filtered', async () => {
-    const page = { data: [{ id: TASK_ID }], is_more: false, page: 1 }
+    const page = {
+      data: [{ id: TASK_ID }],
+      stats: {
+        total_duration: 120,
+        total_estimation: 480,
+        total: 1,
+        status: [{ task_status_id: TASK_STATUS_ID, amount: 1 }]
+      },
+      limit: 100,
+      is_more: false,
+      page: 1
+    }
     fake.reply(200, page).reply(200, page).reply(200, page)
     expect(await kitsu.task.allOpenTasks()).toEqual(page)
     expect(fake.calls[0]).toMatchObject({
