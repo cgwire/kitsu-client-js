@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { EDIT_ID, EPISODE_ID, OTHER_ID, PROJECT_ID } from '../helpers/ids.js'
+import {
+  EDIT_ID,
+  EPISODE_ID,
+  OTHER_ID,
+  PROJECT_ID,
+  TASK_TYPE_ID
+} from '../helpers/ids.js'
 
 const WEB_HOST = 'http://kitsu.test'
 
@@ -87,11 +93,14 @@ describe('edit namespace', () => {
     })
   })
 
-  it('allPreviewsForEdit lists the preview files of the edit', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
-    expect(await kitsu.edit.allPreviewsForEdit({ id: EDIT_ID })).toEqual([
-      { id: OTHER_ID }
-    ])
+  it('allPreviewsForEdit groups the preview files of the edit by task type', async () => {
+    const previews = { [TASK_TYPE_ID]: [{ id: OTHER_ID, revision: 1 }] }
+    fake.reply(200, previews).reply(200, {})
+    expect(await kitsu.edit.allPreviewsForEdit({ id: EDIT_ID })).toEqual(
+      previews
+    )
+    // An edit without any preview: an empty dict, not a list.
+    expect(await kitsu.edit.allPreviewsForEdit(EDIT_ID)).toEqual({})
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/edits/${EDIT_ID}/preview-files`

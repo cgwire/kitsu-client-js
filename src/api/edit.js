@@ -102,7 +102,8 @@ export const editApi = http => {
     /**
      * @param {Model} edit
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the edit.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   edit: task type ids as keys, revisions as values.
      */
     allPreviewsForEdit: async (edit, { signal } = {}) =>
       http.fetchAll(`edits/${idOf(edit)}/preview-files`, {}, { signal }),
