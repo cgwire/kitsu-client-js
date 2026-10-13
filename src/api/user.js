@@ -207,7 +207,10 @@ export const userApi = http => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} Search filters of the user.
+   * @returns {Promise<Record<string, Record<string, Entity[]>>>} Search
+   *   filters of the user, and the ones shared with them, by list type
+   *   ("asset", "shot", "todo"...), then by project id ("all" for the
+   *   filters of no project).
    */
   allFilters: async ({ signal } = {}) =>
     http.fetchAll('user/filters', {}, { signal }),
@@ -273,7 +276,9 @@ export const userApi = http => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} Filter groups of the user.
+   * @returns {Promise<Record<string, Record<string, Entity[]>>>} Filter
+   *   groups of the user, and the ones shared with them, by list type, then
+   *   by project id ("all" for the groups of no project).
    */
   allFilterGroups: async ({ signal } = {}) =>
     http.fetchAll('user/filter-groups', {}, { signal }),
