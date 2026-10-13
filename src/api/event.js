@@ -23,10 +23,10 @@ export const eventApi = http => ({
    *   nameSuffixes?: string[],
    *   signal?: AbortSignal
    * }} [options] name keeps one event name ("task:update"). A Date for
-   *   after or before is sent to the second, in UTC. lastEvent is the last
-   *   event of the previous page (cursor pagination). The API caps limit at
-   *   1000.
-   * @returns {Promise<Entity[]>}
+   *   after or before is sent to the second, in UTC. The API answers one
+   *   page of limit events, 100 by default and 1000 at most: lastEvent is
+   *   the last event of the previous page (cursor pagination).
+   * @returns {Promise<Entity[]>} One page of events.
    */
   allLastEvents: async ({
     after,
@@ -76,9 +76,10 @@ export const eventApi = http => ({
    *   persons?: Model[],
    *   signal?: AbortSignal
    * }} [options] A Date for after or before is sent to the second, in UTC.
-   *   lastLoginLog is the last log of the previous page (cursor pagination).
-   *   The API caps limit at 1000.
-   * @returns {Promise<Entity[]>}
+   *   The API answers one page of limit logs, 100 by default and 1000 at
+   *   most: lastLoginLog is the last log of the previous page (cursor
+   *   pagination).
+   * @returns {Promise<Entity[]>} One page of login logs.
    */
   allLastLoginLogs: async ({
     after,
