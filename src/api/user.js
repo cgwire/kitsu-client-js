@@ -1,5 +1,6 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  datetimeOf,
   dayOf,
   idOf,
   idsOf,
@@ -437,14 +438,47 @@ export const userApi = http => ({
   },
 
   /**
-   * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
-   *   filters are the ones Zou reads: after, before, limit, task_type_id,
-   *   task_status_id, type, read, watching.
-   * @returns {Promise<Entity[]>} Last notifications of the user matching the
-   *   filters.
+   * List the notifications of the user, most recent first, 100 at most: to
+   * read the older ones, pass the created_at of the last one as before.
+   * @param {{
+   *   after?: Date|string,
+   *   before?: Date|string,
+   *   type?: string,
+   *   taskType?: Model,
+   *   taskStatus?: Model,
+   *   read?: boolean,
+   *   watching?: boolean,
+   *   signal?: AbortSignal
+   * }} [options] A Date for after or before is sent to the second, in UTC.
+   *   type is comment, mention, assignation, reply, reply-mention or
+   *   playlist-ready. read keeps the read (true) or unread (false) ones,
+   *   watching the ones of the tasks the user is subscribed to (true) or
+   *   not (false).
+   * @returns {Promise<Entity[]>}
    */
-  allNotifications: async ({ filters = {}, signal } = {}) =>
-    http.fetchAll('user/notifications', filters, { signal }),
+  allNotifications: async ({
+    after,
+    before,
+    type,
+    taskType,
+    taskStatus,
+    read,
+    watching,
+    signal
+  } = {}) =>
+    http.fetchAll(
+      'user/notifications',
+      {
+        after: datetimeOf(after),
+        before: datetimeOf(before),
+        type,
+        task_type_id: optionalIdOf(taskType),
+        task_status_id: optionalIdOf(taskStatus),
+        read,
+        watching
+      },
+      { signal }
+    ),
 
   /**
    * @param {Model} notification

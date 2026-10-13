@@ -1005,7 +1005,7 @@
     "route": "/data/user/notifications",
     "client": "user.allNotifications",
     "status": "existing",
-    "note": "Option filters: the filter and paging params of Kitsu (after, before, limit, read, watching, type, task_type_id, task_status_id)."
+    "note": "Kitsu passes filter and paging params (after, before, limit, read, watching, type, task_type_id, task_status_id): allNotifications takes them as options, except limit, which Zou does not read (it answers 100 notifications at most)."
   },
   {
     "module": "notifications",
