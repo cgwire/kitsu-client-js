@@ -717,7 +717,7 @@
     "route": "/data/projects/<id>/edits",
     "client": "edit.newEdit",
     "status": "existing",
-    "note": "The client first looks the edit up by name (extra GET). Body differs slightly: the client sends the episode as parent_id, Kitsu sends episode_id."
+    "note": "The client first looks the edit up by its name in the episode, or outside any episode (extra GET), and returns it when it exists. Same body as Kitsu: name, description, data and episode_id."
   },
   {
     "module": "edits",
