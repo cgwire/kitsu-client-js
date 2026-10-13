@@ -671,7 +671,9 @@ export const filesApi = http => {
       ),
 
     /**
-     * Build the path of a working file from the project file tree.
+     * Build the path of a working file from the project file tree. Without
+     * software, Zou takes 3ds Max where newWorkingFile takes Blender, and
+     * creates it when missing: give both functions the same software.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
      *   revision?: number, sep?: string, signal?: AbortSignal}} [options]
@@ -750,6 +752,11 @@ export const filesApi = http => {
      * Create a working file for a task. The server builds its path and, when
      * revision is 0 (the default), sets the revision to the last one plus
      * one: save the file at the path of the created working file.
+     *
+     * Zou also assigns the task to the calling user, whoever person names.
+     * Without software, it takes Blender where buildWorkingFilePath takes
+     * 3ds Max, and creates it when missing: give both functions the same
+     * software.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
      *   comment?: string, person?: Model, revision?: number,
