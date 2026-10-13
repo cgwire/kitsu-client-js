@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import { idOf, requiredOf, sortedByName, withoutNil } from '../core/params.js'
 
 /**
@@ -50,6 +51,12 @@ export const customActionApi = http => ({
    */
   updateCustomAction: async (customAction, { signal } = {}) => {
     const id = idOf(customAction)
+    // Its id alone holds no field: the empty body would pass as a save.
+    if (typeof customAction !== 'object') {
+      throw new ParameterError(
+        'Wrong format: expected the custom action, not its id'
+      )
+    }
     const { name, url, entity_type, is_ajax } = customAction
     return http.update(
       'custom-actions',
