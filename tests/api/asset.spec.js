@@ -312,6 +312,13 @@ describe('asset namespace: assets', () => {
     })
   })
 
+  it('updateAsset rejects an asset given as an id before any request', async () => {
+    await expect(kitsu.asset.updateAsset(ASSET_ID)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateAssetData sends only the given keys, Zou merges them', async () => {
     fake.reply(200, { id: ASSET_ID, data: { fur: true, age: 3 } })
     const data = { age: 3 }
