@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotAllowedError, ParameterError } from '../../src/core/errors.js'
+import {
+  KitsuError,
+  NotAllowedError,
+  ParameterError
+} from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import { OTHER_ID, PERSON_ID } from '../helpers/ids.js'
 
@@ -92,6 +96,28 @@ describe('person namespace: time spents', () => {
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/persons/presence-logs/2026-03'
+    })
+  })
+
+  // A host given without its /api suffix answers the page of the web app.
+  it('getPresenceLog refuses a page served instead of the table', async () => {
+    const page = '<!doctype html><title>Kitsu</title>'
+    fake.on(
+      'GET',
+      '/data/persons/presence-logs/2026-03',
+      () =>
+        new Response(page, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        })
+    )
+    const err = await kitsu.person.getPresenceLog(2026, 3).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: 'data/persons/presence-logs/2026-03',
+      method: 'GET',
+      body: page
     })
   })
 
