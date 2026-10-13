@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import {
   dateOf,
   dayOf,
@@ -17,6 +18,19 @@ import {
 
 const fetchSorted = (http, path, signal) =>
   http.fetchAll(path, {}, { signal }).then(sortedByName)
+
+/**
+ * The list a filter or a filter group shows on, which Zou never lets
+ * change.
+ * @param {string} listType
+ * @returns {string}
+ */
+const listTypeOf = listType => {
+  if (typeof requiredOf('listType', listType) === 'string') return listType
+  throw new ParameterError(
+    'Wrong format: listType must be a string such as "asset" or "todo"'
+  )
+}
 
 export const userApi = http => ({
   /**
@@ -285,14 +299,48 @@ export const userApi = http => ({
     http.fetchAll('user/filter-groups', {}, { signal }),
 
   /**
+   * The list type and the entity type of a group are set here only: Zou
+   * cannot change them afterwards.
    * @param {string} name
-   * @param {{project?: Model, signal?: AbortSignal}} [options]
+   * @param {string} listType The list the group shows on: "asset", "shot",
+   *   "edit", "breakdown", "todo"...
+   * @param {{
+   *   project?: Model,
+   *   color?: string,
+   *   isShared?: boolean,
+   *   department?: Model,
+   *   entityType?: string|null,
+   *   signal?: AbortSignal
+   * }} [options] color is a hex string such as "#00FF00". isShared shares
+   *   the group with the team of the project: Zou turns it off unless the
+   *   user manages that project. department keeps the group to the members
+   *   of that department and the managers. entityType is "Asset", "Shot" or
+   *   "Edit".
    * @returns {Promise<Entity>} The created filter group.
    */
-  newFilterGroup: async (name, { project, signal } = {}) =>
+  newFilterGroup: async (
+    name,
+    listType,
+    {
+      project,
+      color = '',
+      isShared = false,
+      department,
+      entityType = null,
+      signal
+    } = {}
+  ) =>
     http.post(
       'data/user/filter-groups',
-      { name, project_id: optionalIdOf(project) },
+      {
+        name: requiredOf('name', name),
+        list_type: listTypeOf(listType),
+        color,
+        is_shared: isShared,
+        project_id: optionalIdOf(project),
+        department_id: optionalIdOf(department),
+        entity_type: entityType
+      },
       { signal }
     ),
 

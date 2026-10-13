@@ -1392,7 +1392,7 @@
     "route": "/data/user/filter-groups",
     "client": "user.newFilterGroup",
     "status": "existing",
-    "note": "Kitsu also sends list_type, color, is_shared and department_id; the client only sends name and project_id: newFilterGroup needs these options."
+    "note": "Same body (name, list_type, color, is_shared, project_id, department_id), plus the entity_type Zou also reads. The client takes the list type as a required argument after the name: Zou would file the group under todo, and cannot change it afterwards."
   },
   {
     "module": "people",

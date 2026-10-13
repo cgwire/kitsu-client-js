@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import {
+  DEPARTMENT_ID,
   FILTER_ID,
   FILTER_GROUP_ID,
   OTHER_ID,
@@ -123,18 +125,55 @@ describe('user namespace: filters', () => {
     })
   })
 
-  it('newFilterGroup posts the group, project optional', async () => {
+  it('newFilterGroup posts the group of a list, the rest optional', async () => {
     fake.reply(201, { id: FILTER_GROUP_ID }).reply(201, { id: FILTER_GROUP_ID })
-    expect(await kitsu.user.newFilterGroup('Anim')).toEqual({
+    expect(await kitsu.user.newFilterGroup('Anim', 'todo')).toEqual({
       id: FILTER_GROUP_ID
     })
-    await kitsu.user.newFilterGroup('Anim', { project: PROJECT_ID })
+    await kitsu.user.newFilterGroup('Anim', 'shot', {
+      project: PROJECT_ID,
+      color: '#00FF00',
+      isShared: true,
+      department: { id: DEPARTMENT_ID },
+      entityType: 'Shot'
+    })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: '/data/user/filter-groups',
-      body: { name: 'Anim', project_id: null }
+      body: {
+        name: 'Anim',
+        list_type: 'todo',
+        color: '',
+        is_shared: false,
+        project_id: null,
+        department_id: null,
+        entity_type: null
+      }
     })
-    expect(fake.calls[1].body).toEqual({ name: 'Anim', project_id: PROJECT_ID })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Anim',
+      list_type: 'shot',
+      color: '#00FF00',
+      is_shared: true,
+      project_id: PROJECT_ID,
+      department_id: DEPARTMENT_ID,
+      entity_type: 'Shot'
+    })
+  })
+
+  // Zou would file the group under "todo" for good.
+  it('newFilterGroup requires the list type before any request', async () => {
+    await expect(kitsu.user.newFilterGroup('Anim')).rejects.toThrow(
+      ParameterError
+    )
+    // The 0.2.0 call, the options in place of the list type.
+    await expect(
+      kitsu.user.newFilterGroup('Anim', { project: PROJECT_ID })
+    ).rejects.toThrow(ParameterError)
+    await expect(kitsu.user.newFilterGroup('', 'shot')).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getFilterGroup returns the group, null on 404', async () => {
