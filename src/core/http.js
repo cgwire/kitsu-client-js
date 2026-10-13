@@ -73,7 +73,8 @@ const retryAfterOf = response => {
 
 // The answer with a body that calls release once it ends, fails or is
 // cancelled. A stream source of its own: browsers ignore the cancel hook of
-// a transformer.
+// a transformer. The Response constructor keeps the status and the headers
+// only: the url, redirected and type are copied over.
 const releasing = (response, release) => {
   const reader = response.body.getReader()
   const body = new ReadableStream(
@@ -97,7 +98,11 @@ const releasing = (response, release) => {
     },
     { highWaterMark: 0 }
   )
-  return new Response(body, response)
+  return Object.defineProperties(new Response(body, response), {
+    url: { value: response.url },
+    redirected: { value: response.redirected },
+    type: { value: response.type }
+  })
 }
 
 const NOT_STREAMED = Symbol('not streamed')
@@ -110,9 +115,10 @@ export const createHttp = (config, session) => {
   const { host, fetch: fetchImpl, timeout, credentials, xhrUploads } = config
   const inflight = new Set()
 
-  // One network attempt. options.raw returns the Response untouched;
-  // options.read(response) reads a successful body that is not JSON (NDJSON,
-  // CSV) inside the attempt, so the deadline and the abort wiring cover it.
+  // One network attempt. options.raw returns the Response, its body left to
+  // the caller; options.read(response) reads a successful body that is not
+  // JSON (NDJSON, CSV) inside the attempt, so the deadline and the abort
+  // wiring cover it.
   // Not AbortSignal.timeout/any: both are above the browser floor.
   const send = async (method, path, options = {}) => {
     const { query, body, headers = {}, signal, raw = false, read } = options
