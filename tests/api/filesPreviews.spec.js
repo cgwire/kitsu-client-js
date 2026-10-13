@@ -185,11 +185,16 @@ describe('files namespace: preview and attachment files', () => {
     expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
   })
 
+  // Zou answers every preview of the revision, in the new order.
   it('updatePreviewPosition sets the order of the preview', async () => {
-    fake.reply(200, { id: PREVIEW_FILE_ID, position: 2 })
-    expect(
-      await kitsu.files.updatePreviewPosition(PREVIEW_FILE_ID, 2)
-    ).toMatchObject({ position: 2 })
+    const revision = [
+      { id: OTHER_ID, revision: 3, position: 1 },
+      { id: PREVIEW_FILE_ID, revision: 3, position: 2 }
+    ]
+    fake.reply(200, revision)
+    expect(await kitsu.files.updatePreviewPosition(PREVIEW_FILE_ID, 2)).toEqual(
+      revision
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/actions/preview-files/${PREVIEW_FILE_ID}/update-position`,
