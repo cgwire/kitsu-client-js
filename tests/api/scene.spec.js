@@ -98,11 +98,16 @@ describe('scene namespace: reads', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('allAssetInstancesForScene lists the instances of a scene', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID }])
+  it('allAssetInstancesForScene groups the instances of a scene by asset', async () => {
+    const instances = {
+      [ASSET_ID]: [{ id: ASSET_INSTANCE_ID, asset_id: ASSET_ID }]
+    }
+    fake.reply(200, instances).reply(200, {})
     expect(
       await kitsu.scene.allAssetInstancesForScene({ id: SCENE_ID })
-    ).toEqual([{ id: ASSET_INSTANCE_ID }])
+    ).toEqual(instances)
+    // A scene without any instance: an empty dict, not a list.
+    expect(await kitsu.scene.allAssetInstancesForScene(SCENE_ID)).toEqual({})
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/scenes/${SCENE_ID}/asset-instances`
@@ -130,11 +135,12 @@ describe('scene namespace: reads', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('allCameraInstancesForScene lists the cameras of a scene', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
-    expect(await kitsu.scene.allCameraInstancesForScene(SCENE_ID)).toEqual([
-      { id: OTHER_ID }
-    ])
+  it('allCameraInstancesForScene groups the cameras of a scene by asset', async () => {
+    const cameras = { [ASSET_ID]: [{ id: OTHER_ID, asset_id: ASSET_ID }] }
+    fake.reply(200, cameras)
+    expect(await kitsu.scene.allCameraInstancesForScene(SCENE_ID)).toEqual(
+      cameras
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/scenes/${SCENE_ID}/camera-instances`
