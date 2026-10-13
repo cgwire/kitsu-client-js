@@ -29,11 +29,15 @@ const byCollated = key => (a, b) => collator.compare(a[key], b[key])
 
 const byName = byCollated('name')
 
-const byEpisode = (a, b) =>
-  a.episode_name ? collator.compare(a.episode_name, b.episode_name) : 0
+// Kitsu skips these names when the first entry has none: that comparator is
+// not consistent, and the order then depends on the input order. A missing
+// name compares as an empty one, before any other.
+const byOptionalName = key => (a, b) =>
+  collator.compare(a[key] || '', b[key] || '')
 
-const byProject = (a, b) =>
-  a.project_name ? collator.compare(a.project_name, b.project_name) : 0
+const byEpisode = byOptionalName('episode_name')
+
+const byProject = byOptionalName('project_name')
 
 const byTaskTypeName = taskTypeMap => (a, b) =>
   collator.compare(
