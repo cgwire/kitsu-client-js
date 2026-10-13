@@ -177,10 +177,12 @@ const withoutExpirationDate = person =>
  */
 const updatePerson = (http, person, { signal } = {}) => {
   const id = idOf(person)
+  // A string would reach the body as one key per character.
+  const fields = fieldsOf(person)
   // { id, expiration_date } is how 0.1.0 renewed a token: saved without the
   // date, it would answer 200 without any token.
   if (
-    Object.keys(person)
+    Object.keys(fields)
       .filter(key => key !== 'id')
       .join() === 'expiration_date'
   ) {
@@ -192,9 +194,9 @@ const updatePerson = (http, person, { signal } = {}) => {
     'persons',
     id,
     withoutExpirationDate(
-      Array.isArray(person.departments)
-        ? { ...person, departments: idsOf(person.departments) }
-        : person
+      Array.isArray(fields.departments)
+        ? { ...fields, departments: idsOf(fields.departments) }
+        : fields
     ),
     { signal }
   )
