@@ -489,7 +489,8 @@ export const playlistApi = http => {
      * @param {Model} project
      * @param {Record<string, any>} data Playlist generation data.
      * @param {RequestOptions} [options]
-     * @returns {Promise<any>} The generated temporary playlist.
+     * @returns {Promise<Record<string, any>[]>} The entries of the generated
+     *   temporary playlist.
      */
     generateTempPlaylist: async (project, data, { signal } = {}) =>
       http.post(`data/projects/${idOf(project)}/playlists/temp`, data, {
@@ -548,7 +549,8 @@ export const playlistApi = http => {
      * @param {Model} playlist
      * @param {string} token
      * @param {RequestOptions} [options]
-     * @returns {Promise<null>}
+     * @returns {Promise<Record<string, any>>} The revoked share link, its
+     *   is_active false.
      */
     removeShareLink: async (playlist, token, { signal } = {}) =>
       http.del(
@@ -605,7 +607,8 @@ export const playlistApi = http => {
      *   signal?: AbortSignal
      * }} [options] emails are free-form addresses, persons are looked up by
      *   the API. message is added to the email.
-     * @returns {Promise<Record<string, any>>}
+     * @returns {Promise<{sent: string[]}>} The addresses the invitation was
+     *   sent to.
      */
     sendShareLinkInvitations: async (
       playlist,
