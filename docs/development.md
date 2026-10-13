@@ -27,8 +27,10 @@ mapped function does not exist.
 
 Run the "Release Kitsu Client" workflow from the Actions tab, on `main`, and
 pick the part of the version to increase: in 0.x, a minor release may break
-the API. The optional line goes above the generated release notes, for
-instance a new minimum Zou version. The workflow runs the checks, commits and
-tags the version, creates the GitHub release and starts "Publish Kitsu Client
-to npm" on the tag. If that publish fails, fix the cause and re-run it: the
-version is already tagged.
+the API. A major release also needs its new version typed in the confirm field
+(for instance `1.0.0`): without it, the run stops before tagging anything. The
+optional line goes above the generated release notes, for instance a new
+minimum Zou version. The workflow runs the checks, commits and tags the
+version, creates the GitHub release and starts "Publish Kitsu Client to npm"
+on the tag. If that publish fails, fix the cause and re-run it: the version is
+already tagged.
