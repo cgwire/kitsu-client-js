@@ -1770,7 +1770,7 @@
     "route": "/data/projects/<id>/playlists/temp",
     "client": "playlist.generateTempPlaylist",
     "status": "existing",
-    "note": "Call with data { task_ids }. Query differs: Kitsu sends sort=true optionally, the client has no query (add a sort flag, through http.request)."
+    "note": "Call with data { task_ids }. Kitsu sends sort=true optionally: the sort option of the client."
   },
   {
     "module": "playlists",
@@ -1779,7 +1779,7 @@
     "route": "/data/projects/<id>/playlists/temp",
     "client": "playlist.generateTempPlaylist",
     "status": "existing",
-    "note": "Call with data { entity_ids }. Same route as loadTempPlaylist, same missing sort flag."
+    "note": "Call with data { entity_ids }. Same route and sort option as loadTempPlaylist."
   },
   {
     "module": "playlists",

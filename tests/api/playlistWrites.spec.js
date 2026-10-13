@@ -650,6 +650,18 @@ describe('playlist namespace: writes', () => {
       path: `/data/projects/${PROJECT_ID}/playlists/temp`
     })
     expect(fake.calls[0].body).toEqual(data)
+    expect(fake.calls[0].query.has('sort')).toBe(false)
+  })
+
+  it('generateTempPlaylist asks for sorted entries', async () => {
+    fake.reply(200, [])
+    await kitsu.playlist.generateTempPlaylist(
+      PROJECT_ID,
+      { entity_ids: [SHOT_ID] },
+      { sort: true }
+    )
+    expect(fake.calls[0].query.get('sort')).toBe('true')
+    expect(fake.calls[0].body).toEqual({ entity_ids: [SHOT_ID] })
   })
 
   it('notifyClientsPlaylistReady posts an empty body', async () => {
