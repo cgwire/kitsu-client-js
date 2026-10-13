@@ -144,6 +144,23 @@ describe('files namespace: output types, softwares and file status', () => {
     expect(fake.calls[3].body.secondary_extensions).toEqual(['mb'])
   })
 
+  it('newSoftware sends the license fields of the Kitsu form', async () => {
+    fake.reply(200, []).reply(201, { id: OTHER_ID })
+    await kitsu.files.newSoftware('Maya', 'maya', 'ma', {
+      version: '2026',
+      monthlyCost: 0,
+      inventoryAmount: 12
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Maya',
+      short_name: 'maya',
+      file_extension: 'ma',
+      version: '2026',
+      monthly_cost: 0,
+      inventory_amount: 12
+    })
+  })
+
   it('newSoftware returns the existing software without creating', async () => {
     fake.reply(200, [{ id: OTHER_ID, name: 'Maya' }])
     expect(await kitsu.files.newSoftware('Maya', 'maya', 'ma')).toEqual({
