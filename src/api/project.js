@@ -763,7 +763,9 @@ export const projectApi = http => ({
    * @param {Model} project
    * @param {Model} taskType
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The quotas of the task type, by person.
+   * @returns {Promise<Record<string, any>>} The quotas of the task type by
+   *   person id, plus a "total" key: frames, seconds, drawings and shot
+   *   counts by day, week, month and year.
    */
   getProjectQuotas: async (project, taskType, { signal } = {}) =>
     http.fetchAll(
@@ -776,7 +778,8 @@ export const projectApi = http => ({
    * @param {Model} project
    * @param {Model} person
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The quotas of the person, by task type.
+   * @returns {Promise<Record<string, any>>} The quotas of the person by task
+   *   type id, plus a "total" key, in the shape of getProjectQuotas.
    */
   getProjectPersonQuotas: async (project, person, { signal } = {}) =>
     http.fetchAll(
@@ -1161,7 +1164,7 @@ export const projectApi = http => ({
    * @param {string} fieldName
    * @param {string} entityType
    * @param {RequestOptions} [options]
-   * @returns {Promise<null>}
+   * @returns {Promise<string[]>} The ids of the removed descriptors.
    */
   removeMetadataDescriptorOnAllProjects: async (
     fieldName,
