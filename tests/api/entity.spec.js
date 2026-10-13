@@ -80,6 +80,24 @@ describe('entity namespace', () => {
     expect(fake.calls[1].query.get('project_id')).toBe(PROJECT_ID)
   })
 
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getEntityByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'sh0010' }
+    const entity = { id: ENTITY_ID, name: 'sh_010' }
+    fake.reply(200, [nearName, entity]).reply(200, [nearName])
+    expect(
+      await kitsu.entity.getEntityByName('SH_010', { project: PROJECT_ID })
+    ).toEqual(entity)
+    expect(await kitsu.entity.getEntityByName('sh_010')).toBeNull()
+  })
+
+  it('getEntityByName prefers the exact spelling to another case', async () => {
+    const upper = { id: OTHER_ID, name: 'Hero' }
+    const lower = { id: ENTITY_ID, name: 'hero' }
+    fake.reply(200, [upper, lower])
+    expect(await kitsu.entity.getEntityByName('hero')).toEqual(lower)
+  })
+
   it('getEntityType returns the type, null on 404', async () => {
     fake.reply(200, { id: OTHER_ID }).reply(404, {})
     expect(await kitsu.entity.getEntityType(OTHER_ID)).toEqual({ id: OTHER_ID })
@@ -97,6 +115,18 @@ describe('entity namespace', () => {
     })
     expect(fake.calls[0].path).toBe('/data/entity-types')
     expect(fake.calls[0].query.get('name')).toBe('Shot')
+  })
+
+  it('getEntityTypeByName keeps the exact name, the case aside', async () => {
+    const types = [
+      { id: ENTITY_ID, name: 'Set-Dress' },
+      { id: OTHER_ID, name: 'Set_Dress' }
+    ]
+    fake.reply(200, types).reply(200, types)
+    expect(await kitsu.entity.getEntityTypeByName('set_dress')).toEqual(
+      types[1]
+    )
+    expect(await kitsu.entity.getEntityTypeByName('Set%')).toBeNull()
   })
 
   it('guessFromPath posts the path to match against the file tree', async () => {
