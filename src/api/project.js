@@ -215,20 +215,25 @@ export const projectApi = http => ({
   },
 
   /**
+   * Give the project the closed status. Only the status is sent: the other
+   * fields and links of a project object are not written back.
    * @param {Model} project
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated project.
    */
   closeProject: async (project, { signal } = {}) => {
+    const id = idOf(project)
     const statuses = await http.fetchAll('project-status', {}, { signal })
     const closed = statuses.find(
       status => (status.name || '').toLowerCase() === 'closed'
     )
     if (!closed) throw new KitsuError('No closed project status found')
-    const base = typeof project === 'string' ? { id: project } : project
-    return saveProject(
-      http,
-      { ...base, project_status_id: closed.id },
+    // Zou replaces the links it is given: a project read earlier would drop
+    // the ones added since, with their priorities and board roles.
+    return http.update(
+      'projects',
+      id,
+      { project_status_id: closed.id },
       { signal }
     )
   },

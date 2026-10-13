@@ -270,14 +270,21 @@ describe('project namespace: projects', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
-  it('closeProject sets the closed status on the project', async () => {
+  // A project read earlier would write back stale fields and links.
+  it('closeProject sends the closed status alone', async () => {
     fake
       .reply(200, [
         { id: OTHER_ID, name: 'Open' },
         { id: STATUS_ID, name: 'Closed' }
       ])
       .reply(200, { id: PROJECT_ID, project_status_id: STATUS_ID })
-    const project = { id: PROJECT_ID, name: 'Sprite' }
+    const project = {
+      id: PROJECT_ID,
+      name: 'Sprite',
+      fps: '24',
+      task_types: [TASK_TYPE_ID],
+      data: { lut: 'aces' }
+    }
     expect(await kitsu.project.closeProject(project)).toEqual({
       id: PROJECT_ID,
       project_status_id: STATUS_ID
@@ -287,17 +294,24 @@ describe('project namespace: projects', () => {
       method: 'PUT',
       path: `/data/projects/${PROJECT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      name: 'Sprite',
-      project_status_id: STATUS_ID
-    })
-    expect(project).toEqual({ id: PROJECT_ID, name: 'Sprite' })
+    expect(fake.calls[1].body).toEqual({ project_status_id: STATUS_ID })
+    expect(project.name).toBe('Sprite')
   })
 
   it('closeProject accepts an id', async () => {
     fake.reply(200, [{ id: STATUS_ID, name: 'closed' }]).reply(200, {})
     await kitsu.project.closeProject(PROJECT_ID)
     expect(fake.calls[1].body).toEqual({ project_status_id: STATUS_ID })
+  })
+
+  it('closeProject rejects a malformed project before any request', async () => {
+    await expect(
+      kitsu.project.closeProject({ name: 'Sprite' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(kitsu.project.closeProject()).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('closeProject rejects when no closed status exists', async () => {
