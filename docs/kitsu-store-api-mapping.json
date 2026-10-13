@@ -3264,7 +3264,7 @@
     "route": "/actions/projects/<id>/task-types/<id>/create-tasks/<id> | /actions/projects/<id>/task-types/<id>/<id>/create-tasks",
     "client": "task.createTasks",
     "status": "added",
-    "note": "Path parameter of the first route is the entity type (episode, sequence), the second route holds the plural collection (assets, shots, edits, concepts). Body: the list of entity ids. Give the function an optional entity sent as the id query parameter to cover createTask."
+    "note": "Path parameter of the first route is the entity type (episode, sequence), the second route holds the plural collection (assets, shots, edits, concepts). Body: the list of entity ids (entities option). Zou reads an empty list as every entity of the collection, what Kitsu sends without a selection: the client sends it only for all: true and refuses an empty entities list. The entity option, sent as the id query parameter, covers createTask."
   },
   {
     "module": "tasks",

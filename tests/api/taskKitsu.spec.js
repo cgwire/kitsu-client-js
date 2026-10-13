@@ -153,17 +153,42 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({ id: SHOT_ID })
   })
 
-  it('createTasks targets every entity when none is given', async () => {
-    fake.reply(201, [])
-    await kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, 'assets')
-    expect(fake.calls[0].body).toEqual([])
+  it.each([
+    ['assets', `${CREATE_TASKS}/assets/create-tasks`],
+    ['sequences', `${CREATE_TASKS}/create-tasks/sequence`]
+  ])(
+    'createTasks targets every entity of the %s with all: true',
+    async (type, path) => {
+      fake.reply(201, [{ id: TASK_ID }])
+      expect(
+        await kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type, {
+          all: true
+        })
+      ).toEqual([{ id: TASK_ID }])
+      expect(fake.calls[0]).toMatchObject({ method: 'POST', path, body: [] })
+      expect([...fake.calls[0].query.keys()]).toEqual([])
+    }
+  )
+
+  // Zou reads an empty list, or no list, as every entity of the collection.
+  it.each([
+    ['no target', undefined],
+    ['an empty list', { entities: [] }],
+    ['all: false', { all: false }],
+    ['entities and all', { entities: [SHOT_ID], all: true }],
+    ['entities and entity', { entities: [SHOT_ID], entity: ASSET_ID }]
+  ])('createTasks creates nothing for %s', async (_, options) => {
+    await expect(
+      kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, 'shots', options)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it.each([undefined, 'shot', 'persons', '../shots'])(
     'createTasks rejects the unknown type %s',
     async type => {
       await expect(
-        kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type)
+        kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type, { all: true })
       ).rejects.toBeInstanceOf(ParameterError)
       expect(fake.calls).toHaveLength(0)
     }

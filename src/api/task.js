@@ -1563,27 +1563,37 @@ export const taskApi = http => {
      * @param {Model} taskType
      * @param {string} type Collection of the entities: "assets", "shots",
      *   "edits", "concepts", "episodes" or "sequences".
-     * @param {{entities?: Model[], entity?: Model,
-     *   signal?: AbortSignal}} [options] entities or a single entity to
-     *   target. Without them every entity of the collection gets a task.
+     * @param {{entities?: Model[], entity?: Model, all?: boolean,
+     *   signal?: AbortSignal}} options The entities to target, exactly one
+     *   of: entities, a non-empty list; entity, a single one; all: true,
+     *   every entity of the collection in the project.
      * @returns {Promise<Entity[]>} The created tasks.
      */
     createTasks: async (
       project,
       taskType,
       type,
-      { entities = [], entity, signal } = {}
+      { entities, entity, all = false, signal } = {}
     ) => {
       const path = createTasksPath(project, taskType, type)
-      const id = optionalIdOf(entity)
+      const isGiven = target => target !== null && target !== undefined
+      const targets = [isGiven(entities), isGiven(entity), all === true]
+      if (targets.filter(Boolean).length !== 1) {
+        throw new ParameterError(
+          'Missing parameter: exactly one of entities, entity or all: true is required'
+        )
+      }
+      // Zou reads an empty list as every entity of the collection: only
+      // all: true sends one.
+      if (all === true) return http.post(path, [], { signal })
+      if (isGiven(entities)) {
+        return http.post(path, selectionOf('entities', entities), { signal })
+      }
+      const id = idOf(entity)
       // Zou reads the id parameter on the collection routes only.
-      const inQuery = id !== null && COLLECTION_ROUTES.includes(type)
-      const ids = id === null || inQuery ? idsOf(entities) : [id]
-      return http.request('POST', path, {
-        body: inQuery ? {} : ids,
-        query: { id: inQuery ? id : null },
-        signal
-      })
+      return COLLECTION_ROUTES.includes(type)
+        ? http.request('POST', path, { body: {}, query: { id }, signal })
+        : http.post(path, [id], { signal })
     },
 
     /**
