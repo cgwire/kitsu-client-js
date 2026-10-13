@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  KitsuError,
   NetworkError,
   NotAuthenticatedError,
   TimeoutError
@@ -116,6 +117,19 @@ describe('http.getNdjson', () => {
   it('falls back on an HTTP error so the plain request raises the typed error', async () => {
     const fake = createFakeFetch().reply(400, {}).reply(200, [])
     expect(await makeHttp(fake).getNdjson('data/assets/with-tasks')).toEqual([])
+  })
+
+  it('raises the error of a page answered instead of the stream', async () => {
+    const page = async () =>
+      new Response('<html></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      })
+    const err = await makeHttp(page)
+      .getNdjson('data/assets/with-tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({ status: 200, body: '<html></html>' })
   })
 
   it('does not fall back on a 401', async () => {

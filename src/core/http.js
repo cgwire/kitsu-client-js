@@ -194,10 +194,18 @@ export const createHttp = (config, session) => {
         return releasing(response, release)
       }
       if (raw) return response
-      if (read) return await read(response)
-      const { data, isJson, error } = await readBody(response)
       // A page served with a 2xx (host without "/api", SSO portal), or JSON
-      // cut short, must not reach the caller as if it were data.
+      // cut short, must not reach the caller as if it were data. Zou never
+      // answers HTML to the reads of another type (CSV, NDJSON) either.
+      if (read) {
+        const type = response.headers.get('Content-Type') || ''
+        if (type.includes('text/html')) {
+          const page = await response.text()
+          throw notData(info, response.status, 'with an HTML page', page)
+        }
+        return await read(response)
+      }
+      const { data, isJson, error } = await readBody(response)
       if (!isJson) {
         const detail = error ? 'with malformed JSON' : 'without JSON'
         throw notData(info, response.status, detail, data, error)
