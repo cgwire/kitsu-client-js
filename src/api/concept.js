@@ -40,6 +40,9 @@ export const conceptApi = http => {
 
   return {
     /**
+     * Zou lists every concept to an admin only: anyone else gets a
+     * NotAllowedError and reads the concepts of a project with
+     * allConceptsForProject.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Every concept, sorted by name.
      */
