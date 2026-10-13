@@ -459,20 +459,30 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {string} fieldName
-   * @param {RequestOptions} [options]
+   * @param {{
+   *   entityType?: string,
+   *   taskType?: Model,
+   *   signal?: AbortSignal
+   * }} [options] A field name is unique per entity type only, and per task
+   *   type for Task: without entityType (and taskType for Task), the match is
+   *   any of the descriptors sharing it. The casing of entityType matters.
    * @returns {Promise<Entity|null>} First metadata descriptor of the project
-   *   matching the field name.
+   *   matching the field name, with its departments.
    */
   getMetadataDescriptorByFieldName: async (
     project,
     fieldName,
-    { signal } = {}
+    { entityType, taskType, signal } = {}
   ) =>
     http.fetchFirst(
       'metadata-descriptors',
       {
         project_id: idOf(project),
-        field_name: requiredOf('fieldName', fieldName)
+        field_name: requiredOf('fieldName', fieldName),
+        entity_type: entityType,
+        task_type_id: optionalIdOf(taskType),
+        // A filtered list leaves the departments out without it.
+        relations: true
       },
       { signal }
     ),
