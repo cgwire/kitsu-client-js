@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
+  ASSET_ID,
   EPISODE_ID,
   OTHER_ID,
   PROJECT_ID,
   SEQUENCE_ID,
-  SHOT_ID
+  SHOT_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const UNSORTED = [{ name: 'sh030' }, { name: 'SH010' }, { name: 'sh020' }]
@@ -30,11 +32,14 @@ describe('shot namespace: reads', () => {
     expect(fake.calls[0].query.get('name')).toBe('SH010')
   })
 
-  it('allPreviewsForShot lists the previews of a shot', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
-    expect(await kitsu.shot.allPreviewsForShot({ id: SHOT_ID })).toEqual([
-      { id: OTHER_ID }
-    ])
+  it('allPreviewsForShot groups the previews of a shot by task type', async () => {
+    const previews = { [TASK_TYPE_ID]: [{ id: OTHER_ID, revision: 2 }] }
+    fake.reply(200, previews).reply(200, {})
+    expect(await kitsu.shot.allPreviewsForShot({ id: SHOT_ID })).toEqual(
+      previews
+    )
+    // A shot without any preview: an empty dict, not a list.
+    expect(await kitsu.shot.allPreviewsForShot(SHOT_ID)).toEqual({})
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/shots/${SHOT_ID}/preview-files`
@@ -230,11 +235,12 @@ describe('shot namespace: reads', () => {
     })
   })
 
-  it('getAssetInstancesForShot lists the instances linked to a shot', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
-    expect(await kitsu.shot.getAssetInstancesForShot({ id: SHOT_ID })).toEqual([
-      { id: OTHER_ID }
-    ])
+  it('getAssetInstancesForShot groups the instances of a shot by asset', async () => {
+    const instances = { [ASSET_ID]: [{ id: OTHER_ID, asset_id: ASSET_ID }] }
+    fake.reply(200, instances)
+    expect(await kitsu.shot.getAssetInstancesForShot({ id: SHOT_ID })).toEqual(
+      instances
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/shots/${SHOT_ID}/asset-instances`
@@ -242,10 +248,11 @@ describe('shot namespace: reads', () => {
   })
 
   it('allAssetInstancesForShot is an alias of getAssetInstancesForShot', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
-    expect(await kitsu.shot.allAssetInstancesForShot(SHOT_ID)).toEqual([
-      { id: OTHER_ID }
-    ])
+    const instances = { [ASSET_ID]: [{ id: OTHER_ID, asset_id: ASSET_ID }] }
+    fake.reply(200, instances)
+    expect(await kitsu.shot.allAssetInstancesForShot(SHOT_ID)).toEqual(
+      instances
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/shots/${SHOT_ID}/asset-instances`

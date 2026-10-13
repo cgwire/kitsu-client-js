@@ -90,7 +90,8 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   shot: task type ids as keys, revisions as values.
      */
     allPreviewsForShot: async (shot, { signal } = {}) =>
       http.fetchAll(`shots/${idOf(shot)}/preview-files`, {}, { signal }),
@@ -311,7 +312,8 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     getAssetInstancesForShot: async (shot, { signal } = {}) =>
       assetInstancesOf(shot, signal),
@@ -320,7 +322,8 @@ export const shotApi = http => {
      * Alias of getAssetInstancesForShot, kept for parity with gazu.
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     allAssetInstancesForShot: async (shot, { signal } = {}) =>
       assetInstancesOf(shot, signal),
