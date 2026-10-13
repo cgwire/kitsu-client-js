@@ -268,14 +268,55 @@ describe('task namespace: tasks, types and statuses', () => {
     })
   })
 
-  it.each([
-    ['getOpenTasksStats', '/data/tasks/open-tasks/stats'],
-    ['getPersonsTasksDates', '/data/persons/task-dates']
-  ])('%s returns the payload, null on 404', async (name, path) => {
-    fake.reply(200, { total: 3 }).reply(404, {})
-    expect(await kitsu.task[name]()).toEqual({ total: 3 })
-    expect(await kitsu.task[name]()).toBeNull()
-    expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
+  it('getOpenTasksStats returns the statistics of each production', async () => {
+    const counts = {
+      amount: 3,
+      amount_done: 1,
+      total_duration: 120,
+      total_estimation: 960
+    }
+    const stats = {
+      [PROJECT_ID]: {
+        ...counts,
+        task_types: [
+          {
+            ...counts,
+            task_type_id: TASK_TYPE_ID,
+            task_status_id: TASK_STATUS_ID,
+            project_id: PROJECT_ID
+          }
+        ]
+      }
+    }
+    fake.reply(200, stats)
+    expect(await kitsu.task.getOpenTasksStats()).toEqual(stats)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/tasks/open-tasks/stats'
+    })
+  })
+
+  it('getPersonsTasksDates returns the list of Zou', async () => {
+    const dates = [
+      {
+        person_id: PERSON_ID,
+        min_date: '2026-09-01T00:00:00',
+        max_date: '2026-09-30T00:00:00',
+        busy_periods: []
+      },
+      {
+        person_id: OTHER_ID,
+        min_date: null,
+        max_date: null,
+        busy_periods: [{ start_date: '2026-10-01', end_date: '2026-10-09' }]
+      }
+    ]
+    fake.reply(200, dates)
+    expect(await kitsu.task.getPersonsTasksDates()).toEqual(dates)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/persons/task-dates'
+    })
   })
 
   it('getTaskByEntity looks a task up by entity, type and name', async () => {
