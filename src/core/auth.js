@@ -93,7 +93,7 @@ export const authApi = (http, session) => {
   // Zou answers a two-factor registration with a new token pair: the one in
   // use may carry the requires_2fa_setup claim, which locks the API. The
   // recovery codes come back even when a later change keeps its own tokens:
-  // Zou shows them once.
+  // Zou shows them once, for the first method only.
   const register = (path, payload, signal) => {
     const isLatest = startChange()
     return inTurn(() => http.post(path, payload, { signal }), signal).then(
@@ -104,7 +104,7 @@ export const authApi = (http, session) => {
             refresh_token: body.refresh_token
           })
         }
-        return body.otp_recovery_codes
+        return body.otp_recovery_codes ?? null
       }
     )
   }
@@ -321,7 +321,8 @@ export const authApi = (http, session) => {
      * the current ones.
      * @param {string} totp Code given by the authenticator application.
      * @param {RequestOptions} [options]
-     * @returns {Promise<string[]>} The recovery codes.
+     * @returns {Promise<string[]|null>} The recovery codes, or null when
+     *   another method gave them already: the user keeps those.
      */
     enableTotp: async (totp, { signal } = {}) =>
       register('auth/totp', { totp: requiredOf('totp', totp) }, signal),
@@ -361,7 +362,8 @@ export const authApi = (http, session) => {
      * replace the current ones.
      * @param {string} emailOtp Code received by email.
      * @param {RequestOptions} [options]
-     * @returns {Promise<string[]>} The recovery codes.
+     * @returns {Promise<string[]|null>} The recovery codes, or null when
+     *   another method gave them already: the user keeps those.
      */
     enableEmailOtp: async (emailOtp, { signal } = {}) =>
       register(
@@ -392,7 +394,8 @@ export const authApi = (http, session) => {
      * @param {object} registrationResponse Answer of the WebAuthn device.
      * @param {string} deviceName
      * @param {RequestOptions} [options]
-     * @returns {Promise<string[]>} The recovery codes.
+     * @returns {Promise<string[]|null>} The recovery codes, or null when
+     *   another method gave them already: the user keeps those.
      */
     registerFido: async (registrationResponse, deviceName, { signal } = {}) =>
       register(
