@@ -76,6 +76,12 @@ if (body.two_factor_authentication_required) {
 }
 ```
 
+FIDO devices need cookie mode on the Kitsu origin: Zou keeps the state of a
+WebAuthn ceremony in its cookie session, which a bearer client never sends
+back. This holds for `getFidoChallenge` and the `logIn` that answers it, for
+`preRegisterFido` and `registerFido`, and for any `fidoAuthenticationResponse`
+given as proof of identity.
+
 ## One client, one session
 
 Nothing is shared between two clients: tokens, in-flight requests and the

@@ -19,7 +19,9 @@ import { requiredOf, withoutNil } from './params.js'
  * @property {string} [totp] Time-based one-time password.
  * @property {string} [emailOtp] One-time password received by email.
  * @property {string} [recoveryCode]
- * @property {object} [fidoAuthenticationResponse]
+ * @property {object} [fidoAuthenticationResponse] Answer of the WebAuthn
+ *   device to getFidoChallenge. Cookie mode only, on the Kitsu origin: Zou
+ *   keeps the challenge in its cookie session.
  * @property {AbortSignal} [signal]
  */
 
@@ -30,7 +32,9 @@ import { requiredOf, withoutNil } from './params.js'
  * @property {string} [totp] Time-based one-time password.
  * @property {string} [emailOtp] One-time password received by email.
  * @property {string} [recoveryCode]
- * @property {object} [fidoAuthenticationResponse]
+ * @property {object} [fidoAuthenticationResponse] Answer of the WebAuthn
+ *   device to getFidoChallenge. Cookie mode only, on the Kitsu origin: Zou
+ *   keeps the challenge in its cookie session.
  * @property {AbortSignal} [signal]
  */
 
@@ -385,7 +389,9 @@ export const authApi = (http, session) => {
       http.del('auth/email-otp', twoFactorPayloadOf(proof), { signal }),
 
     /**
-     * Start the registration of a FIDO device for the current user.
+     * Start the registration of a FIDO device for the current user. Cookie
+     * mode only, on the Kitsu origin, like every FIDO step: Zou keeps the
+     * state of the ceremony in its cookie session.
      * @param {RequestOptions} [options]
      * @returns {Promise<Record<string, any>>} The WebAuthn creation options.
      */
@@ -393,8 +399,8 @@ export const authApi = (http, session) => {
       http.put('auth/fido', {}, { signal }),
 
     /**
-     * Finish the registration of a FIDO device. In bearer mode the tokens
-     * issued by Zou replace the current ones.
+     * Finish the registration of a FIDO device, in cookie mode on the Kitsu
+     * origin (see preRegisterFido).
      * @param {object} registrationResponse Answer of the WebAuthn device.
      * @param {string} deviceName
      * @param {RequestOptions} [options]
@@ -416,7 +422,8 @@ export const authApi = (http, session) => {
 
     /**
      * Get the FIDO challenge of a user, before logging in. No authentication
-     * needed.
+     * needed, but cookie mode on the Kitsu origin: Zou keeps the challenge in
+     * its cookie session until the logIn that answers it.
      * @param {string} email
      * @param {RequestOptions} [options]
      * @returns {Promise<Record<string, any>>} The WebAuthn request options.
