@@ -109,7 +109,7 @@ import * as urls from '../utils/urls.js'
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
  *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress.
+ *   onProgress, unless it was created with xhrUploads: true.
  * @property {AbortSignal} [signal]
  */
 
