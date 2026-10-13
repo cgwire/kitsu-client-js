@@ -19,7 +19,7 @@ import { buildUrl } from './query.js'
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
  *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress.
+ *   onProgress, nor does a bearer client uploading to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 
@@ -78,6 +78,16 @@ const dataOf = (xhr, info) => {
 
 const abortError = () =>
   new DOMException('The operation was aborted', 'AbortError')
+
+// XHR has no way to leave cookies out: to the origin of the page it sends the
+// cookies of that origin, withCredentials or not.
+const toPageOrigin = url => {
+  const page = globalThis.location
+  return (
+    Boolean(page && page.origin) &&
+    new URL(url, page.href).origin === page.origin
+  )
+}
 
 // fetch cannot report upload progress: XHR is the only way to get it.
 const xhrUpload = ({
@@ -141,19 +151,23 @@ export const createUpload =
   async (path, options) => {
     const form = buildForm(options)
     const { query, onProgress, signal } = options
+    const url = buildUrl(host, path, query)
     // XHR goes out through the network stack of the page, like the global
     // fetch. An injected fetch (the Tauri http plugin, which escapes CORS,
     // or a wrapper adding headers) is not bypassed unless xhrUploads says
-    // so: progress is lost.
+    // so: progress is lost. Bearer mode never sends cookies, and Zou reads
+    // the Kitsu session cookie before the Authorization header: an upload to
+    // the origin of the page goes through fetch.
     const useXhr =
       onProgress &&
       xhrUploads &&
-      typeof globalThis.XMLHttpRequest !== 'undefined'
+      typeof globalThis.XMLHttpRequest !== 'undefined' &&
+      (withCredentials || !toPageOrigin(url))
     if (!useXhr) return request('POST', path, { body: form, query, signal })
     return withAuthReplay(headers => {
       const tracked = track(signal)
       return xhrUpload({
-        url: buildUrl(host, path, query),
+        url,
         form,
         headers,
         onProgress,
