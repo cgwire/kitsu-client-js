@@ -2,6 +2,7 @@ import {
   idOf,
   idsOf,
   optionalIdOf,
+  orNull,
   requiredOf,
   sortedByName
 } from '../core/params.js'
@@ -11,6 +12,19 @@ import {
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
+// gazu the case is ignored, but the name must match, and the exact spelling
+// wins over another case.
+const findByName = (entries, name) => {
+  const wanted = String(name)
+  const matches = (Array.isArray(entries) ? entries : []).filter(
+    entry =>
+      typeof entry.name === 'string' &&
+      entry.name.toLowerCase() === wanted.toLowerCase()
+  )
+  return matches.find(entry => entry.name === wanted) || matches[0] || null
+}
 
 export const entityApi = http => ({
   /**
@@ -38,14 +52,17 @@ export const entityApi = http => ({
   /**
    * @param {string} name
    * @param {{project?: Model, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity|null>} First entity matching the name.
+   * @returns {Promise<Entity|null>} An entity with that name
+   *   (case-insensitive), null when there is none.
    */
   getEntityByName: async (name, { project, signal } = {}) =>
-    http.fetchFirst(
-      'entities',
-      { name: requiredOf('name', name), project_id: optionalIdOf(project) },
-      { signal }
-    ),
+    orNull(
+      http.fetchAll(
+        'entities',
+        { name: requiredOf('name', name), project_id: optionalIdOf(project) },
+        { signal }
+      )
+    ).then(entities => findByName(entities, name)),
 
   /**
    * @param {Model} entityType
@@ -58,14 +75,17 @@ export const entityApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First entity type matching the name.
+   * @returns {Promise<Entity|null>} The entity type with that name
+   *   (case-insensitive), null when there is none.
    */
   getEntityTypeByName: async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'entity-types',
-      { name: requiredOf('name', name) },
-      { signal }
-    ),
+    orNull(
+      http.fetchAll(
+        'entity-types',
+        { name: requiredOf('name', name) },
+        { signal }
+      )
+    ).then(entityTypes => findByName(entityTypes, name)),
 
   /**
    * Find the entities a file path points to, from the project file tree.
