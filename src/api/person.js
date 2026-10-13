@@ -443,7 +443,9 @@ export const personApi = http => ({
    *   active?: boolean,
    *   expirationDate?: Date|string|null,
    *   signal?: AbortSignal
-   * }} [options]
+   * }} [options] role takes the values of newPerson. expirationDate is the
+   *   last day the token works, "YYYY-MM-DD": left out, the token never
+   *   expires (generateToken can set a date later).
    * @returns {Promise<Entity>} The created bot, with its access token.
    */
   newBot: async (
