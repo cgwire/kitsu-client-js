@@ -17,6 +17,20 @@ const ATTACHMENT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 const COMMENT_PATH = `/tasks/${TASK_ID}/comments/${COMMENT_ID}`
 
+// The entries of each person id, and the total of their durations.
+const TIME_SPENTS = {
+  total: 60,
+  [PERSON_ID]: [
+    {
+      id: TIME_SPENT_ID,
+      task_id: TASK_ID,
+      person_id: PERSON_ID,
+      date: '2026-09-19',
+      duration: 60
+    }
+  ]
+}
+
 describe('task namespace: comments, previews and time spent', () => {
   let kitsu, fake
   beforeEach(() => {
@@ -65,10 +79,8 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('getTimeSpent returns the time spent on a task, for a date on demand', async () => {
-    fake.reply(200, { total: 60 }).reply(200, { total: 30 }).reply(404, {})
-    expect(await kitsu.task.getTimeSpent({ id: TASK_ID })).toEqual({
-      total: 60
-    })
+    fake.reply(200, TIME_SPENTS).reply(200, TIME_SPENTS).reply(404, {})
+    expect(await kitsu.task.getTimeSpent({ id: TASK_ID })).toEqual(TIME_SPENTS)
     await kitsu.task.getTimeSpent(TASK_ID, { date: '2026-09-19' })
     expect(await kitsu.task.getTimeSpent(TASK_ID)).toBeNull()
     expect(fake.calls[0]).toMatchObject({
@@ -81,13 +93,13 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('getTaskTimeSpentForDate returns the time spent at a date, null on 404', async () => {
-    fake.reply(200, { total: 60 }).reply(404, {})
+    fake.reply(200, TIME_SPENTS).reply(404, {})
     expect(
       await kitsu.task.getTaskTimeSpentForDate(
         { id: TASK_ID },
         new Date(2026, 8, 19, 10)
       )
-    ).toEqual({ total: 60 })
+    ).toEqual(TIME_SPENTS)
     expect(
       await kitsu.task.getTaskTimeSpentForDate(TASK_ID, '2026-09-20')
     ).toBeNull()
