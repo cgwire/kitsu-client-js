@@ -19,9 +19,11 @@ CRUD route `/data/tasks/<id>`.
 
 ## Kitsu web app coverage
 
-[`docs/kitsu-store-api-mapping.json`](./kitsu-store-api-mapping.json) maps every API function of the Kitsu web
-app to the client function covering it. `tests/mapping.spec.js` fails when a
-mapped function does not exist.
+[`docs/kitsu-store-api-mapping.json`](./kitsu-store-api-mapping.json) maps every API function of Kitsu 1.0.70
+(`src/store/api`) to the client function covering it, or tells why none does.
+`tests/mapping.spec.js` fails when a mapped function does not exist, not when
+Kitsu adds one: on a new Kitsu release, run `scripts/extract-kitsu-routes.js`
+and add a row for each new function.
 
 ## Releases
 

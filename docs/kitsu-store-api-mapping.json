@@ -486,6 +486,51 @@
     "note": ""
   },
   {
+    "module": "concepts",
+    "kitsu": "getConceptFolders",
+    "method": "GET",
+    "route": "/data/projects/<id>/concept-folders",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "newConceptFolder",
+    "method": "POST",
+    "route": "/data/projects/<id>/concept-folders",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: name."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "updateConceptFolder",
+    "method": "PUT",
+    "route": "/data/concept-folders/<id>",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: name."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "deleteConceptFolder",
+    "method": "DELETE",
+    "route": "/data/concept-folders/<id>",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "moveConcepts",
+    "method": "POST",
+    "route": "/actions/projects/<id>/move-concepts",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: concept_ids and concept_folder_id."
+  },
+  {
     "module": "customactions",
     "kitsu": "getCustomActions",
     "method": "GET",
@@ -1870,6 +1915,15 @@
     "client": "playlist.removeSharedPlaylistCommentAttachment",
     "status": "added",
     "note": "Guest route. Query: guest_id, on a DELETE (use http.request)."
+  },
+  {
+    "module": "previews",
+    "kitsu": "getPreviewFileStatuses",
+    "method": "GET",
+    "route": "/data/preview-files",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: came with Kitsu 1.0.70, after this mapping. Reads the processing status of several preview files in one request (query id as a JSON list, fields=id,status). files.getPreviewFile reads one preview file at a time."
   },
   {
     "module": "productions",
