@@ -212,7 +212,7 @@ export const projectTemplateApi = http => {
      * }} [options] Bitrates are movie bitrates in Mbit/s for that task type.
      *   Zou writes both as soon as one is given: a missing one goes back to
      *   null, which inherits the bitrate of the project. null resets one.
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The link, created or updated.
      */
     addTaskTypeToProjectTemplate: async (
       projectTemplate,
@@ -262,7 +262,7 @@ export const projectTemplateApi = http => {
      *   signal?: AbortSignal
      * }} [options] rolesForBoard lists the roles allowed to see the status on
      *   the board.
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The link, created or updated.
      */
     addTaskStatusToProjectTemplate: async (
       projectTemplate,
@@ -301,10 +301,11 @@ export const projectTemplateApi = http => {
       allLinks(projectTemplate, 'asset-types', signal),
 
     /**
+     * Link an asset type to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} assetType
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The asset type, with its id and name only.
      */
     addAssetTypeToProjectTemplate: async (
       projectTemplate,
@@ -342,10 +343,11 @@ export const projectTemplateApi = http => {
     ) => allLinks(projectTemplate, 'status-automations', signal),
 
     /**
+     * Link a status automation to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} statusAutomation
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The status automation.
      */
     addStatusAutomationToProjectTemplate: async (
       projectTemplate,
@@ -389,10 +391,12 @@ export const projectTemplateApi = http => {
     ) => allLinks(projectTemplate, 'preview-background-files', signal),
 
     /**
+     * Link a preview background file to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} previewBackgroundFile
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The background, with its id, name and
+     *   is_default only.
      */
     addPreviewBackgroundFileToProjectTemplate: async (
       projectTemplate,
