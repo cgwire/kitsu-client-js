@@ -80,12 +80,16 @@ Object.entries({
   })
 )
 
+// Zou answers 422 for a token it cannot decode (signed with a former secret
+// key, malformed, a refresh token sent as an access token): the default of
+// flask-jwt-extended, which it keeps. Its own refusals of a body are 400s.
 const STATUS_ERRORS = {
   400: ParameterError,
   401: NotAuthenticatedError,
   403: NotAllowedError,
   404: NotFoundError,
-  413: TooBigFileError
+  413: TooBigFileError,
+  422: NotAuthenticatedError
 }
 
 /**

@@ -3,12 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   KitsuError,
   NetworkError,
+  NotAuthenticatedError,
   NotFoundError,
   ServerError,
   TimeoutError
 } from '../../src/core/errors.js'
 import { createHttp } from '../../src/core/http.js'
-import { createFakeFetch } from '../helpers/fakeFetch.js'
+import { createCore } from '../../src/core/index.js'
+import { createSession } from '../../src/core/session.js'
+import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
 import { HOST, TASK_ID } from '../helpers/ids.js'
 
 const stubSession = {
@@ -111,6 +114,70 @@ describe('http errors', () => {
     await expect(makeHttp(failing).get('data/tasks')).rejects.toBeInstanceOf(
       NetworkError
     )
+  })
+})
+
+// The answers of flask-jwt-extended for a token it cannot decode, which Zou
+// keeps: 422, not 401.
+describe('a token Zou cannot decode', () => {
+  const formerKey = () =>
+    jsonResponse(422, { msg: 'Signature verification failed' })
+  const truncated = () => jsonResponse(422, { msg: 'Not enough segments' })
+
+  const setup = (fake, onUnauthorized = () => {}) => {
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' },
+      onUnauthorized
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    return { http, session }
+  }
+
+  it('refreshes the session and replays the request', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : truncated()
+      )
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const { http, session } = setup(fake)
+    expect(await http.get('data/persons')).toEqual([])
+    expect(session.getTokens().access_token).toBe('new')
+  })
+
+  it('reports a lost session when the refresh token is refused too', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', formerKey)
+      .on('GET', '/auth/refresh-token', formerKey)
+    const onUnauthorized = vi.fn()
+    const { http } = setup(fake, onUnauthorized)
+    const err = await http.get('data/persons').catch(e => e)
+    expect(err).toBeInstanceOf(NotAuthenticatedError)
+    expect(err).toMatchObject({
+      status: 422,
+      body: { msg: 'Signature verification failed' }
+    })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes isAuthenticated answer false', async () => {
+    const fake = createFakeFetch().on('GET', '/auth/authenticated', formerKey)
+    const onUnauthorized = vi.fn()
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'old' },
+      onUnauthorized
+    })
+    expect(await kitsu.isAuthenticated()).toBe(false)
+    expect(onUnauthorized).not.toHaveBeenCalled()
   })
 })
 
