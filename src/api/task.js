@@ -134,29 +134,36 @@ const selectionOf = (label, models) => {
 }
 
 /**
- * The list of the open tasks and its burndown read the same filters.
- * @param {OpenTasksFilters & {filters?: any}} options
- * @returns {Record<string, any>} The query.
+ * The filters object of 0.2 would be dropped without a word, and the answer
+ * would cover every production.
+ * @param {object} options
  */
-const openTasksQuery = ({
-  filters,
-  project,
-  taskType,
-  taskStatus,
-  persons,
-  department,
-  studio,
-  startDate,
-  dueDate,
-  priority
-}) => {
-  // The filters object of 0.2 would be dropped without a word, and the
-  // answer would cover every production.
-  if (filters !== undefined) {
+const refuseFiltersObject = options => {
+  if ('filters' in options) {
     throw new ParameterError(
       'Wrong format: the filters are named options (project, taskType...)'
     )
   }
+}
+
+/**
+ * The list of the open tasks and its burndown read the same filters.
+ * @param {OpenTasksFilters} filters
+ * @returns {Record<string, any>} The query.
+ */
+const openTasksQuery = filters => {
+  refuseFiltersObject(filters)
+  const {
+    project,
+    taskType,
+    taskStatus,
+    persons,
+    department,
+    studio,
+    startDate,
+    dueDate,
+    priority
+  } = filters
   const personIds =
     persons === undefined || persons === null || persons === 'unassigned'
       ? persons
@@ -1577,13 +1584,35 @@ export const taskApi = http => {
       http.del(timeSpentPath(task, person, date), undefined, { signal }),
 
     /**
-     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
-     *   filters holds the query as Zou reads it (project_id, task_status_id,
-     *   page, limit, relations...).
-     * @returns {Promise<Entity[]>} The tasks matching the filters.
+     * Every task the user can see, filtered on demand.
+     * @param {{project?: Model, taskType?: Model, taskStatus?: Model,
+     *   episode?: Model, relations?: boolean, signal?: AbortSignal}}
+     *   [options] episode keeps the tasks of the shots of the episode: the
+     *   asset tasks are left out. relations adds the assignees.
+     * @returns {Promise<Entity[]>} The tasks.
      */
-    allTasks: async ({ filters = {}, signal } = {}) =>
-      http.fetchAll('tasks', filters, { signal }),
+    allTasks: async ({
+      project,
+      taskType,
+      taskStatus,
+      episode,
+      relations = false,
+      signal,
+      ...others
+    } = {}) => {
+      refuseFiltersObject(others)
+      return http.fetchAll(
+        'tasks',
+        {
+          project_id: optionalIdOf(project),
+          task_type_id: optionalIdOf(taskType),
+          task_status_id: optionalIdOf(taskStatus),
+          episode_id: optionalIdOf(episode),
+          relations: relations ? true : null
+        },
+        { signal }
+      )
+    },
 
     /**
      * Burndown of the open tasks that allOpenTasks lists with the same
