@@ -3525,7 +3525,7 @@
     "route": "/data/task-status-links",
     "client": "project.updateTaskStatusLink",
     "status": "added",
-    "note": "Generic CRUD POST on task-status-links with { project_id, task_status_id, priority, roles_for_board }. project.addTaskStatus uses another route (/data/projects/<id>/settings/task-status) and cannot set priority or roles_for_board."
+    "note": "Generic CRUD POST on task-status-links with { project_id, task_status_id, priority, roles_for_board }. project.addTaskStatus uses another route (/data/projects/<id>/settings/task-status) and cannot set priority or roles_for_board. The client refuses a board role that is not a role code: Zou would store it, then fail on every read of the project."
   },
   {
     "module": "taskstatus",

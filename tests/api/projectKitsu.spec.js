@@ -478,6 +478,23 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    // Zou would store the code, then fail on every read of the project.
+    it('updateTaskStatusLink rejects an unknown board role', async () => {
+      const roles = [['artist'], ['user', 'Manager'], 'user']
+      const errors = await Promise.all(
+        roles.map(rolesForBoard =>
+          kitsu.project
+            .updateTaskStatusLink(PROJECT_ID, TASK_STATUS_ID, 1, rolesForBoard)
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => {
+        expect(err).toBeInstanceOf(ParameterError)
+        expect(err.message).toMatch(/rolesForBoard/)
+      })
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('reorderTaskStatusLinks sends the ordered task status ids', async () => {
       fake.reply(200, [])
       await kitsu.project.reorderTaskStatusLinks({ id: PROJECT_ID }, [

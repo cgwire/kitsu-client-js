@@ -26,6 +26,9 @@ const OUT_FIELD_TYPES = ['status', 'ready_for']
 const POSITIONS = ['supervisor', 'lead', 'artist']
 const SENIORITIES = ['senior', 'mid', 'junior']
 
+// The choices of the board roles of a task status link.
+const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
+
 // Zou stores any string in a choice column, then fails on every later read
 // of the row: an unknown code is refused before the request.
 const choiceOf = (label, choices, value) => {
@@ -34,6 +37,15 @@ const choiceOf = (label, choices, value) => {
   }
   throw new ParameterError(
     `Wrong format: ${label} must be one of ${choices.join(', ')}`
+  )
+}
+
+const boardRolesOf = roles => {
+  if (Array.isArray(roles) && roles.every(role => ROLES.includes(role))) {
+    return roles
+  }
+  throw new ParameterError(
+    `Wrong format: rolesForBoard must be a list of ${ROLES.join(', ')}`
   )
 }
 
@@ -933,7 +945,8 @@ export const projectApi = http => ({
    * @param {Model} project
    * @param {Model} taskStatus
    * @param {number} priority
-   * @param {string[]} rolesForBoard Roles seeing the status as a board column.
+   * @param {string[]} rolesForBoard Roles seeing the status as a board
+   *   column, among user, admin, supervisor, manager, client and vendor.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The task status link.
    */
@@ -950,7 +963,9 @@ export const projectApi = http => ({
         project_id: idOf(project),
         task_status_id: idOf(taskStatus),
         priority: requiredOf('priority', priority),
-        roles_for_board: requiredOf('rolesForBoard', rolesForBoard)
+        roles_for_board: boardRolesOf(
+          requiredOf('rolesForBoard', rolesForBoard)
+        )
       },
       { signal }
     ),
