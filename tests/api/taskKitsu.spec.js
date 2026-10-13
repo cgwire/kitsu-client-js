@@ -114,6 +114,17 @@ describe('task namespace: Kitsu store API coverage', () => {
   })
 
   it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
+    '%s refuses an empty persons list without any request',
+    async name => {
+      // No person id to send: the query would list the tasks of everybody.
+      await expect(kitsu.task[name]({ persons: [] })).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
+  it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
     '%s refuses the filters object of 0.2 without any request',
     async name => {
       // Dropped without a word, it would cover every production.

@@ -41,7 +41,8 @@ import * as urls from '../utils/urls.js'
  *   left out.
  * @property {Model} [taskStatus]
  * @property {Model[]|'unassigned'} [persons] Tasks assigned to one of the
- *   persons, or "unassigned" for the tasks nobody is assigned to.
+ *   persons, or "unassigned" for the tasks nobody is assigned to. An empty
+ *   list is refused: it would match everybody.
  * @property {Model} [department] Tasks with an assignee of the department.
  * @property {Model} [studio] Tasks with an assignee of the studio.
  * @property {Date|string} [startDate] Tasks starting on that day or later.
@@ -156,12 +157,15 @@ const openTasksQuery = ({
       'Wrong format: the filters are named options (project, taskType...)'
     )
   }
+  const personIds =
+    persons === undefined || persons === null || persons === 'unassigned'
+      ? persons
+      : selectionOf('persons', persons).join(',')
   return {
     project_id: optionalIdOf(project),
     task_type_id: optionalIdOf(taskType),
     task_status_id: optionalIdOf(taskStatus),
-    person_id:
-      persons === 'unassigned' ? persons : persons && idsOf(persons).join(','),
+    person_id: personIds,
     department_id: optionalIdOf(department),
     studio_id: optionalIdOf(studio),
     start_date: dateOf(startDate),
