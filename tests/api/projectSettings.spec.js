@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { NotFoundError } from '../../src/core/errors.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
@@ -138,17 +139,36 @@ describe('project namespace: settings', () => {
     })
   })
 
-  it('addStatusAutomation posts the automation payload as given', async () => {
-    fake.reply(201, { id: PROJECT_ID })
-    const automation = { status_automation_id: AUTOMATION_ID }
-    await kitsu.project.addStatusAutomation({ id: PROJECT_ID }, automation)
-    expect(fake.calls[0]).toMatchObject({
-      method: 'POST',
-      path: `/data/projects/${PROJECT_ID}/settings/status-automations`
+  it('addStatusAutomation links the automation or its id', async () => {
+    fake.reply(201, { id: PROJECT_ID }).reply(201, { id: PROJECT_ID })
+    expect(
+      await kitsu.project.addStatusAutomation(
+        { id: PROJECT_ID },
+        { id: AUTOMATION_ID, out_field_type: 'ready_for' }
+      )
+    ).toEqual({ id: PROJECT_ID })
+    await kitsu.project.addStatusAutomation(PROJECT_ID, AUTOMATION_ID)
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({
+        method: 'POST',
+        path: `/data/projects/${PROJECT_ID}/settings/status-automations`
+      })
+      expect(call.body).toEqual({ status_automation_id: AUTOMATION_ID })
     })
-    expect(fake.calls[0].body).toEqual({
-      status_automation_id: AUTOMATION_ID
-    })
+  })
+
+  it('addStatusAutomation and addPreviewBackgroundFile reject the payload of 0.2.0', async () => {
+    await expect(
+      kitsu.project.addStatusAutomation(PROJECT_ID, {
+        status_automation_id: AUTOMATION_ID
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.project.addPreviewBackgroundFile(PROJECT_ID, {
+        preview_background_file_id: BACKGROUND_ID
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeStatusAutomation unlinks the automation', async () => {
@@ -173,9 +193,9 @@ describe('project namespace: settings', () => {
     })
   })
 
-  it('addPreviewBackgroundFile posts the background payload as JSON', async () => {
+  it('addPreviewBackgroundFile links the background as JSON', async () => {
     fake.reply(201, { id: PROJECT_ID })
-    const backgroundFile = { preview_background_file_id: BACKGROUND_ID }
+    const backgroundFile = { id: BACKGROUND_ID, name: 'Studio' }
     expect(
       await kitsu.project.addPreviewBackgroundFile(
         { id: PROJECT_ID },
@@ -189,22 +209,21 @@ describe('project namespace: settings', () => {
     expect(fake.calls[0].body).toEqual({
       preview_background_file_id: BACKGROUND_ID
     })
-    expect(backgroundFile).toEqual({
-      preview_background_file_id: BACKGROUND_ID
-    })
+    expect(backgroundFile).toEqual({ id: BACKGROUND_ID, name: 'Studio' })
   })
 
-  it('addPreviewBackgroundFile accepts a project id and an abort signal', async () => {
+  it('addPreviewBackgroundFile accepts ids and an abort signal', async () => {
     fake.reply(201, { id: PROJECT_ID })
     const controller = new AbortController()
-    await kitsu.project.addPreviewBackgroundFile(
-      PROJECT_ID,
-      { preview_background_file_id: BACKGROUND_ID },
-      { signal: controller.signal }
-    )
+    await kitsu.project.addPreviewBackgroundFile(PROJECT_ID, BACKGROUND_ID, {
+      signal: controller.signal
+    })
     expect(fake.calls[0].path).toBe(
       `/data/projects/${PROJECT_ID}/settings/preview-background-files`
     )
+    expect(fake.calls[0].body).toEqual({
+      preview_background_file_id: BACKGROUND_ID
+    })
   })
 
   it('removePreviewBackgroundFile unlinks the background', async () => {
