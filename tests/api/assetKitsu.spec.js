@@ -192,7 +192,7 @@ describe('asset namespace: Kitsu coverage', () => {
 
   it('shareAssets shares or unshares assets of a project', async () => {
     fake.reply(200, []).reply(200, [])
-    await kitsu.asset.shareAssets({ project: { id: PROJECT_ID } })
+    await kitsu.asset.shareAssets({ project: { id: PROJECT_ID }, all: true })
     await kitsu.asset.shareAssets({
       project: PROJECT_ID,
       assets: [ASSET_ID],
@@ -234,6 +234,26 @@ describe('asset namespace: Kitsu coverage', () => {
     await expect(kitsu.asset.shareAssets()).rejects.toBeInstanceOf(
       ParameterError
     )
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // On the project route, Zou reads an empty list as every asset of the
+  // project, and the asset type route ignores the list.
+  it('shareAssets rejects an empty or ambiguous selection before any request', async () => {
+    const calls = [
+      { project: PROJECT_ID, assets: [], isShared: false },
+      { assets: [] },
+      { project: PROJECT_ID },
+      { project: PROJECT_ID, assets: ASSET_ID },
+      { project: PROJECT_ID, assets: [ASSET_ID], assetType: ASSET_TYPE_ID },
+      { project: PROJECT_ID, assets: [ASSET_ID], all: true },
+      { project: PROJECT_ID, assetType: ASSET_TYPE_ID, all: true },
+      { all: true }
+    ]
+    const errors = await Promise.all(
+      calls.map(options => kitsu.asset.shareAssets(options).catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
     expect(fake.calls).toHaveLength(0)
   })
 })

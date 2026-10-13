@@ -78,7 +78,7 @@
     "route": "/actions/assets/share | /actions/projects/<id>/assets/share | /actions/projects/<id>/asset-types/<id>/assets/share",
     "client": "asset.shareAssets",
     "status": "added",
-    "note": "Route depends on the optional project and asset type. Body: asset_ids, is_shared. Kitsu writes a trailing slash on the path."
+    "note": "Route depends on the optional project and asset type. Body: asset_ids, is_shared. Kitsu writes a trailing slash on the path. The client refuses an empty assets list, which Zou reads as every asset of the project: all: true asks for the whole project, like the import from a production in Kitsu."
   },
   {
     "module": "assets",
