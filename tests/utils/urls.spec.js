@@ -172,18 +172,75 @@ describe('API file paths (relative to the API host, like gazu)', () => {
   })
 
   it('getPreviewMoviePath, original and low definition', () => {
-    const preview = { id: OTHER_ID, extension: 'mov' }
+    const preview = { id: OTHER_ID, extension: 'mp4' }
     expect(getPreviewMoviePath(preview)).toBe(
-      `movies/originals/preview-files/${OTHER_ID}.mov`
+      `movies/originals/preview-files/${OTHER_ID}.mp4`
     )
     expect(getPreviewMoviePath(preview, { lowdef: true })).toBe(
       `movies/low/preview-files/${OTHER_ID}.mp4`
     )
   })
 
+  it('getPreviewMoviePath gives the mp4 that Zou serves, from an id too', () => {
+    expect(getPreviewMoviePath({ id: OTHER_ID, extension: 'mov' })).toBe(
+      `movies/originals/preview-files/${OTHER_ID}.mp4`
+    )
+    expect(getPreviewMoviePath(OTHER_ID)).toBe(
+      `movies/originals/preview-files/${OTHER_ID}.mp4`
+    )
+  })
+
   it('getAttachmentThumbnailPath', () => {
     expect(getAttachmentThumbnailPath(OTHER_ID)).toBe(
       `pictures/thumbnails/attachment-files/${OTHER_ID}.png`
+    )
+  })
+})
+
+// An id string, or a dict loaded without the field, would build the URL of
+// another page: a TV show read as a feature film, type=[undefined]...
+describe('builders that read a field of the object', () => {
+  const asset = { id: ASSET_ID, project_id: PROJECT_ID }
+
+  it('reject an object without the field they read', () => {
+    expect(() => getAllAssetsUrl(WEB, PROJECT_ID)).toThrow(
+      'project.production_type is required'
+    )
+    expect(() => getAllAssetsUrl(WEB, { id: PROJECT_ID })).toThrow(
+      ParameterError
+    )
+    expect(() => getAssetUrl(WEB, asset, PROJECT_ID)).toThrow(ParameterError)
+    expect(() => getAssetUrl(WEB, ASSET_ID, TVSHOW)).toThrow(
+      'asset.project_id is required'
+    )
+    expect(() => getAssetTypeUrl(WEB, FEATURE, OTHER_ID)).toThrow(
+      'assetType.name is required'
+    )
+    expect(() => getAssetTypeUrl(WEB, TVSHOW, { id: OTHER_ID })).toThrow(
+      ParameterError
+    )
+    expect(() => getEpisodeUrl(WEB, EPISODE_ID)).toThrow(
+      'episode.project_id is required'
+    )
+    expect(() => getShotUrl(WEB, SHOT_ID)).toThrow(ParameterError)
+    expect(() => getEditUrl(WEB, { id: EDIT_ID })).toThrow(ParameterError)
+    expect(() => getSequenceUrl(WEB, SEQUENCE_ID)).toThrow(ParameterError)
+    expect(() => getTaskUrl(WEB, { id: TASK_ID })).toThrow(
+      'task.project_id is required'
+    )
+    expect(() => getPreviewFilePath(OTHER_ID)).toThrow(
+      'previewFile.extension is required'
+    )
+    expect(() => getPreviewFilePath({ id: OTHER_ID, extension: '' })).toThrow(
+      ParameterError
+    )
+  })
+
+  it('reject an episode id that is not a UUID in a TV show', () => {
+    const misplaced = { ...asset, episode_id: 'E01' }
+    expect(() => getAssetUrl(WEB, misplaced, TVSHOW)).toThrow(ParameterError)
+    expect(getAssetUrl(WEB, { ...asset, episode_id: '' }, TVSHOW)).toBe(
+      `${WEB}/productions/${PROJECT_ID}/episodes/main/assets/${ASSET_ID}/`
     )
   })
 })
