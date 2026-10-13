@@ -3282,7 +3282,7 @@
     "route": "/data/entities/<id>/tasks",
     "client": "task.createEntityTasks",
     "status": "existing",
-    "note": ""
+    "note": "Zou reads an empty task_type_ids as every task type of the entity: Kitsu skips the call then, the client refuses an empty list."
   },
   {
     "module": "tasks",

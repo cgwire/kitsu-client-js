@@ -68,6 +68,20 @@ const namedPreviewOf = (file, fileName) => {
   )
 }
 
+/**
+ * Zou reads an empty list as no selection at all and widens the request to
+ * everything in scope: a selection that came out empty is refused instead.
+ * @param {string} label Name of the parameter, for the error message.
+ * @param {Model[]} models
+ * @returns {string[]}
+ */
+const selectionOf = (label, models) => {
+  if (Array.isArray(models) && models.length > 0) return idsOf(models)
+  throw new ParameterError(
+    `Missing parameter: ${label} must be a non-empty list`
+  )
+}
+
 export const taskApi = http => {
   /**
    * @param {Model} entity
@@ -239,14 +253,15 @@ export const taskApi = http => {
 
   /**
    * @param {Model} entity
-   * @param {Model[]} taskTypes
+   * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+   *   every task type of the entity.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>} The created tasks, one per task type.
    */
   const createEntityTasks = async (entity, taskTypes, { signal } = {}) =>
     http.post(
       `data/entities/${idOf(entity)}/tasks`,
-      { task_type_ids: idsOf(taskTypes) },
+      { task_type_ids: selectionOf('taskTypes', taskTypes) },
       { signal }
     )
 
@@ -1028,7 +1043,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} shot
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the shot.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1037,7 +1053,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} asset
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the asset.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1046,7 +1063,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} edit
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the edit.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1055,7 +1073,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} concept
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the concept.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
