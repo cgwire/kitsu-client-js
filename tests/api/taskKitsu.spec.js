@@ -320,7 +320,8 @@ describe('task namespace: Kitsu store API coverage', () => {
   })
 
   it('importTaskTypeEstimationsWithCsv uploads the CSV in the file field', async () => {
-    fake.reply(201, [{ id: TASK_ID }])
+    // Zou answers one null per imported row.
+    fake.reply(201, [null])
     expect(
       await kitsu.task.importTaskTypeEstimationsWithCsv(
         { id: PROJECT_ID },
@@ -328,7 +329,7 @@ describe('task namespace: Kitsu store API coverage', () => {
         new Blob([CSV], { type: 'text/csv' }),
         { fileName: 'estimations.csv' }
       )
-    ).toEqual([{ id: TASK_ID }])
+    ).toEqual([null])
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/import/csv/projects/${PROJECT_ID}/task-types/${TASK_TYPE_ID}/estimations`
@@ -341,7 +342,7 @@ describe('task namespace: Kitsu store API coverage', () => {
   })
 
   it('importTaskTypeEstimationsWithCsv goes through the episode when given', async () => {
-    fake.reply(201, [])
+    fake.reply(201, [null])
     const controller = new AbortController()
     controller.abort()
     await kitsu.task.importTaskTypeEstimationsWithCsv(
