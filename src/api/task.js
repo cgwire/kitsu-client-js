@@ -314,8 +314,8 @@ export const taskApi = http => {
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<{id: string}|null>} The status new tasks start on (Todo
-   *   by default). The default status of the concepts is left out.
+   * @returns {Promise<Entity|null>} The status new tasks start on (Todo by
+   *   default). The default status of the concepts is left out.
    */
   const getDefaultTaskStatus = async ({ signal } = {}) =>
     // Zou flags two statuses as default, Todo and the Neutral of the
@@ -329,8 +329,8 @@ export const taskApi = http => {
   /**
    * @param {string} shortName
    * @param {RequestOptions} [options]
-   * @returns {Promise<{id: string}|null>} First task status matching the
-   *   short name.
+   * @returns {Promise<Entity|null>} First task status matching the short
+   *   name.
    */
   const getTaskStatusByShortName = async (shortName, { signal } = {}) =>
     http.fetchFirst(
