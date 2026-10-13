@@ -1590,7 +1590,7 @@ export const taskApi = http => {
      * @param {Model} comment
      * @param {Model} reply
      * @param {RequestOptions} [options]
-     * @returns {Promise<null>}
+     * @returns {Promise<Entity>} The comment, without the reply.
      */
     deleteCommentReply: async (task, comment, reply, { signal } = {}) =>
       http.del(
