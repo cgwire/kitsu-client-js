@@ -130,8 +130,15 @@ describe('entity namespace', () => {
   })
 
   it('guessFromPath posts the path to match against the file tree', async () => {
-    fake.reply(200, [{ id: ENTITY_ID }]).reply(200, [])
-    await kitsu.entity.guessFromPath({ id: PROJECT_ID }, '/prod/shots/sh010')
+    // Zou answers the matching templates, each with the ids of its tokens.
+    const matches = [
+      { Template: 'shot', Project: PROJECT_ID, Shot: ENTITY_ID },
+      { Template: 'instance', Project: PROJECT_ID }
+    ]
+    fake.reply(200, matches).reply(200, [])
+    expect(
+      await kitsu.entity.guessFromPath({ id: PROJECT_ID }, '/prod/shots/sh010')
+    ).toEqual(matches)
     await kitsu.entity.guessFromPath(PROJECT_ID, 'C:\\prod\\sh010', {
       sep: '\\'
     })

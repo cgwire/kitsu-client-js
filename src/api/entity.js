@@ -92,7 +92,10 @@ export const entityApi = http => ({
    * @param {Model} project
    * @param {string} path
    * @param {{sep?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity[]>} The matching entities.
+   * @returns {Promise<Record<string, string>[]>} The templates of the file
+   *   tree matching the path: each match names its Template and gives the
+   *   value of every token of the path, an id for an entity token (Project,
+   *   Asset, Sequence, Shot...). A match has no id of its own.
    */
   guessFromPath: async (project, path, { sep = '/', signal } = {}) =>
     http.post(
