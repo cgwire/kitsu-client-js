@@ -15,11 +15,35 @@ Pure functions, importable on their own from `@cgwire/kitsu-client/utils`:
 - Kitsu web URLs: `getProjectUrl`, `getShotUrl`, `getTaskUrl`... They take
   the host of the web app, which `webHostOf(apiHost)` derives from the API
   host. The namespaces expose the same names, loading what the URL needs:
-  `await kitsu.shot.getShotUrl(shot)`.
+  `await kitsu.shot.getShotUrl(shot)`;
+- paths of the API files: `getPreviewFilePath`, `getPreviewMoviePath` and
+  `getAttachmentThumbnailPath`, relative to the API host. `kitsu.files` names
+  them `getPreviewFileUrl`, `getPreviewMovieUrl`...
 
 Unlike the namespace functions, the URL and path helpers throw: a wrong
 argument raises a `ParameterError`, for instance an id string where the URL
 needs the `project_id` or the `production_type` of the object.
+
+## Displaying previews
+
+Zou serves the files of previews and attachments only to authenticated
+requests: it reads the token from the session cookie or from the
+`Authorization` header, and an `img` or a `video` tag cannot send that header.
+In cookie mode, on the site of Kitsu, the browser sends the cookie: prefix the
+paths with the API host. Anywhere else (a bot token, another site, Node,
+Tauri), download the file and show it as an object URL:
+
+```js
+// Cookie mode, on the site of Kitsu
+img.src = `/api/${getPreviewFilePath(previewFile)}`
+
+// Any other client
+const response = await kitsu.files.downloadPreviewFileThumbnail(previewFile)
+img.src = URL.createObjectURL(await response.blob())
+```
+
+Call `URL.revokeObjectURL` once the image is gone. A movie shown this way
+plays only once fully downloaded: `downloadPreviewLowdefMovie` keeps it small.
 
 ## Smaller bundles
 
