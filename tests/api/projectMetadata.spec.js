@@ -110,13 +110,13 @@ describe('project namespace: metadata descriptors', () => {
   })
 
   it('getMetadataDescriptorByFieldName filters by project and field', async () => {
-    fake.reply(200, [{ id: DESCRIPTOR_ID }]).reply(200, [])
+    fake.reply(200, [STORED_DESCRIPTOR]).reply(200, [])
     expect(
       await kitsu.project.getMetadataDescriptorByFieldName(
         { id: PROJECT_ID },
         'difficulty'
       )
-    ).toEqual({ id: DESCRIPTOR_ID })
+    ).toEqual(STORED_DESCRIPTOR)
     expect(
       await kitsu.project.getMetadataDescriptorByFieldName(PROJECT_ID, 'nope')
     ).toBeNull()
@@ -126,6 +126,21 @@ describe('project namespace: metadata descriptors', () => {
     })
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[0].query.get('field_name')).toBe('difficulty')
+    expect(fake.calls[0].query.has('entity_type')).toBe(false)
+  })
+
+  // A filtered list of Zou leaves the departments out unless relations is
+  // set, and the field name is unique per entity type only.
+  it('getMetadataDescriptorByFieldName reads the departments, for one entity type on demand', async () => {
+    fake.reply(200, [STORED_DESCRIPTOR])
+    await kitsu.project.getMetadataDescriptorByFieldName(
+      PROJECT_ID,
+      'difficulty',
+      { entityType: 'Task', taskType: { id: TASK_TYPE_ID } }
+    )
+    expect(fake.calls[0].query.get('relations')).toBe('true')
+    expect(fake.calls[0].query.get('entity_type')).toBe('Task')
+    expect(fake.calls[0].query.get('task_type_id')).toBe(TASK_TYPE_ID)
   })
 
   it('allMetadataDescriptors lists the descriptors of the project', async () => {
