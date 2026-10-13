@@ -54,7 +54,7 @@ describe('project namespace: settings', () => {
       ldBitrateCompression: 6
     })
     await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
-      ldBitrateCompression: 0
+      ldBitrateCompression: 4
     })
     expect(fake.calls[0].body).toEqual({
       task_type_id: TASK_TYPE_ID,
@@ -65,7 +65,22 @@ describe('project namespace: settings', () => {
     expect(fake.calls[1].body).toEqual({
       task_type_id: TASK_TYPE_ID,
       priority: 1,
-      ld_bitrate_compression: 0
+      ld_bitrate_compression: 4
+    })
+  })
+
+  // A null bitrate goes back to the one of the project.
+  it('addTaskType sends a null bitrate to reset it', async () => {
+    fake.reply(201, {})
+    await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
+      hdBitrateCompression: null,
+      ldBitrateCompression: null
+    })
+    expect(fake.calls[0].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      priority: 1,
+      hd_bitrate_compression: null,
+      ld_bitrate_compression: null
     })
   })
 

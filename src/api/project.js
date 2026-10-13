@@ -329,16 +329,19 @@ export const projectApi = http => ({
 
   /**
    * Link a task type to the project. Calling it again on an existing link
-   * updates its priority and bitrates.
+   * keeps its priority (updateTaskTypeLink or reorderTaskTypeLinks change
+   * it) and only writes the bitrates, when one is given.
    * @param {Model} project
    * @param {Model} taskType
    * @param {number} priority
    * @param {{
-   *   hdBitrateCompression?: number,
-   *   ldBitrateCompression?: number,
+   *   hdBitrateCompression?: number|null,
+   *   ldBitrateCompression?: number|null,
    *   signal?: AbortSignal
    * }} [options] Bitrates in Mbit/s of the movies encoded for that task
-   *   type in the project.
+   *   type in the project. Zou writes both as soon as one is given: a
+   *   missing one goes back to null, which inherits the bitrate of the
+   *   project. null resets one.
    * @returns {Promise<Entity>} The project.
    */
   addTaskType: async (
@@ -349,12 +352,12 @@ export const projectApi = http => ({
   ) =>
     http.create(
       settingsOf(project, 'task-types'),
-      withoutNil({
-        task_type_id: idOf(taskType),
-        priority,
+      {
+        ...withoutNil({ task_type_id: idOf(taskType), priority }),
+        // JSON leaves an undefined bitrate out, and sends a null one.
         hd_bitrate_compression: hdBitrateCompression,
         ld_bitrate_compression: ldBitrateCompression
-      }),
+      },
       { signal }
     ),
 
