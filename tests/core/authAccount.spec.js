@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createCore } from '../../src/core/index.js'
+import { ParameterError, createCore } from '../../src/core/index.js'
 import { createFakeFetch } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
 
@@ -29,7 +29,7 @@ describe('getConfig', () => {
 describe('changePassword', () => {
   it('posts the old and the new password and keeps the tokens', async () => {
     fake.reply(200, { success: true })
-    const body = await kitsu.changePassword('old', 'new-secret', 'new-secret')
+    const body = await kitsu.changePassword('old', 'new-secret')
     expect(body).toEqual({ success: true })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
@@ -44,10 +44,24 @@ describe('changePassword', () => {
     expect(kitsu.getTokens()).toEqual(TOKENS)
   })
 
-  it('confirms the new password by default', async () => {
+  // The options come third, as for every function.
+  it('takes the options right after the new password', async () => {
     fake.reply(200, { success: true })
-    await kitsu.changePassword('old', 'new-secret')
+    const controller = new AbortController()
+    controller.abort()
+    await kitsu
+      .changePassword('old', 'new-secret', { signal: controller.signal })
+      .catch(() => {})
+    expect(fake.calls[0].signal.aborted).toBe(true)
     expect(fake.calls[0].body.password_2).toBe('new-secret')
+  })
+
+  // A confirmation would otherwise pass for the options, never compared.
+  it('rejects a confirmation given as third argument', async () => {
+    await expect(
+      kitsu.changePassword('old', 'new-secret', 'new-secrte')
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('rejects when a password is missing', async () => {

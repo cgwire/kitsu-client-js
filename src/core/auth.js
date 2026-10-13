@@ -2,6 +2,7 @@ import {
   AuthFailedError,
   KitsuError,
   NotAuthenticatedError,
+  ParameterError,
   loginErrorFrom
 } from './errors.js'
 import { requiredOf, withoutNil } from './params.js'
@@ -297,26 +298,31 @@ export const authApi = (http, session) => {
      * Change the password of the current user. Zou keeps the session: the
      * tokens are left untouched.
      * @param {string} oldPassword
-     * @param {string} password
-     * @param {string} [password2] Confirmation, the new password by default.
+     * @param {string} password Sent as its own confirmation, like
+     *   person.changePasswordForPerson does.
      * @param {RequestOptions} [options]
      * @returns {Promise<Record<string, any>>}
      */
-    changePassword: async (
-      oldPassword,
-      password,
-      password2 = password,
-      { signal } = {}
-    ) =>
-      http.post(
+    changePassword: async (oldPassword, password, options = {}) => {
+      // A confirmation given there, as 0.2.0 took it, must not pass for the
+      // options: it would never be compared.
+      if (typeof options === 'string') {
+        throw new ParameterError(
+          'changePassword: the third argument is the options, compare the ' +
+            'confirmation before the call'
+        )
+      }
+      const { signal } = options
+      return http.post(
         'auth/change-password',
         {
           old_password: requiredOf('oldPassword', oldPassword),
           password: requiredOf('password', password),
-          password_2: password2
+          password_2: password
         },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Start the TOTP setup of the current user.
