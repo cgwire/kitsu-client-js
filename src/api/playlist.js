@@ -455,7 +455,11 @@ export const playlistApi = http => {
       http.fetchAll(`projects/${idOf(project)}/build-jobs`, {}, { signal }),
 
     /**
-     * Start the build of the movie of the playlist.
+     * Start the build of the movie of the playlist. Without a job queue (the
+     * default of Zou), Zou builds the movie before it answers: a long build
+     * rejects with a TimeoutError once the timeouts of the client run out
+     * (60 s to the first byte, 5 min in all, see its timeout option), while
+     * Zou goes on.
      * @param {Model} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The build job.
@@ -476,6 +480,10 @@ export const playlistApi = http => {
       ),
 
     /**
+     * Zou builds the whole archive before it answers: a large playlist
+     * rejects with a TimeoutError once the response timeout of the client
+     * runs out (60 s to the first byte, see its timeout option), while Zou
+     * goes on.
      * @param {Model} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the zip archive of
