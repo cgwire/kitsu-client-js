@@ -100,37 +100,17 @@ const instanceEntityPath = (assetInstance, temporalEntity) =>
   `data/asset-instances/${idOf(assetInstance)}/entities/${idOf(temporalEntity)}`
 
 export const filesApi = http => {
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First output type matching the name.
-   */
-  const getOutputTypeByName = async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'output-types',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
+  // The public functions are documented where they are returned: one
+  // returned by its name would lose its JSDoc in the declarations.
 
   /**
+   * @param {string} model
    * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First software matching the name.
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Entity|null>}
    */
-  const getSoftwareByName = async (name, { signal } = {}) =>
-    http.fetchFirst('softwares', { name: requiredOf('name', name) }, { signal })
-
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First file status matching the name.
-   */
-  const getFileStatusByName = async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'file-status',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
+  const firstByName = (model, name, signal) =>
+    http.fetchFirst(model, { name: requiredOf('name', name) }, { signal })
 
   /**
    * @param {string} path
@@ -238,10 +218,9 @@ export const filesApi = http => {
    * @param {Model} outputType
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<number>} Next revision available for the output files
-   *   of the entity, 1 when there is no output file yet.
+   * @returns {Promise<number>}
    */
-  const getNextEntityOutputRevision = async (
+  const nextEntityRevision = (
     entity,
     outputType,
     taskType,
@@ -257,14 +236,13 @@ export const filesApi = http => {
 
   /**
    * @param {Model} assetInstance
-   * @param {Model} temporalEntity Shot or scene the instance appears in.
+   * @param {Model} temporalEntity
    * @param {Model} outputType
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<number>} Next revision available for the output files
-   *   of the instance, 1 when there is no output file yet.
+   * @returns {Promise<number>}
    */
-  const getNextAssetInstanceOutputRevision = async (
+  const nextInstanceRevision = (
     assetInstance,
     temporalEntity,
     outputType,
@@ -281,11 +259,10 @@ export const filesApi = http => {
 
   /**
    * @param {Model} task
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Record<string, Entity>>} Last working file of the task
-   *   for each working file name.
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Record<string, Entity>>}
    */
-  const getLastWorkingFiles = async (task, { signal } = {}) =>
+  const lastWorkingFiles = (task, signal) =>
     http.get(
       `data/tasks/${idOf(task)}/working-files/last-revisions`,
       {},
@@ -378,7 +355,13 @@ export const filesApi = http => {
     getOutputType: async (outputType, { signal } = {}) =>
       http.fetchOne('output-types', idOf(outputType), { signal }),
 
-    getOutputTypeByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} First output type matching the name.
+     */
+    getOutputTypeByName: async (name, { signal } = {}) =>
+      firstByName('output-types', name, signal),
 
     /**
      * Create an output type, or return the one that already has this name.
@@ -388,7 +371,7 @@ export const filesApi = http => {
      * @returns {Promise<Entity>} The created or existing output type.
      */
     newOutputType: async (name, shortName, { signal } = {}) =>
-      (await getOutputTypeByName(name, { signal })) ||
+      (await firstByName('output-types', name, signal)) ||
       http.create('output-types', { name, short_name: shortName }, { signal }),
 
     /**
@@ -531,7 +514,13 @@ export const filesApi = http => {
     getSoftware: async (software, { signal } = {}) =>
       http.fetchOne('softwares', idOf(software), { signal }),
 
-    getSoftwareByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} First software matching the name.
+     */
+    getSoftwareByName: async (name, { signal } = {}) =>
+      firstByName('softwares', name, signal),
 
     /**
      * Create a software, or return the one that already has this name.
@@ -547,7 +536,7 @@ export const filesApi = http => {
       fileExtension,
       { secondaryExtensions, signal } = {}
     ) =>
-      (await getSoftwareByName(name, { signal })) ||
+      (await firstByName('softwares', name, signal)) ||
       http.create(
         'softwares',
         withoutNil({
@@ -829,9 +818,44 @@ export const filesApi = http => {
         options
       ),
 
-    getNextEntityOutputRevision,
+    /**
+     * @param {Model} entity
+     * @param {Model} outputType
+     * @param {Model} taskType
+     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @returns {Promise<number>} Next revision available for the output files
+     *   of the entity, 1 when there is no output file yet.
+     */
+    getNextEntityOutputRevision: async (
+      entity,
+      outputType,
+      taskType,
+      options
+    ) => nextEntityRevision(entity, outputType, taskType, options),
 
-    getNextAssetInstanceOutputRevision,
+    /**
+     * @param {Model} assetInstance
+     * @param {Model} temporalEntity Shot or scene the instance appears in.
+     * @param {Model} outputType
+     * @param {Model} taskType
+     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @returns {Promise<number>} Next revision available for the output files
+     *   of the instance, 1 when there is no output file yet.
+     */
+    getNextAssetInstanceOutputRevision: async (
+      assetInstance,
+      temporalEntity,
+      outputType,
+      taskType,
+      options
+    ) =>
+      nextInstanceRevision(
+        assetInstance,
+        temporalEntity,
+        outputType,
+        taskType,
+        options
+      ),
 
     /**
      * @param {Model} entity
@@ -847,7 +871,7 @@ export const filesApi = http => {
       taskType,
       options
     ) =>
-      getNextEntityOutputRevision(entity, outputType, taskType, options).then(
+      nextEntityRevision(entity, outputType, taskType, options).then(
         revision => revision - 1
       ),
 
@@ -867,7 +891,7 @@ export const filesApi = http => {
       taskType,
       options
     ) =>
-      getNextAssetInstanceOutputRevision(
+      nextInstanceRevision(
         assetInstance,
         temporalEntity,
         outputType,
@@ -914,7 +938,14 @@ export const filesApi = http => {
     getWorkingFilesForTask: async (task, { signal } = {}) =>
       http.get(`data/tasks/${idOf(task)}/working-files`, {}, { signal }),
 
-    getLastWorkingFiles,
+    /**
+     * @param {Model} task
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Record<string, Entity>>} Last working file of the task
+     *   for each working file name.
+     */
+    getLastWorkingFiles: async (task, { signal } = {}) =>
+      lastWorkingFiles(task, signal),
 
     /**
      * @param {Model} task
@@ -923,7 +954,7 @@ export const filesApi = http => {
      *   name, null when there is none.
      */
     getLastWorkingFileRevision: async (task, { name = 'main', signal } = {}) =>
-      own(await getLastWorkingFiles(task, { signal }), name),
+      own(await lastWorkingFiles(task, signal), name),
 
     /**
      * @param {Model} workingFile
@@ -1255,7 +1286,7 @@ export const filesApi = http => {
      * @returns {Promise<Entity>} The created or existing file status.
      */
     newFileStatus: async (name, color, { signal } = {}) =>
-      (await getFileStatusByName(name, { signal })) ||
+      (await firstByName('file-status', name, signal)) ||
       http.create('file-status', { name, color }, { signal }),
 
     /**
@@ -1266,7 +1297,13 @@ export const filesApi = http => {
     getFileStatus: async (fileStatus, { signal } = {}) =>
       http.fetchOne('file-status', idOf(fileStatus), { signal }),
 
-    getFileStatusByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} First file status matching the name.
+     */
+    getFileStatusByName: async (name, { signal } = {}) =>
+      firstByName('file-status', name, signal),
 
     /**
      * @param {Model} previewFile Loaded for its extension, like gazu.
