@@ -4,7 +4,10 @@
 
 - **Entity arguments** accept the entity object or its id:
   `kitsu.task.getTask(task)` and `kitsu.task.getTask(task.id)` are the same.
-  Anything that is not a UUID is rejected before any request.
+  Anything that is not a UUID is rejected before any request. A function
+  that needs a field of the entity, such as the `project_id` of a shot for
+  `kitsu.casting.getShotCasting`, reads the entity first when it gets its id
+  or an object without that field.
 - **Required arguments are positional**, in the same order as gazu. Optional
   ones go in one trailing options object, which also takes an `AbortSignal`:
   `kitsu.task.allTasksForShot(shot, { relations: true, signal })`.
@@ -24,7 +27,9 @@
 - **`get*` of a single entity resolves to `null` when it does not exist**,
   whether Zou answers a 404 or an empty object.
 - **Functions never throw synchronously**: a wrong argument is a rejected
-  promise. They never mutate their arguments.
+  promise. They never mutate their arguments. The pure helpers of
+  `@cgwire/kitsu-client/utils` throw instead (see
+  [Utilities](./utilities.md)).
 - **Public types come from the root entry**: `ClientOptions`, `Tokens`,
   `KitsuClient`, `ErrorInfo`, `Entity` and `Model`. Other type names in the
   declarations of a subpath are internal and may change in any release.
@@ -33,8 +38,11 @@
 
 ## Errors
 
-Every error extends `KitsuError` and carries `status`, `path`, `method` and
-`body` (the parsed answer of the API).
+Every error of a request or of an argument extends `KitsuError` and carries
+`status`, `path`, `method` and `body` (the parsed answer of the API). Only
+setup mistakes escape it: `createClient` throws a `TypeError` for a wrong
+option, and real-time events reject with an `Error` when socket.io-client
+cannot be loaded.
 
 | Condition             | Error                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
