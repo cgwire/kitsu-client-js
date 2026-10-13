@@ -365,10 +365,16 @@ export const assetApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset.
      */
-    updateAsset: async (asset, { signal } = {}) =>
-      http.update(
+    updateAsset: async (asset, { signal } = {}) => {
+      const id = idOf(asset)
+      if (typeof asset !== 'object') {
+        throw new ParameterError(
+          'Wrong format: updateAsset needs the asset object, an id has nothing to save'
+        )
+      }
+      return http.update(
         'entities',
-        idOf(asset),
+        id,
         placeholdersToNull(
           // Zou stores the episode of an asset in source_id.
           'episode_id' in asset
@@ -377,7 +383,8 @@ export const assetApi = http => {
           ASSET_PLACEHOLDERS
         ),
         { signal }
-      ),
+      )
+    },
 
     /**
      * Update the metadata of the asset. Keys that are not given are kept.
