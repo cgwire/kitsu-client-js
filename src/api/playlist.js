@@ -1,5 +1,6 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  dateOf,
   idOf,
   idsOf,
   optionalIdOf,
@@ -514,12 +515,14 @@ export const playlistApi = http => {
      * Create a share link for the playlist. Managers and above only.
      * @param {Model} playlist
      * @param {{
-     *   expirationDate?: string|null,
+     *   expirationDate?: Date|string|null,
      *   canComment?: boolean,
      *   password?: string|null,
      *   signal?: AbortSignal
-     * }} [options] expirationDate is an ISO date. canComment, true by
-     *   default, lets the guests comment.
+     * }} [options] expirationDate is a Date (its local day) or an ISO date:
+     *   the link works to the end of that day, in UTC. An ISO date and time
+     *   is taken as it is. canComment, true by default, lets the guests
+     *   comment.
      * @returns {Promise<Record<string, any>>} The share link, with its token.
      */
     newShareLink: async (
@@ -530,7 +533,7 @@ export const playlistApi = http => {
         `data/playlists/${idOf(playlist)}/share`,
         withoutNil({
           can_comment: canComment,
-          expiration_date: expirationDate || null,
+          expiration_date: dateOf(expirationDate) || null,
           password: password || null
         }),
         { signal }
