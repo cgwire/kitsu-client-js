@@ -103,11 +103,19 @@ export const playlistApi = http => {
     return { ...(typeof playlist === 'object' ? playlist : { id }), shots }
   }
 
-  // gazu returns the playlist it built, not the answer of the API.
+  // gazu returns the playlist it built, not the answer of the API. Only the
+  // entries are sent: the other fields of a read may be stale, and its
+  // build_jobs would replace the build jobs started since.
   const saveEntries = async (playlist, shots, persist, signal) => {
-    const updated = { ...playlist, shots }
-    if (persist) await savePlaylist(updated, signal)
-    return updated
+    if (persist) {
+      await http.update(
+        'playlists',
+        idOf(playlist),
+        { shots: shots.map(entryOf) },
+        { signal }
+      )
+    }
+    return { ...playlist, shots }
   }
 
   return {
@@ -282,7 +290,8 @@ export const playlistApi = http => {
     },
 
     /**
-     * Remove every occurrence of the entity from the playlist.
+     * Remove every occurrence of the entity from the playlist. Only the
+     * entries are saved.
      * @param {Model|Entity} playlist Never mutated: use the returned
      *   playlist. A playlist that carries no shots array (a row of
      *   allPlaylistsForProject, an id) is read first.
@@ -305,7 +314,8 @@ export const playlistApi = http => {
     },
 
     /**
-     * Change the preview file reviewed for the entity in the playlist.
+     * Change the preview file reviewed for the entity in the playlist. Only
+     * the entries are saved.
      * @param {Model|Entity} playlist Never mutated: use the returned
      *   playlist. A playlist that carries no shots array (a row of
      *   allPlaylistsForProject, an id) is read first.
