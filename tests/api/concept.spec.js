@@ -137,7 +137,7 @@ describe('concept namespace', () => {
     expect(fake.calls[1].body).toEqual({
       name: 'Castle',
       data: { mood: 'dark' },
-      entity_concept_links: [ASSET_ID, SHOT_ID],
+      entity_concept_links: [{ id: ASSET_ID }, { id: SHOT_ID }],
       description: 'North tower'
     })
     expect(data).toEqual({ mood: 'dark' })
