@@ -205,6 +205,21 @@ const removePerson = (http, person, { force = false, signal } = {}) =>
     { signal }
   )
 
+const fullNameKey = person => (person.full_name || '').toLowerCase()
+
+/**
+ * gazu's sort_by_name reads a name key Zou persons do not have: they sort
+ * the same way on their full name instead.
+ * @param {Entity[]} persons
+ * @returns {Entity[]} A new sorted array.
+ */
+const sortedByFullName = persons =>
+  [...persons].sort((a, b) => {
+    const [keyA, keyB] = [fullNameKey(a), fullNameKey(b)]
+    if (keyA < keyB) return -1
+    return keyA > keyB ? 1 : 0
+  })
+
 export const personApi = http => ({
   /**
    * @param {RequestOptions} [options]
@@ -222,10 +237,10 @@ export const personApi = http => ({
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} All persons, sorted by name.
+   * @returns {Promise<Entity[]>} All persons, sorted by full name.
    */
   allPersons: async ({ signal } = {}) =>
-    http.fetchAll('persons', {}, { signal }).then(sortedByName),
+    http.fetchAll('persons', {}, { signal }).then(sortedByFullName),
 
   /**
    * @param {string} name
