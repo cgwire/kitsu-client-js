@@ -132,14 +132,26 @@ describe('namespace URL functions', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('task.getTaskUrl needs the task object and no request', async () => {
-    expect(
-      await kitsu.task.getTaskUrl({ id: TASK_ID, project_id: PROJECT_ID })
-    ).toBe(`${PRODUCTION}/shots/tasks/${TASK_ID}/`)
-    await expect(kitsu.task.getTaskUrl(TASK_ID)).rejects.toBeInstanceOf(
-      ParameterError
+  it('task.getTaskUrl loads the task only when its project is missing', async () => {
+    const task = { id: TASK_ID, project_id: PROJECT_ID }
+    fake.reply(200, task).reply(200, task)
+    expect(await kitsu.task.getTaskUrl(task)).toBe(
+      `${PRODUCTION}/shots/tasks/${TASK_ID}/`
     )
     expect(fake.calls).toHaveLength(0)
+    expect(await kitsu.task.getTaskUrl(TASK_ID)).toBe(
+      `${PRODUCTION}/shots/tasks/${TASK_ID}/`
+    )
+    expect(await kitsu.task.getTaskUrl({ id: TASK_ID })).toBe(
+      `${PRODUCTION}/shots/tasks/${TASK_ID}/`
+    )
+    expect(fake.calls.map(call => call.path)).toEqual([
+      `/data/tasks/${TASK_ID}`,
+      `/data/tasks/${TASK_ID}`
+    ])
+    await expect(kitsu.task.getTaskUrl('task')).rejects.toBeInstanceOf(
+      ParameterError
+    )
   })
 
   it('files.getPreviewFileUrl loads the preview file for its extension', async () => {

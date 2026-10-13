@@ -1842,9 +1842,17 @@ export const taskApi = http => {
     },
 
     /**
-     * @param {Entity} task The task object: its project_id is needed.
+     * @param {string|{id: string, project_id?: string}} task The task is
+     *   fetched when its project_id is not given: the URL needs it.
+     * @param {RequestOptions} [options]
      * @returns {Promise<string>} URL of the task page in the Kitsu web app.
      */
-    getTaskUrl: async task => urls.getTaskUrl(urls.webHostOf(http.host), task)
+    getTaskUrl: async (task, { signal } = {}) =>
+      urls.getTaskUrl(
+        urls.webHostOf(http.host),
+        task && typeof task === 'object' && task.project_id
+          ? task
+          : await http.get(`data/tasks/${idOf(task)}`, {}, { signal })
+      )
   }
 }
