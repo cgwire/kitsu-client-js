@@ -35,6 +35,18 @@ const carriesEntries = playlist =>
   typeof playlist === 'object' &&
   (playlist.shots === null || Array.isArray(playlist.shots))
 
+// A saved entry is sent as Kitsu sends it: the entity and its preview, null
+// when it has none (Zou serves such an entry without the key).
+const entryOf = entry => ({
+  entity_id: entry.entity_id ?? entry.id,
+  preview_file_id: entry.preview_file_id ?? null
+})
+
+const withSavedEntries = playlist =>
+  Array.isArray(playlist?.shots)
+    ? { ...playlist, shots: playlist.shots.map(entryOf) }
+    : playlist
+
 // An entry is an entity, or an (entity, preview file) couple.
 const coupleOf = entry => {
   const isCouple =
@@ -76,7 +88,9 @@ export const playlistApi = http => {
     )
 
   const savePlaylist = (playlist, signal) =>
-    http.update('playlists', idOf(playlist), playlist, { signal })
+    http.update('playlists', idOf(playlist), withSavedEntries(playlist), {
+      signal
+    })
 
   // The given playlist, with its stored entries when it carries none.
   const withEntries = async (playlist, signal) => {
@@ -205,7 +219,8 @@ export const playlistApi = http => {
     },
 
     /**
-     * Save the playlist. Its metadata are fully replaced.
+     * Save the playlist. Its entries (shots) replace the stored ones, each
+     * sent as an entity_id and a preview_file_id, null when it has none.
      * @param {Entity} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>}
