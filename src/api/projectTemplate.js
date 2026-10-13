@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import {
   idOf,
   idsOf,
@@ -114,7 +115,7 @@ export const projectTemplateApi = http => {
       http.post(
         'data/project-templates',
         {
-          name,
+          name: requiredOf('name', name),
           description,
           ...withoutNil({
             fps,
@@ -169,7 +170,7 @@ export const projectTemplateApi = http => {
     ) =>
       http.post(
         `data/project-templates/from-project/${idOf(project)}`,
-        { name, description },
+        { name: requiredOf('name', name), description },
         { signal }
       ),
 
@@ -438,8 +439,14 @@ export const projectTemplateApi = http => {
       projectTemplate,
       previewBackgroundFile,
       { signal } = {}
-    ) =>
-      http.put(
+    ) => {
+      // Zou takes a missing background for null, which clears the default.
+      if (previewBackgroundFile === undefined) {
+        throw new ParameterError(
+          'Missing parameter: previewBackgroundFile is required, null clears the default'
+        )
+      }
+      return http.put(
         `${templatePath(projectTemplate)}/default-preview-background-file`,
         {
           default_preview_background_file_id: optionalIdOf(
@@ -447,7 +454,8 @@ export const projectTemplateApi = http => {
           )
         },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Replace the metadata descriptor snapshot of the template: the previous
@@ -457,7 +465,7 @@ export const projectTemplateApi = http => {
      * departments (ids) of the entry. position is kept in the snapshot only,
      * and the field name always comes from the name.
      * @param {Model} projectTemplate
-     * @param {object[]} descriptors
+     * @param {object[]} descriptors An empty list clears the snapshot.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */
@@ -465,12 +473,17 @@ export const projectTemplateApi = http => {
       projectTemplate,
       descriptors,
       { signal } = {}
-    ) =>
-      http.put(
+    ) => {
+      // Zou takes a missing list for an empty one, which erases the snapshot.
+      if (!Array.isArray(requiredOf('descriptors', descriptors))) {
+        throw new ParameterError('Wrong format: descriptors must be a list')
+      }
+      return http.put(
         `${templatePath(projectTemplate)}/metadata-descriptors`,
         { metadata_descriptors: descriptors },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Set the priority of every task type link of the template from the order

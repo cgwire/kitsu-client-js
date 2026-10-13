@@ -95,6 +95,20 @@ describe('projectTemplate namespace: templates', () => {
     })
   })
 
+  // Zou answers 500 to a creation without a name.
+  it('newProjectTemplate and newProjectTemplateFromProject reject a missing name', async () => {
+    await expect(
+      kitsu.projectTemplate.newProjectTemplate()
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.newProjectTemplate('')
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.newProjectTemplateFromProject(PROJECT_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateProjectTemplate saves the template', async () => {
     const template = { id: TEMPLATE_ID, name: 'Renamed' }
     fake.reply(200, template)
@@ -199,5 +213,18 @@ describe('projectTemplate namespace: templates', () => {
       path: `/data/project-templates/${TEMPLATE_ID}/metadata-descriptors`
     })
     expect(fake.calls[0].body).toEqual({ metadata_descriptors: descriptors })
+  })
+
+  // Zou takes a missing list for an empty one, which erases the snapshot.
+  it('setProjectTemplateMetadataDescriptors rejects a missing list', async () => {
+    await expect(
+      kitsu.projectTemplate.setProjectTemplateMetadataDescriptors(TEMPLATE_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.setProjectTemplateMetadataDescriptors(TEMPLATE_ID, {
+        name: 'Difficulty'
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 })

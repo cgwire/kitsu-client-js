@@ -231,4 +231,14 @@ describe('projectTemplate namespace: links', () => {
       default_preview_background_file_id: null
     })
   })
+
+  // Zou takes a missing background for null, which clears the default.
+  it('setProjectTemplateDefaultPreviewBackgroundFile rejects a missing background', async () => {
+    await expect(
+      kitsu.projectTemplate.setProjectTemplateDefaultPreviewBackgroundFile(
+        TEMPLATE_ID
+      )
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
 })
