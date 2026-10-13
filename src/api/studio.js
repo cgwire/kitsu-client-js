@@ -1,3 +1,4 @@
+import { ParameterError } from '../core/errors.js'
 import { idOf, requiredOf, sortedByName } from '../core/params.js'
 
 /**
@@ -55,8 +56,14 @@ export const studioApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated studio.
    */
-  updateStudio: async (studio, { signal } = {}) =>
-    http.update('studios', idOf(studio), studio, { signal }),
+  updateStudio: async (studio, { signal } = {}) => {
+    const id = idOf(studio)
+    // Its id alone would become the body, which Zou answers with a 500.
+    if (typeof studio !== 'object') {
+      throw new ParameterError('Wrong format: expected the studio, not its id')
+    }
+    return http.update('studios', id, studio, { signal })
+  },
 
   /**
    * Zou refuses (400) to delete a studio that people still belong to: change
