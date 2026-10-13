@@ -50,7 +50,13 @@ const myTasks = await kitsu.user.allTasksToDo()
 ```
 
 An expired access token is refreshed once, whatever the number of requests
-that hit the 401 at the same time, and each of them is replayed once.
+that hit the 401 at the same time, and each of them is replayed once. Zou
+renews the token only for a caller it does not take for a browser, judging by
+its user agent: Node, Electron and the Tauri http plugin are fine. A browser,
+or a webview that passes for one (WebView2 on Windows, WebKitGTK on Linux),
+gets the new token in a cookie only. There a bearer session ends with its
+access token, 7 days by default, when `onUnauthorized` fires, and a `logOut`
+after that cannot revoke it on the server.
 
 Web apps served by Kitsu itself use the session cookie instead:
 `createClient({ host: '/api', auth: 'cookie' })`.

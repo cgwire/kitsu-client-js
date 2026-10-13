@@ -51,7 +51,10 @@ const resolveTimeout = (timeout = {}) =>
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]
  *   Called on every token change, to persist them.
  * @property {() => void} [onUnauthorized] Called when a request stays
- *   unauthorized after the refresh attempt.
+ *   unauthorized after the refresh attempt, or when Zou refuses to renew the
+ *   token it refused the event socket. Zou never renews the token of a
+ *   bearer client it takes for a browser: such a session ends with its
+ *   access token.
  * @property {string} [eventHost] Defaults to the host without "/api".
  * @property {Function} [io] The socket.io-client "io" function. Left out,
  *   the first events.on() imports the optional peer "socket.io-client".
