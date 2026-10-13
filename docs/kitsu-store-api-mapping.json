@@ -2175,7 +2175,7 @@
     "route": "/data/projects/<id>/metadata-descriptors/<id>",
     "client": "project.updateMetadataDescriptor",
     "status": "existing",
-    "note": "Kitsu maps descriptor.values to choices; the client sends the descriptor with departments as ids"
+    "note": "Kitsu maps descriptor.values to choices and sends the whole descriptor. Zou resets any field left out to its default but the name: the client reads the descriptor first and sends it with the given fields merged in, departments as ids, and the name only when it is given (any name sent sets the field name from it)"
   },
   {
     "module": "productions",
