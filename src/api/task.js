@@ -176,10 +176,17 @@ export const taskApi = http => {
 
   /**
    * @param {RequestOptions} [options]
-   * @returns {Promise<{id: string}|null>} The task status flagged as default.
+   * @returns {Promise<{id: string}|null>} The status new tasks start on (Todo
+   *   by default). The default status of the concepts is left out.
    */
   const getDefaultTaskStatus = async ({ signal } = {}) =>
-    http.fetchFirst('task-status', { is_default: true }, { signal })
+    // Zou flags two statuses as default, Todo and the Neutral of the
+    // concepts, and lists them in no set order.
+    http.fetchFirst(
+      'task-status',
+      { is_default: true, for_concept: false },
+      { signal }
+    )
 
   /**
    * @param {string} shortName
