@@ -302,6 +302,60 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls[0].body).toEqual({ archived: true })
     })
 
+    it('updateStatusAutomation saves a whole automation read before', async () => {
+      const fields = {
+        entity_type: 'shot',
+        in_task_type_id: TASK_TYPE_ID,
+        in_task_status_id: TASK_STATUS_ID,
+        out_field_type: 'status',
+        out_task_type_id: OTHER_ID,
+        out_task_status_id: TASK_STATUS_ID,
+        import_last_revision: false,
+        archived: true
+      }
+      fake.reply(200, { id: STATUS_AUTOMATION_ID, ...fields })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        ...fields
+      })
+      expect(fake.calls[0].body).toEqual(fields)
+    })
+
+    // newStatusAutomation refuses them for the same reasons: Zou would store
+    // them, then fail on later reads or on the comments that trigger them.
+    it('updateStatusAutomation rejects an output newStatusAutomation refuses', async () => {
+      const outputs = [
+        { out_field_type: 'ready-for' },
+        { out_field_type: null },
+        { out_field_type: 'status' },
+        { out_field_type: 'status', out_task_status_id: null },
+        { out_task_status_id: null },
+        { out_field_type: 'ready_for', entity_type: 'shot' }
+      ]
+      const errors = await Promise.all(
+        outputs.map(output =>
+          kitsu.project
+            .updateStatusAutomation({ id: STATUS_AUTOMATION_ID, ...output })
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    it('updateStatusAutomation lets a ready_for output drop its status', async () => {
+      fake.reply(200, { id: STATUS_AUTOMATION_ID })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        out_field_type: 'ready_for',
+        out_task_status_id: null
+      })
+      expect(fake.calls[0].body).toEqual({
+        out_field_type: 'ready_for',
+        out_task_status_id: null
+      })
+    })
+
     it('deleteStatusAutomation deletes the automation', async () => {
       fake.reply(204, '')
       await kitsu.project.deleteStatusAutomation({ id: STATUS_AUTOMATION_ID })
