@@ -619,20 +619,15 @@ export const shotApi = http => {
     /**
      * The shots with their tasks, as the shot list of the Kitsu web app loads
      * them (streamed when the API supports it).
-     * @param {{
-     *   project?: Model,
-     *   episode?: Model,
-     *   signal?: AbortSignal
-     * }} [options]
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the shots of that episode only.
      * @returns {Promise<Entity[]>} The shots, each with its tasks.
      */
-    allShotsWithTasks: async ({ project, episode, signal } = {}) =>
+    allShotsWithTasks: async (project, { episode, signal } = {}) =>
       http.getNdjson(
         'data/shots/with-tasks',
-        {
-          project_id: optionalIdOf(project),
-          episode_id: optionalIdOf(episode)
-        },
+        { project_id: idOf(project), episode_id: optionalIdOf(episode) },
         { signal }
       ),
 
