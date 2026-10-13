@@ -222,7 +222,7 @@
     "route": "/data/projects/<id>/entities/casting",
     "client": "casting.updateCastings",
     "status": "added",
-    "note": "Bulk update of several entities in one PUT. The client only has the per-entity PUT (updateShotCasting, updateAssetCasting, updateEpisodeCasting on entities/<id>/casting)."
+    "note": "Bulk update of several entities in one PUT, next to the per-entity PUT of updateShotCasting, updateAssetCasting and updateEpisodeCasting (entities/<id>/casting). The client refuses an entry without asset_id or a whole nb_occurences: Zou empties the casting first and drops such an entry without an error."
   },
   {
     "module": "breakdown",
@@ -456,7 +456,7 @@
     "route": "/data/projects/<id>/concepts",
     "client": "concept.newConcept",
     "status": "existing",
-    "note": "The client first looks the concept up by name (extra GET) and also sends data and entity_concept_links."
+    "note": "The client first looks the concept up by name (extra GET) and also sends data and entity_concept_links, as {id} dicts: Zou refuses a list of ids."
   },
   {
     "module": "concepts",
@@ -780,7 +780,7 @@
     "route": "/data/edits/<id>/versions",
     "client": "edit.allVersionsForEdit",
     "status": "added",
-    "note": ""
+    "note": "Zou records versions for the shots only: the list of an edit stays empty."
   },
   {
     "module": "entities",
@@ -2886,7 +2886,7 @@
     "route": "/import/otio/projects/<id> | /import/otio/projects/<id>/episodes/<id>",
     "client": "shot.importOtio",
     "status": "existing",
-    "note": "Same multipart fields (file, naming_convention, match_case); the episode route is used when an episode is given, as in Kitsu."
+    "note": "Same multipart fields (file, naming_convention, match_case); the episode route is used when an episode is given, as in Kitsu. On a TV show, Zou needs the episode."
   },
   {
     "module": "shots",
