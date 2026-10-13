@@ -13,6 +13,22 @@ import {
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+// The link lists of a template read with its relations. Zou ignores them on
+// an update, but for preview_background_files, which it takes as the whole
+// list: a template read earlier would undo the links made since.
+const LINK_FIELDS = [
+  'task_types',
+  'task_statuses',
+  'asset_types',
+  'status_automations',
+  'preview_background_files'
+]
+
+const withoutLinks = template =>
+  Object.fromEntries(
+    Object.entries(template).filter(([key]) => !LINK_FIELDS.includes(key))
+  )
+
 export const projectTemplateApi = http => {
   const templatePath = projectTemplate =>
     `data/project-templates/${idOf(projectTemplate)}`
@@ -112,14 +128,19 @@ export const projectTemplateApi = http => {
       ),
 
     /**
+     * Save the template. Its link lists are not sent: the add and remove
+     * functions of each link change them.
      * @param {Entity} projectTemplate
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */
     updateProjectTemplate: async (projectTemplate, { signal } = {}) =>
-      http.update('project-templates', idOf(projectTemplate), projectTemplate, {
-        signal
-      }),
+      http.update(
+        'project-templates',
+        idOf(projectTemplate),
+        withoutLinks(projectTemplate),
+        { signal }
+      ),
 
     /**
      * @param {Model} projectTemplate

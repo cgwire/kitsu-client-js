@@ -2265,7 +2265,7 @@
     "route": "/data/project-templates/<id>",
     "client": "projectTemplate.updateProjectTemplate",
     "status": "existing",
-    "note": "Client sends the whole template object as body, Kitsu sends a whitelist of fields."
+    "note": "Client sends the template object as body without its link lists (Zou would replace the background links with a stale list), Kitsu sends a whitelist of fields."
   },
   {
     "module": "projecttemplates",

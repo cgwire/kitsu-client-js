@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { PROJECT_ID } from '../helpers/ids.js'
+import { OTHER_ID, PROJECT_ID } from '../helpers/ids.js'
 
 const TEMPLATE_ID = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1'
 
@@ -107,6 +107,32 @@ describe('projectTemplate namespace: templates', () => {
     })
     expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
     expect(template).toEqual({ id: TEMPLATE_ID, name: 'Renamed' })
+  })
+
+  // Zou sets the background links from preview_background_files: a template
+  // read earlier would undo the links made since.
+  it('updateProjectTemplate leaves the link lists out', async () => {
+    const template = {
+      id: TEMPLATE_ID,
+      name: 'Feature',
+      description: 'v2',
+      fps: '24',
+      task_types: [OTHER_ID],
+      task_statuses: [OTHER_ID],
+      asset_types: [OTHER_ID],
+      status_automations: [OTHER_ID],
+      preview_background_files: [OTHER_ID],
+      default_preview_background_file_id: null
+    }
+    fake.reply(200, { id: TEMPLATE_ID, name: 'Feature', description: 'v2' })
+    await kitsu.projectTemplate.updateProjectTemplate(template)
+    expect(fake.calls[0].body).toEqual({
+      name: 'Feature',
+      description: 'v2',
+      fps: '24',
+      default_preview_background_file_id: null
+    })
+    expect(template.preview_background_files).toEqual([OTHER_ID])
   })
 
   it('removeProjectTemplate deletes the template', async () => {
