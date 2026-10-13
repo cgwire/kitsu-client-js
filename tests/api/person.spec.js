@@ -41,15 +41,22 @@ describe('person namespace', () => {
     })
   })
 
-  it('allPersons lists every person, sorted by name like gazu', async () => {
-    fake.reply(200, [
-      { id: PERSON_ID, name: 'zoe' },
-      { id: OTHER_ID, name: 'Alice' }
-    ])
-    expect(await kitsu.person.allPersons()).toEqual([
-      { id: OTHER_ID, name: 'Alice' },
-      { id: PERSON_ID, name: 'zoe' }
-    ])
+  // Zou persons have no name key: they sort on their full name.
+  it('allPersons lists every person, sorted by full name', async () => {
+    const zoe = {
+      id: PERSON_ID,
+      first_name: 'zoe',
+      last_name: 'Martin',
+      full_name: 'zoe Martin'
+    }
+    const alice = {
+      id: OTHER_ID,
+      first_name: 'Alice',
+      last_name: 'Doe',
+      full_name: 'Alice Doe'
+    }
+    fake.reply(200, [zoe, alice])
+    expect(await kitsu.person.allPersons()).toEqual([alice, zoe])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/persons'
