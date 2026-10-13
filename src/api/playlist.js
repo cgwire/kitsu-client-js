@@ -624,7 +624,10 @@ export const playlistApi = http => {
       ),
 
     /**
-     * Create the guest of a shared playlist, or get a known guest back.
+     * Create the guest of a shared playlist, or get a known guest back. Zou
+     * 1.0.94 refuses it on a password-protected link (NotFoundError), as
+     * every guest write there: only getSharedPlaylist and
+     * allSharedPlaylistComments work on such a link, with the password.
      * @param {string} token Token of the share link.
      * @param {{
      *   firstName?: string|null,
@@ -654,7 +657,9 @@ export const playlistApi = http => {
      * @param {{password?: string|null, signal?: AbortSignal}} [options]
      *   password is needed when the share link is protected.
      * @returns {Promise<Entity|null>} The shared playlist. Null when the
-     *   share link does not exist.
+     *   share link does not exist, is revoked or expired, or is protected
+     *   and the password is missing or wrong: Zou answers a 404 to all of
+     *   them.
      */
     getSharedPlaylist: async (token, { password = null, signal } = {}) =>
       orNull(http.get(sharedPath(token), { password }, { signal })),
@@ -662,10 +667,11 @@ export const playlistApi = http => {
     /**
      * @param {string} token Token of the share link.
      * @param {{password?: string|null, signal?: AbortSignal}} [options]
-     *   password is needed when the share link is protected.
+     *   password is checked, but Zou 1.0.94 then reads the link again
+     *   without it: on a protected link the context is always null.
      * @returns {Promise<Record<string, any>|null>} What a player needs to show
      *   the shared playlist (task types, statuses, ...). Null when the share
-     *   link does not exist.
+     *   link does not exist, is revoked or expired, or is protected.
      */
     getSharedPlaylistContext: async (token, { password = null, signal } = {}) =>
       orNull(http.get(sharedPath(token, '/context'), { password }, { signal })),
@@ -724,7 +730,8 @@ export const playlistApi = http => {
      *   checklist?: Record<string, any>[]|null,
      *   password?: string|null,
      *   signal?: AbortSignal
-     * }} [options] password is needed when the share link is protected.
+     * }} [options] password is checked, but Zou 1.0.94 then refuses the
+     *   comment on a protected link anyway, as every guest write there.
      * @returns {Promise<Entity>} The comment.
      */
     newSharedPlaylistComment: async (
