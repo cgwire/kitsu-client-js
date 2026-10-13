@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ParameterError } from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ENTITY_ID,
@@ -45,6 +46,22 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     expect(fake.calls[0].query.get('end_date')).toBe('2026-09-30')
     expect(fake.calls[1].query.get('start_date')).toBe('2026-09-01')
     expect(fake.calls[1].query.get('end_date')).toBe('2026-09-30')
+  })
+
+  // Without them, Zou answers an empty list, which reads as no time logged.
+  it('getTimespentsRange requires both days before any request', async () => {
+    const { user } = kitsu
+    await expect(user.getTimespentsRange()).rejects.toThrow(ParameterError)
+    await expect(user.getTimespentsRange('', '2026-09-30')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      user.getTimespentsRange('2026-09-01', undefined)
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      user.getTimespentsRange('2026-09-01', '30/09/2026')
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('logDesktopSessionLogIn posts the current UTC time', async () => {
