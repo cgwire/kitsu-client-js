@@ -1761,7 +1761,7 @@
     "route": "/data/playlists/<id>/build/mp4",
     "client": "playlist.buildPlaylistMovie",
     "status": "existing",
-    "note": "Query differs: Kitsu sends full=true optionally, the client has no such option (add a full flag)."
+    "note": "Kitsu sends full=true optionally: the full option of the client."
   },
   {
     "module": "playlists",
