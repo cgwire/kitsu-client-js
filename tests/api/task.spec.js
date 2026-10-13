@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotFoundError } from '../../src/index.js'
+import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
@@ -450,6 +450,27 @@ describe('task namespace: tasks, types and statuses', () => {
     await kitsu.task.updateTask({ id: TASK_ID, assignees: null })
     expect(fake.calls[0].body).toEqual({ assignees: [] })
   })
+
+  it('updateTask leaves the assignees alone when they are undefined', async () => {
+    // An empty list would unassign everybody.
+    fake.reply(200, { id: TASK_ID })
+    await kitsu.task.updateTask({
+      id: TASK_ID,
+      priority: 2,
+      assignees: undefined
+    })
+    expect(fake.calls[0].body).toEqual({ priority: 2 })
+  })
+
+  it.each([[TASK_ID], [null], [undefined]])(
+    'updateTask rejects %s without any request',
+    async task => {
+      await expect(kitsu.task.updateTask(task)).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
 
   it('updateTaskData sends only the given keys, Zou merges them', async () => {
     fake.reply(200, { id: TASK_ID, data: { a: 1, b: 3 } })
