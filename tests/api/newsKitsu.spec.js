@@ -11,7 +11,16 @@ import {
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
-const FEED = { data: [{ id: OTHER_ID }], total: 1, stats: [] }
+// The page envelope of Zou, with the count of news per task status id.
+const FEED = {
+  data: [{ id: OTHER_ID }],
+  total: 1,
+  nb_pages: 1,
+  limit: 50,
+  offset: 0,
+  page: 1,
+  stats: { [TASK_STATUS_ID]: 1 }
+}
 
 describe('news namespace: Kitsu coverage', () => {
   let kitsu, fake
