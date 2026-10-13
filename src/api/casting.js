@@ -79,10 +79,24 @@ export const castingApi = http => {
   const entityCastingPath = (project, entity) =>
     `data/projects/${idOf(project)}/entities/${idOf(entity)}/casting`
 
-  // Like gazu, these getters find the project on the entity itself: an id
-  // alone is rejected instead of costing a second request.
-  const readEntityCasting = (entity, signal) =>
-    read(entityCastingPath(entity && entity.project_id, entity), signal)
+  // Like gazu, these getters find the project on the entity itself. An id,
+  // or an object without its project_id, is read first: a missing entity
+  // has no casting.
+  const projectIdOf = async (model, entity, signal) => {
+    const known =
+      entity !== null && typeof entity === 'object' && entity.project_id
+    const source = known
+      ? entity
+      : await http.fetchOne(model, idOf(entity), { signal })
+    return source === null ? null : idOf(source.project_id)
+  }
+
+  const readEntityCasting = async (model, entity, signal) => {
+    const projectId = await projectIdOf(model, entity, signal)
+    return projectId === null
+      ? null
+      : read(entityCastingPath(projectId, entity), signal)
+  }
 
   const updateEntityCasting = (project, entity, casting, signal) =>
     http.put(entityCastingPath(project, entity), castingOf(casting), {
@@ -227,41 +241,51 @@ export const castingApi = http => {
       ),
 
     /**
-     * @param {Entity} sequence The sequence object: its project_id is needed.
+     * @param {Model} sequence The project of the casting is its project_id:
+     *   a sequence given as an id, or without it, is read first.
      * @param {RequestOptions} [options]
      * @returns {Promise<CastingMap|null>} The casting of each shot of the
-     *   sequence.
+     *   sequence, null when the sequence does not exist.
      */
-    getSequenceCasting: async (sequence, { signal } = {}) =>
-      read(
-        `data/projects/${idOf(sequence && sequence.project_id)}` +
-          `/sequences/${idOf(sequence)}/casting`,
-        signal
-      ),
+    getSequenceCasting: async (sequence, { signal } = {}) => {
+      const projectId = await projectIdOf('sequences', sequence, signal)
+      return projectId === null
+        ? null
+        : read(
+            `data/projects/${projectId}/sequences/${idOf(sequence)}/casting`,
+            signal
+          )
+    },
 
     /**
-     * @param {Entity} shot The shot object: its project_id is needed.
+     * @param {Model} shot The project of the casting is its project_id: a
+     *   shot given as an id, or without it, is read first.
      * @param {RequestOptions} [options]
-     * @returns {Promise<CastingEntry[]|null>}
+     * @returns {Promise<CastingEntry[]|null>} The casting of the shot, null
+     *   when the shot does not exist.
      */
     getShotCasting: async (shot, { signal } = {}) =>
-      readEntityCasting(shot, signal),
+      readEntityCasting('shots', shot, signal),
 
     /**
-     * @param {Entity} asset The asset object: its project_id is needed.
+     * @param {Model} asset The project of the casting is its project_id: an
+     *   asset given as an id, or without it, is read first.
      * @param {RequestOptions} [options]
-     * @returns {Promise<CastingEntry[]|null>}
+     * @returns {Promise<CastingEntry[]|null>} The casting of the asset, null
+     *   when the asset does not exist.
      */
     getAssetCasting: async (asset, { signal } = {}) =>
-      readEntityCasting(asset, signal),
+      readEntityCasting('assets', asset, signal),
 
     /**
-     * @param {Entity} episode The episode object: its project_id is needed.
+     * @param {Model} episode The project of the casting is its project_id: an
+     *   episode given as an id, or without it, is read first.
      * @param {RequestOptions} [options]
-     * @returns {Promise<CastingEntry[]|null>}
+     * @returns {Promise<CastingEntry[]|null>} The casting of the episode, null
+     *   when the episode does not exist.
      */
     getEpisodeCasting: async (episode, { signal } = {}) =>
-      readEntityCasting(episode, signal),
+      readEntityCasting('episodes', episode, signal),
 
     /**
      * @param {Model} asset

@@ -258,7 +258,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getEpisodeCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it (Kitsu also accepts asset.production_id)."
   },
   {
     "module": "breakdown",
@@ -267,7 +267,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getShotCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it (Kitsu also accepts asset.production_id)."
   },
   {
     "module": "breakdown",
@@ -276,7 +276,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getAssetCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id). The client rejects an asset carrying only production_id."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it, an asset carrying only production_id included (Kitsu accepts asset.production_id)."
   },
   {
     "module": "budget",

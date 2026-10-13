@@ -50,11 +50,17 @@ describe('casting namespace: reads', () => {
     })
   })
 
-  it('getSequenceCasting rejects a sequence without its project', async () => {
-    await expect(
-      kitsu.casting.getSequenceCasting(SEQUENCE_ID)
-    ).rejects.toBeInstanceOf(ParameterError)
-    expect(fake.calls).toHaveLength(0)
+  it('getSequenceCasting reads a sequence given without its project', async () => {
+    fake
+      .reply(200, { id: SEQUENCE_ID, project_id: PROJECT_ID })
+      .reply(200, { [SHOT_ID]: CASTING })
+    expect(await kitsu.casting.getSequenceCasting(SEQUENCE_ID)).toEqual({
+      [SHOT_ID]: CASTING
+    })
+    expect(fake.calls.map(call => call.path)).toEqual([
+      `/data/sequences/${SEQUENCE_ID}`,
+      `/data/projects/${PROJECT_ID}/sequences/${SEQUENCE_ID}/casting`
+    ])
   })
 
   it('getShotCasting reads the casting of a shot', async () => {
@@ -121,16 +127,49 @@ describe('casting namespace: reads', () => {
     expect(results).toEqual(reads.map(() => null))
   })
 
-  it('entity casting getters reject an entity without its project', async () => {
-    await expect(kitsu.casting.getShotCasting(SHOT_ID)).rejects.toBeInstanceOf(
-      ParameterError
+  // Entity arguments accept an id: the entity is then read for its project.
+  it.each([
+    ['getShotCasting', 'shots', SHOT_ID],
+    ['getAssetCasting', 'assets', ASSET_ID],
+    ['getEpisodeCasting', 'episodes', EPISODE_ID]
+  ])(
+    '%s reads an entity given without its project',
+    async (name, model, entityId) => {
+      fake
+        .reply(200, { id: entityId, project_id: PROJECT_ID })
+        .reply(200, CASTING)
+        .reply(200, { id: entityId, project_id: PROJECT_ID })
+        .reply(200, CASTING)
+      expect(await kitsu.casting[name](entityId)).toEqual(CASTING)
+      expect(await kitsu.casting[name]({ id: entityId })).toEqual(CASTING)
+      expect(fake.calls.map(call => call.path)).toEqual([
+        `/data/${model}/${entityId}`,
+        ENTITY_CASTING_PATH(entityId),
+        `/data/${model}/${entityId}`,
+        ENTITY_CASTING_PATH(entityId)
+      ])
+    }
+  )
+
+  it('entity casting getters give null for a missing entity', async () => {
+    fake.reply(404, {}).reply(404, {}).reply(404, {}).reply(404, {})
+    expect(await kitsu.casting.getShotCasting(SHOT_ID)).toBeNull()
+    expect(await kitsu.casting.getAssetCasting({ id: ASSET_ID })).toBeNull()
+    expect(await kitsu.casting.getEpisodeCasting(EPISODE_ID)).toBeNull()
+    expect(await kitsu.casting.getSequenceCasting(SEQUENCE_ID)).toBeNull()
+    expect(fake.calls).toHaveLength(4)
+  })
+
+  it('entity casting getters reject a malformed entity before any request', async () => {
+    const errors = await Promise.all(
+      [
+        kitsu.casting.getShotCasting('SH010'),
+        kitsu.casting.getAssetCasting({ name: 'Chair' }),
+        kitsu.casting.getEpisodeCasting(null),
+        kitsu.casting.getSequenceCasting({ id: 'SQ01', project_id: PROJECT_ID })
+      ].map(promise => promise.catch(err => err))
     )
-    await expect(
-      kitsu.casting.getAssetCasting({ id: ASSET_ID })
-    ).rejects.toBeInstanceOf(ParameterError)
-    await expect(kitsu.casting.getEpisodeCasting(null)).rejects.toBeInstanceOf(
-      ParameterError
-    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
     expect(fake.calls).toHaveLength(0)
   })
 
