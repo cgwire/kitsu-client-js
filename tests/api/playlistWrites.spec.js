@@ -90,7 +90,8 @@ describe('playlist namespace: writes', () => {
       episode: { id: EPISODE_ID },
       forEntity: 'asset',
       forClient: true,
-      isForAll: true
+      isForAll: true,
+      taskType: { id: TASK_TYPE_ID }
     })
     expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
     expect(fake.calls[1].body).toEqual({
@@ -99,7 +100,8 @@ describe('playlist namespace: writes', () => {
       for_entity: 'asset',
       for_client: true,
       is_for_all: true,
-      episode_id: EPISODE_ID
+      episode_id: EPISODE_ID,
+      task_type_id: TASK_TYPE_ID
     })
   })
 

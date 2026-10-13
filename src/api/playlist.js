@@ -243,10 +243,12 @@ export const playlistApi = http => {
      *   forEntity?: 'shot'|'asset'|'sequence'|'edit'|'episode',
      *   forClient?: boolean,
      *   isForAll?: boolean,
+     *   taskType?: Model|null,
      *   signal?: AbortSignal
      * }} [options] Without episode the playlist belongs to the project:
      *   isForAll files it under "All Assets" instead of "Main Pack" in the
-     *   web UI. forClient shares it with the clients.
+     *   web UI. forClient shares it with the clients. taskType is the task
+     *   type it reviews, whose latest preview addEntitiesToPlaylist picks.
      * @returns {Promise<Entity>}
      */
     newPlaylist: async (
@@ -257,6 +259,7 @@ export const playlistApi = http => {
         forEntity = 'shot',
         forClient = false,
         isForAll = false,
+        taskType = null,
         signal
       } = {}
     ) => {
@@ -266,7 +269,8 @@ export const playlistApi = http => {
         for_entity: forEntity,
         for_client: forClient,
         is_for_all: isForAll,
-        episode_id: optionalIdOf(episode)
+        episode_id: optionalIdOf(episode),
+        task_type_id: optionalIdOf(taskType)
       })
       const existing = await playlistByName(project, name, episode, signal)
       return existing || http.create('playlists', data, { signal })
