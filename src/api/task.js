@@ -792,10 +792,15 @@ export const taskApi = http => {
       http.fetchAll(`persons/${idOf(person)}/done-tasks`, {}, { signal }),
 
     /**
+     * Not only the tasks of the person: every task of this task type on the
+     * entities where the person has a task, of any type, in an open
+     * production, whoever is assigned to it. allTasksForPerson lists the
+     * tasks of the person.
      * @param {Model} person
      * @param {Model} taskType
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Tasks of the person for this task type.
+     * @returns {Promise<Entity[]>} Tasks of this task type on the entities of
+     *   the person.
      */
     allTasksForPersonAndType: async (person, taskType, { signal } = {}) =>
       http.fetchAll(
