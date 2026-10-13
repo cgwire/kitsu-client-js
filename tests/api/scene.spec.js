@@ -307,7 +307,9 @@ describe('scene namespace: writes', () => {
 
   it('removeShotFromScene unlinks a shot from a scene', async () => {
     fake.reply(204)
-    await kitsu.scene.removeShotFromScene(SCENE_ID, { id: SHOT_ID })
+    expect(
+      await kitsu.scene.removeShotFromScene(SCENE_ID, { id: SHOT_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/scenes/${SCENE_ID}/shots/${SHOT_ID}`
