@@ -451,9 +451,11 @@ export const projectTemplateApi = http => {
 
     /**
      * Replace the metadata descriptor snapshot of the template: the previous
-     * one is not merged. Each descriptor has the shape materialized when the
-     * template is applied: name, entity_type, data_type, choices, for_client,
-     * departments, position.
+     * one is not merged. Applying the template adds to the project each
+     * descriptor it lacks, from the name, entity_type, task_type_id (a Task
+     * entry without it is skipped), data_type, choices, for_client and
+     * departments (ids) of the entry. position is kept in the snapshot only,
+     * and the field name always comes from the name.
      * @param {Model} projectTemplate
      * @param {object[]} descriptors
      * @param {RequestOptions} [options]
