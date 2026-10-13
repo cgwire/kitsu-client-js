@@ -552,8 +552,10 @@ describe('person namespace', () => {
   })
 
   it('disableTwoFactorAuthentication deletes the 2FA of the person', async () => {
-    fake.reply(204)
-    await kitsu.person.disableTwoFactorAuthentication({ id: PERSON_ID })
+    fake.reply(200, { success: true })
+    expect(
+      await kitsu.person.disableTwoFactorAuthentication({ id: PERSON_ID })
+    ).toEqual({ success: true })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/actions/persons/${PERSON_ID}/disable-two-factor-authentication`

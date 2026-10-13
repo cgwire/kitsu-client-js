@@ -970,7 +970,7 @@ export const personApi = http => ({
   /**
    * @param {Model} person
    * @param {RequestOptions} [options]
-   * @returns {Promise<null>}
+   * @returns {Promise<{success: boolean}>}
    */
   disableTwoFactorAuthentication: async (person, { signal } = {}) =>
     http.del(
