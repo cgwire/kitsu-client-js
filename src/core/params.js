@@ -50,7 +50,12 @@ export const optionalIdOf = model =>
  * @param {Model[]} [models]
  * @returns {string[]}
  */
-export const idsOf = (models = []) => models.map(idOf)
+export const idsOf = (models = []) => {
+  if (!Array.isArray(models)) {
+    throw new ParameterError('Wrong format: expected a list of ids or entities')
+  }
+  return models.map(idOf)
+}
 
 /**
  * Guard a required value used as a filter. buildQuery drops empty values: a

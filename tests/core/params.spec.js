@@ -69,6 +69,12 @@ describe('idsOf', () => {
     expect(() => idsOf([SHOT_ID, undefined])).toThrow(ParameterError)
     expect(() => idsOf([null])).toThrow(ParameterError)
   })
+
+  it('rejects anything else than a list, a single entity for one', () => {
+    expect(() => idsOf(SHOT_ID)).toThrow(ParameterError)
+    expect(() => idsOf({ id: SHOT_ID })).toThrow(ParameterError)
+    expect(() => idsOf(null)).toThrow(ParameterError)
+  })
 })
 
 describe('requiredOf', () => {
