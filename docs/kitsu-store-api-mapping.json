@@ -3084,7 +3084,7 @@
     "route": "/data/tasks",
     "client": "task.allTasks",
     "status": "added",
-    "note": "Generic filtered list (free filters object passed as query). Existing functions on GET /data/tasks (allTasksForTaskStatus, allTasksForTaskType, getTaskByEntity) only send fixed filters."
+    "note": "Filtered CRUD list. Kitsu sends project_id, task_type_id, episode_id and relations (production schedule): the client takes them as named options (project, taskType, episode, relations), with taskStatus. Existing functions on GET /data/tasks (allTasksForTaskStatus, allTasksForTaskType, getTaskByEntity) only send fixed filters."
   },
   {
     "module": "tasks",

@@ -57,24 +57,38 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('allTasks sends the filters as the query', async () => {
+  it('allTasks sends the named filters as the query', async () => {
     fake.reply(200, [{ id: TASK_ID }]).reply(200, [])
     expect(
       await kitsu.task.allTasks({
-        filters: {
-          project_id: PROJECT_ID,
-          task_status_id: TASK_STATUS_ID,
-          assigner_id: null
-        }
+        project: { id: PROJECT_ID },
+        taskType: TASK_TYPE_ID,
+        taskStatus: { id: TASK_STATUS_ID },
+        episode: EPISODE_ID,
+        relations: true
       })
     ).toEqual([{ id: TASK_ID }])
     expect(await kitsu.task.allTasks()).toEqual([])
     expect(fake.calls[0]).toMatchObject({ method: 'GET', path: '/data/tasks' })
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({
       project_id: PROJECT_ID,
-      task_status_id: TASK_STATUS_ID
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      episode_id: EPISODE_ID,
+      relations: 'true'
     })
     expect([...fake.calls[1].query.keys()]).toEqual([])
+  })
+
+  it('allTasks refuses the filters object of 0.2 without any request', async () => {
+    // Dropped without a word, it would list the tasks of every production.
+    await expect(
+      kitsu.task.allTasks({ filters: { project_id: PROJECT_ID } })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.task.allTasks({ project: 'Agent 327' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getOpenTasksBurndown takes the filters of allOpenTasks', async () => {
