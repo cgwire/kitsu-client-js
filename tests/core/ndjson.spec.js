@@ -66,6 +66,38 @@ describe('readNdjson', () => {
     expect(await readNdjson(ndjsonResponse(lines))).toEqual([{ id: 'a1' }])
   })
 
+  // TCP splits a stream anywhere: in a line, in a multi-byte character.
+  it.each([
+    ['with', '\n'],
+    ['without', '']
+  ])(
+    'decodes a stream split at every byte, %s a trailing newline',
+    async (_, end) => {
+      const lines = [
+        COMPACT[0],
+        ['a1', 'Héroïne 🦸', [['t1', ['p1']]]],
+        ['a2', '木の精', []]
+      ]
+      const bytes = new TextEncoder().encode(
+        lines.map(line => JSON.stringify(line)).join('\n') + end
+      )
+      const body = new ReadableStream({
+        start: stream => {
+          bytes.forEach(byte => stream.enqueue(Uint8Array.of(byte)))
+          stream.close()
+        }
+      })
+      expect(await readNdjson(new Response(body))).toEqual([
+        {
+          id: 'a1',
+          name: 'Héroïne 🦸',
+          tasks: [{ id: 't1', assignees: ['p1'] }]
+        },
+        { id: 'a2', name: '木の精', tasks: [] }
+      ])
+    }
+  )
+
   it('reports a malformed line as a SyntaxError and releases the stream', async () => {
     const cancel = vi.fn()
     const encoder = new TextEncoder()
