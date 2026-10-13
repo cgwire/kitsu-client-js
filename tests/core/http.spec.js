@@ -123,6 +123,23 @@ describe('http errors', () => {
     })
   })
 
+  it('refuses a page answered to a read of another type, such as a CSV export', async () => {
+    const html = '<!DOCTYPE html><html></html>'
+    const answers = [
+      new Response('name;frames\nSH010;24', {
+        headers: { 'Content-Type': 'text/csv; charset=utf-8' }
+      }),
+      new Response(html, { headers: { 'Content-Type': 'text/html' } })
+    ]
+    const http = makeHttp(async () => answers.shift())
+    const read = response => response.text()
+    const path = 'export/csv/projects/p/shots.csv'
+    expect(await http.get(path, {}, { read })).toBe('name;frames\nSH010;24')
+    const err = await http.get(path, {}, { read }).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({ status: 200, path, method: 'GET', body: html })
+  })
+
   it('refuses a successful answer announced as JSON that does not parse', async () => {
     const text = '{"id": "66666666-6666'
     const cut = async () =>
