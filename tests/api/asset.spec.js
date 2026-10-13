@@ -50,6 +50,21 @@ describe('asset namespace: assets', () => {
     })
   })
 
+  // A missing argument or property must not list the assets of every
+  // project: only an explicit null does.
+  it('allAssetsForProject rejects a missing project before any request', async () => {
+    const shot = { id: OTHER_ID, project_id: PROJECT_ID }
+    const errors = await Promise.all(
+      [
+        kitsu.asset.allAssetsForProject(),
+        kitsu.asset.allAssetsForProject(undefined),
+        kitsu.asset.allAssetsForProject(shot.project)
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('allAssetsForOpenProjects gathers the assets of every open project', async () => {
     fake
       .on('GET', '/data/projects/open', () =>

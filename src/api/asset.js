@@ -42,7 +42,9 @@ export const assetApi = http => {
   // The public functions are documented on the returned object: the
   // declarations keep the JSDoc of a property, not the one of a constant.
   const assetsOfProject = async (project, signal) => {
-    const projectId = optionalIdOf(project)
+    // Only an explicit null widens the list: a missing project (undefined,
+    // a property that does not exist) is refused like anywhere else.
+    const projectId = project === null ? null : idOf(project)
     const path =
       projectId === null ? 'assets/all' : `projects/${projectId}/assets`
     return http.fetchAll(path, {}, { signal }).then(sortedByName)
@@ -93,7 +95,8 @@ export const assetApi = http => {
         .then(assetLists => sortedByName(assetLists.flat())),
 
     /**
-     * @param {Model|null} project null lists the assets of every project.
+     * @param {Model|null} project null, not undefined, lists the assets of
+     *   every project.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Assets of the project, sorted by name.
      */
