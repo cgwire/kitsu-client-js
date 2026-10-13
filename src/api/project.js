@@ -1371,7 +1371,7 @@ export const projectApi = http => ({
    * }} [options] fileName names the file in place of its own name.
    *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
    *   report it. A client given its own fetch (Tauri) uploads through it and
-   *   never calls onProgress.
+   *   never calls onProgress, unless it is created with xhrUploads: true.
    * @returns {Promise<Entity>} The preview background file.
    */
   uploadPreviewBackgroundFile: async (
