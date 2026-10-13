@@ -147,7 +147,8 @@ export const sortProductions = productions =>
  * Sort tasks by task type name, then by entity name.
  * @template T
  * @param {T[]} tasks
- * @param {Map<string, {name?: string}>} taskTypeMap Task types indexed by id.
+ * @param {Map<string, {name?: string, [field: string]: any}>} taskTypeMap
+ *   Task types indexed by id.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskNames = (tasks, taskTypeMap) =>
@@ -158,7 +159,8 @@ export const sortTaskNames = (tasks, taskTypeMap) =>
  * and entity name.
  * @template T
  * @param {T[]} tasks
- * @param {Map<string, {name?: string}>} taskTypeMap Task types indexed by id.
+ * @param {Map<string, {name?: string, [field: string]: any}>} taskTypeMap
+ *   Task types indexed by id.
  * @returns {T[]} A new sorted array.
  */
 export const sortTasks = (tasks, taskTypeMap) =>
@@ -193,8 +195,8 @@ export const sortRevisionPreviewFiles = previewFiles =>
  * status own priority, then by name.
  * @template T
  * @param {T[]} taskStatuses
- * @param {Record<string, any>} [production] The project dict, read for its
- *   `task_statuses_link` overrides.
+ * @param {Record<string, any>|null} [production] The project dict, read for
+ *   its `task_statuses_link` overrides.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskStatuses = (taskStatuses, production) =>
@@ -207,8 +209,8 @@ export const sortTaskStatuses = (taskStatuses, production) =>
  * winning over the task type own priority, then by name.
  * @template T
  * @param {T[]} taskTypes
- * @param {Record<string, any>} [production] The project dict, read for its
- *   `task_types_priority` overrides.
+ * @param {Record<string, any>|null} [production] The project dict, read for
+ *   its `task_types_priority` overrides.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskTypes = (taskTypes, production) =>
@@ -242,7 +244,8 @@ export const sortByName = entries => [...entries].sort(byName)
  * first id as "the" assignee, so a hole must never displace a person who did
  * resolve.
  * @param {string[]} personIds
- * @param {Map<string, {name?: string}>} personMap People indexed by id.
+ * @param {Map<string, {name?: string, [field: string]: any}>} personMap
+ *   People indexed by id.
  * @returns {string[]} A new sorted array.
  */
 export const sortByPersonName = (personIds, personMap) =>

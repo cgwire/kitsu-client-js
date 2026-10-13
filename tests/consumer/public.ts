@@ -11,7 +11,17 @@ import {
   type Tokens
 } from '@cgwire/kitsu-client'
 import { createCore } from '@cgwire/kitsu-client/core'
-import { sortByName } from '@cgwire/kitsu-client/utils'
+import {
+  formatRevision,
+  frameToSeconds,
+  getEntityFrameStart,
+  sortByName,
+  sortByPersonName,
+  sortTaskNames,
+  sortTasks,
+  sortTaskStatuses,
+  sortTaskTypes
+} from '@cgwire/kitsu-client/utils'
 import { assetApi } from '@cgwire/kitsu-client/asset'
 import { castingApi } from '@cgwire/kitsu-client/casting'
 import { conceptApi } from '@cgwire/kitsu-client/concept'
@@ -55,6 +65,27 @@ createClient({})
 const wrongModel: Model = 42
 // @ts-expect-error the client has no such namespace
 kitsu.missing
+
+// The utilities take the dicts that the client returns, without a cast.
+const useUtilities = async () => {
+  const project = await kitsu.project.getProject(model)
+  const shot = await kitsu.shot.getShot(model)
+  const previewFile = await kitsu.files.getPreviewFile(model)
+  const tasks = await kitsu.task.allTasksForShot(entity)
+  const taskTypes = await kitsu.task.allTaskTypes()
+  const taskTypeMap = new Map(taskTypes.map(type => [type.id, type]))
+  const persons = await kitsu.person.allPersons()
+  const personMap = new Map(persons.map(person => [person.id, person]))
+  const duration: number = frameToSeconds(shot?.nb_frames, project, shot)
+  const frameStart: number | undefined = getEntityFrameStart(shot)
+  const revision: string = formatRevision(previewFile?.revision, project)
+  const sortedTasks: Entity[] = sortTasks(tasks, taskTypeMap)
+  const sortedNames: Entity[] = sortTaskNames(tasks, taskTypeMap)
+  const assignees: string[] = sortByPersonName(tasks[0].assignees, personMap)
+  const sortedTypes: Entity[] = sortTaskTypes(taskTypes, project)
+  const statuses = await kitsu.task.allTaskStatuses()
+  const sortedStatuses: Entity[] = sortTaskStatuses(statuses, project)
+}
 
 // Every subpath builds its namespace from the http of a core.
 const { http } = createCore(options)
