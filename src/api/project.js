@@ -124,6 +124,25 @@ const fieldSegmentOf = fieldName =>
 const saveProject = (http, project, options) =>
   http.update('projects', idOf(project), withLinkIds(project), options)
 
+// Zou filters a name with ILIKE: the case is ignored, "_" and "%" match any
+// character, and the rows come in no set order. Only a row with that name
+// is a match, with its exact case first: Zou keeps "Sprite" and "sprite"
+// apart.
+const sameNameOf = (entries, name) => {
+  const rows = Array.isArray(entries) ? entries : []
+  const lower = String(name).toLowerCase()
+  return (
+    rows.find(entry => entry.name === name) ||
+    rows.find(entry => String(entry.name).toLowerCase() === lower) ||
+    null
+  )
+}
+
+const fetchByName = (http, path, name, signal) =>
+  http
+    .fetchAll(path, { name: requiredOf('name', name) }, { signal })
+    .then(entries => sameNameOf(entries, name))
+
 export const projectApi = http => ({
   /**
    * @param {RequestOptions} [options]
@@ -135,14 +154,11 @@ export const projectApi = http => ({
   /**
    * @param {string} projectStatusName
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First project status matching the name.
+   * @returns {Promise<Entity|null>} The project status of that name, the case
+   *   ignored but an exact match first, null when none.
    */
   getProjectStatusByName: async (projectStatusName, { signal } = {}) =>
-    http.fetchFirst(
-      'project-status',
-      { name: requiredOf('name', projectStatusName) },
-      { signal }
-    ),
+    fetchByName(http, 'project-status', projectStatusName, signal),
 
   /**
    * @param {RequestOptions} [options]
@@ -169,17 +185,14 @@ export const projectApi = http => ({
   /**
    * @param {string} projectName
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First project matching the name.
+   * @returns {Promise<Entity|null>} The project of that name, the case
+   *   ignored but an exact match first, null when none.
    */
   getProjectByName: async (projectName, { signal } = {}) =>
-    http.fetchFirst(
-      'projects',
-      { name: requiredOf('name', projectName) },
-      { signal }
-    ),
+    fetchByName(http, 'projects', projectName, signal),
 
   /**
-   * Create a project, unless a project with the same name already exists.
+   * Create a project, unless getProjectByName finds one with that name.
    * @param {string} name
    * @param {{
    *   productionType?: string,
@@ -218,11 +231,7 @@ export const projectApi = http => ({
       task_types: idsOf(taskTypes)
     }
     const templateId = optionalIdOf(projectTemplate)
-    const existing = await http.fetchFirst(
-      'projects',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
+    const existing = await fetchByName(http, 'projects', name, signal)
     if (existing) return existing
     return http.create(
       'projects',

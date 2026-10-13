@@ -96,6 +96,49 @@ describe('project namespace: projects', () => {
     expect(fake.calls[0].query.get('name')).toBe('Sprite')
   })
 
+  // Zou matches with ILIKE: "_" and "%" are wildcards and the case is
+  // ignored, in no set order.
+  it('name lookups keep the row of that name, its exact case first', async () => {
+    fake
+      .reply(200, [
+        { id: OTHER_ID, name: 'Show-A' },
+        { id: PROJECT_ID, name: 'Show_A' }
+      ])
+      .reply(200, [
+        { id: OTHER_ID, name: 'sprite' },
+        { id: PROJECT_ID, name: 'Sprite' }
+      ])
+      .reply(200, [{ id: OTHER_ID, name: 'sprite' }])
+      .reply(200, [{ id: OTHER_ID, name: '100 days' }])
+      .reply(200, [{ id: STATUS_ID, name: 'Closed' }])
+    expect(await kitsu.project.getProjectByName('Show_A')).toMatchObject({
+      id: PROJECT_ID
+    })
+    expect(await kitsu.project.getProjectByName('Sprite')).toMatchObject({
+      id: PROJECT_ID
+    })
+    expect(await kitsu.project.getProjectByName('Sprite')).toMatchObject({
+      id: OTHER_ID
+    })
+    expect(await kitsu.project.getProjectByName('100%')).toBeNull()
+    expect(await kitsu.project.getProjectStatusByName('Clos_d')).toBeNull()
+  })
+
+  it('newProject creates the project when only a look-alike exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'Show-A' }])
+      .reply(201, { id: PROJECT_ID, name: 'Show_A' })
+    expect(await kitsu.project.newProject('Show_A')).toEqual({
+      id: PROJECT_ID,
+      name: 'Show_A'
+    })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/projects',
+      body: { name: 'Show_A' }
+    })
+  })
+
   // Zou defaults to the short and 2d3d of gazu.
   it('newProject leaves the production type and style to Zou by default', async () => {
     fake.reply(200, []).reply(201, { id: PROJECT_ID, name: 'Sprite' })
