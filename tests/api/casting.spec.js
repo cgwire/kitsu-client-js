@@ -134,11 +134,27 @@ describe('casting namespace: reads', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('getAssetCastIn lists the entities an asset is cast in', async () => {
-    fake.reply(200, [{ id: SHOT_ID }])
-    expect(await kitsu.casting.getAssetCastIn({ id: ASSET_ID })).toEqual([
-      { id: SHOT_ID }
-    ])
+  it('getAssetCastIn lists the shots and the assets an asset is cast in', async () => {
+    const castIn = [
+      {
+        shot_id: SHOT_ID,
+        shot_name: 'SH010',
+        sequence_name: 'SQ01',
+        episode_id: 'None',
+        episode_name: null,
+        preview_file_id: null,
+        nb_occurences: 2
+      },
+      {
+        asset_id: OTHER_ID,
+        asset_name: 'Castle',
+        asset_type_name: 'Environment',
+        preview_file_id: null,
+        nb_occurences: 1
+      }
+    ]
+    fake.reply(200, castIn)
+    expect(await kitsu.casting.getAssetCastIn({ id: ASSET_ID })).toEqual(castIn)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/assets/${ASSET_ID}/cast-in`
@@ -146,10 +162,22 @@ describe('casting namespace: reads', () => {
   })
 
   it('allEntityLinksForProject lists every link by default', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
+    const links = [
+      {
+        id: OTHER_ID,
+        entity_in_id: SHOT_ID,
+        entity_out_id: ASSET_ID,
+        nb_occurences: 1,
+        label: '',
+        data: {},
+        created_at: '2026-10-01T10:00:00.000',
+        type: 'EntityLink'
+      }
+    ]
+    fake.reply(200, links)
     expect(
       await kitsu.casting.allEntityLinksForProject(PROJECT_ID, { limit: 10 })
-    ).toEqual([{ id: OTHER_ID }])
+    ).toEqual(links)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/entity-links`
@@ -158,13 +186,21 @@ describe('casting namespace: reads', () => {
   })
 
   it('allEntityLinksForProject reads one page on request', async () => {
-    fake.reply(200, { data: [], page: 2 }).reply(200, { data: [] })
+    const page = {
+      data: [],
+      total: 3,
+      nb_pages: 1,
+      limit: 10,
+      offset: 10,
+      page: 2
+    }
+    fake.reply(200, page).reply(200, { ...page, offset: 0, page: 1 })
     expect(
       await kitsu.casting.allEntityLinksForProject(
         { id: PROJECT_ID },
         { page: 2, limit: 10 }
       )
-    ).toEqual({ data: [], page: 2 })
+    ).toEqual(page)
     expect(fake.calls[0].query.get('page')).toBe('2')
     expect(fake.calls[0].query.get('limit')).toBe('10')
     await kitsu.casting.allEntityLinksForProject(PROJECT_ID, { page: 1 })
@@ -230,10 +266,11 @@ describe('casting namespace: writes', () => {
     ['updateAssetCasting', ASSET_ID],
     ['updateEpisodeCasting', EPISODE_ID]
   ])('%s replaces the casting of the entity', async (name, entityId) => {
-    fake.reply(200, { id: entityId })
+    // Zou answers the casting it was sent, not the entity.
+    fake.reply(200, CASTING)
     expect(
       await kitsu.casting[name]({ id: PROJECT_ID }, entityId, CASTING)
-    ).toEqual({ id: entityId })
+    ).toEqual(CASTING)
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: ENTITY_CASTING_PATH(entityId),
