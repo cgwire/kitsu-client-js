@@ -71,6 +71,17 @@ describe('task namespace: comments, previews and time spent', () => {
     })
   })
 
+  it('startTask checks the task and the person before any request', async () => {
+    fake.reply(200, [{ id: TASK_STATUS_ID }])
+    await expect(kitsu.task.startTask('not-an-id')).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    await expect(
+      kitsu.task.startTask(TASK_ID, { person: 'jane' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('startTask fails when the wip status does not exist', async () => {
     fake.reply(200, [])
     await expect(kitsu.task.startTask(TASK_ID)).rejects.toBeInstanceOf(

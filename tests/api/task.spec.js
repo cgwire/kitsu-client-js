@@ -447,6 +447,33 @@ describe('task namespace: tasks, types and statuses', () => {
     expect(fake.calls[2].body.project_id).toBe(PROJECT_ID)
   })
 
+  it('newTask checks every id before any request', async () => {
+    // Even for a task that exists: its lookup would answer it.
+    fake.reply(200, [{ id: TASK_ID }])
+    const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
+    const errors = await Promise.all(
+      [
+        { taskStatus: 'wip' },
+        { assigner: 'jane' },
+        { assignees: ['jane'] }
+      ].map(options =>
+        kitsu.task.newTask(entity, TASK_TYPE_ID, options).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('newTask takes null assignees as nobody, like gazu', async () => {
+    fake.reply(200, []).reply(201, { id: TASK_ID })
+    await kitsu.task.newTask(
+      { id: ENTITY_ID, project_id: PROJECT_ID },
+      TASK_TYPE_ID,
+      { taskStatus: TASK_STATUS_ID, assignees: null }
+    )
+    expect(fake.calls[1].body.assignees).toEqual([])
+  })
+
   it('newTask fails without any default status', async () => {
     fake.reply(200, []).reply(200, [])
     await expect(

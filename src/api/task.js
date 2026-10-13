@@ -969,7 +969,7 @@ export const taskApi = http => {
      *   fetched when only its id is given: the task needs its project.
      * @param {Model} taskType
      * @param {{name?: string, taskStatus?: Model, assigner?: Model,
-     *   assignees?: Model[], signal?: AbortSignal}} [options] taskStatus
+     *   assignees?: Model[]|null, signal?: AbortSignal}} [options] taskStatus
      *   defaults to the default task status.
      * @returns {Promise<Entity>} The created or existing task.
      */
@@ -978,13 +978,26 @@ export const taskApi = http => {
       taskType,
       { name = 'main', taskStatus, assigner, assignees, signal } = {}
     ) => {
+      // Every id is checked before the first request, even when the task
+      // turns out to exist.
+      const fields = {
+        entity_id: idOf(entity),
+        task_type_id: idOf(taskType),
+        assignees: idsOf(assignees ?? []),
+        name,
+        assigner_id: optionalIdOf(assigner)
+      }
+      const taskStatusId = optionalIdOf(taskStatus)
       const existing = await getTaskByEntity(entity, taskType, { name, signal })
       if (existing) return existing
       const { project_id } =
         typeof entity === 'object' && entity.project_id
           ? entity
-          : await http.get(`data/entities/${idOf(entity)}`, {}, { signal })
-      const status = taskStatus || (await getDefaultTaskStatus({ signal }))
+          : await http.get(`data/entities/${fields.entity_id}`, {}, { signal })
+      const status =
+        taskStatusId === null
+          ? await getDefaultTaskStatus({ signal })
+          : { id: taskStatusId }
       if (!status) {
         throw new NotFoundError(
           'No default task status: give one in the taskStatus option'
@@ -992,15 +1005,7 @@ export const taskApi = http => {
       }
       return http.create(
         'tasks',
-        withoutNil({
-          project_id,
-          entity_id: idOf(entity),
-          task_type_id: idOf(taskType),
-          task_status_id: idOf(status),
-          assignees: idsOf(assignees),
-          name,
-          assigner_id: optionalIdOf(assigner)
-        }),
+        withoutNil({ project_id, ...fields, task_status_id: idOf(status) }),
         { signal }
       )
     },
@@ -1205,6 +1210,9 @@ export const taskApi = http => {
      * @returns {Promise<Entity>} The created comment.
      */
     startTask: async (task, { startedTaskStatus, person, signal } = {}) => {
+      // Checked before the lookup of the wip status.
+      idOf(task)
+      optionalIdOf(person)
       const status =
         startedTaskStatus || (await getTaskStatusByShortName('wip', { signal }))
       if (!status) {
