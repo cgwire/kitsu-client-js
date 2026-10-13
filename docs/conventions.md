@@ -8,12 +8,21 @@
 - **Required arguments are positional**, in the same order as gazu. Optional
   ones go in one trailing options object, which also takes an `AbortSignal`:
   `kitsu.task.allTasksForShot(shot, { relations: true, signal })`.
+- **An empty selection is refused.** Zou reads an empty list as everything in
+  scope, so a selection that came out empty would create tasks or share
+  assets across the whole production: it rejects with a `ParameterError`
+  instead. Every entity is an explicit option:
+  `kitsu.task.createTasks(project, taskType, 'shots', { all: true })`.
 - **Returned values are the raw dicts of the API**, with snake_case keys.
 - **An update sends the id in the request path only**:
   `kitsu.task.updateTask({ id, priority: 2 })` sends `{ priority: 2 }`. Zou
   checks the keys of the body against what the role of the user may write,
   and an `id` key would fail that check.
-- **`get*` of a single entity resolves to `null` when it does not exist.**
+- **An update changes only the fields it is given.** Where Zou replaces the
+  whole object, a metadata descriptor or a budget entry for instance, the
+  client reads the object first and sends it merged with the given fields.
+- **`get*` of a single entity resolves to `null` when it does not exist**,
+  whether Zou answers a 404 or an empty object.
 - **Functions never throw synchronously**: a wrong argument is a rejected
   promise. They never mutate their arguments.
 - **Public types come from the root entry**: `ClientOptions`, `Tokens`,
