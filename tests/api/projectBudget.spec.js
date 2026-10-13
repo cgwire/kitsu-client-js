@@ -1,10 +1,28 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { DEPARTMENT_ID, PERSON_ID, PROJECT_ID } from '../helpers/ids.js'
 
 const BUDGET_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const ENTRY_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+// A budget entry as Zou serializes it.
+const ENTRY = {
+  id: ENTRY_ID,
+  budget_id: BUDGET_ID,
+  department_id: DEPARTMENT_ID,
+  person_id: null,
+  start_date: '2026-03-01',
+  months_duration: 3,
+  daily_salary: 400,
+  position: 'artist',
+  seniority: 'mid',
+  exceptions: {},
+  created_at: '2026-02-20T10:00:00',
+  updated_at: '2026-02-20T10:00:00',
+  type: 'BudgetEntry'
+}
 
 describe('project namespace: budgets', () => {
   let kitsu, fake
@@ -93,36 +111,40 @@ describe('project namespace: budgets', () => {
     })
   })
 
-  it('createBudgetEntry sends the department alone by default', async () => {
-    fake.reply(201, { id: ENTRY_ID })
+  it('createBudgetEntry sends the values Zou requires', async () => {
+    fake.reply(201, ENTRY)
     expect(
       await kitsu.project.createBudgetEntry(
         PROJECT_ID,
         BUDGET_ID,
-        DEPARTMENT_ID
+        DEPARTMENT_ID,
+        '2026-03-01',
+        3,
+        400
       )
-    ).toEqual({ id: ENTRY_ID })
+    ).toEqual(ENTRY)
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries`
     })
-    expect(fake.calls[0].body).toEqual({ department_id: DEPARTMENT_ID })
+    expect(fake.calls[0].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 400
+    })
   })
 
   it('createBudgetEntry sends every option on the wire', async () => {
-    fake.reply(201, { id: ENTRY_ID })
+    fake.reply(201, ENTRY)
     await kitsu.project.createBudgetEntry(
       { id: PROJECT_ID },
       { id: BUDGET_ID },
       { id: DEPARTMENT_ID },
-      {
-        person: { id: PERSON_ID },
-        position: 'artist',
-        seniority: 'senior',
-        startDate: new Date(2026, 2, 1),
-        monthsDuration: 3,
-        dailySalary: 400
-      }
+      new Date(2026, 2, 1),
+      3,
+      400,
+      { person: { id: PERSON_ID }, position: 'artist', seniority: 'senior' }
     )
     expect(fake.calls[0].body).toEqual({
       department_id: DEPARTMENT_ID,
@@ -139,6 +161,35 @@ describe('project namespace: budgets', () => {
     await expect(
       kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID)
     ).rejects.toThrow('Wrong format')
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou cannot store an entry without them, and answers 500.
+  it('createBudgetEntry rejects a missing start date, duration or salary', async () => {
+    const calls = [
+      [undefined, 3, 400],
+      ['2026-03-01', undefined, 400],
+      ['2026-03-01', 3, null]
+    ]
+    const errors = await Promise.all(
+      calls.map(values =>
+        kitsu.project
+          .createBudgetEntry(PROJECT_ID, BUDGET_ID, DEPARTMENT_ID, ...values)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('createBudgetEntry rejects the options object of 0.2.0', async () => {
+    await expect(
+      kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID, DEPARTMENT_ID, {
+        startDate: '2026-03-01',
+        monthsDuration: 3,
+        dailySalary: 400
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
     expect(fake.calls).toHaveLength(0)
   })
 
