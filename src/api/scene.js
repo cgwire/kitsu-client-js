@@ -192,7 +192,7 @@ export const sceneApi = http => {
      * @param {Model} scene
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<any>}
+     * @returns {Promise<null>}
      */
     removeShotFromScene: async (scene, shot, { signal } = {}) =>
       http.del(`data/scenes/${idOf(scene)}/shots/${idOf(shot)}`, undefined, {
