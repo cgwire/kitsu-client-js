@@ -692,9 +692,13 @@ describe('playlist namespace: writes', () => {
     expect(fake.calls[0].body).toEqual({ can_comment: true })
   })
 
+  // Zou keeps the link, inactive, and answers it.
   it('removeShareLink revokes the link', async () => {
-    fake.reply(204)
-    await kitsu.playlist.removeShareLink({ id: PLAYLIST_ID }, TOKEN)
+    const link = { id: ENTITY_ID, token: TOKEN, is_active: false }
+    fake.reply(200, link)
+    expect(
+      await kitsu.playlist.removeShareLink({ id: PLAYLIST_ID }, TOKEN)
+    ).toEqual(link)
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/playlists/${PLAYLIST_ID}/share/${TOKEN}`
