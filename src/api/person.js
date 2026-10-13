@@ -551,7 +551,8 @@ export const personApi = http => ({
     orNull(
       http.get(
         `data/persons/${idOf(person)}/time-spents`,
-        { start_date: dateOf(startDate), end_date: dateOf(endDate) },
+        // Both are required: without them, Zou answers an empty list.
+        { start_date: dayOf(startDate), end_date: dayOf(endDate) },
         { signal }
       )
     ),

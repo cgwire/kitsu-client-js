@@ -40,6 +40,24 @@ describe('person namespace: time spents', () => {
     })
   })
 
+  // Without them, Zou answers an empty list, which reads as no time logged.
+  it('getTimeSpentsRange requires both days before any request', async () => {
+    const { person } = kitsu
+    await expect(person.getTimeSpentsRange(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '', '2026-09-30')
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '2026-09-01', null)
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '2026-09-01', '30/09/2026')
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getAllMonthTimeSpents reads the month of the given date', async () => {
     fake.reply(200, [{ duration: 60 }]).reply(200, [])
     expect(
