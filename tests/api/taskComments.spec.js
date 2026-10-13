@@ -18,6 +18,9 @@ const ATTACHMENT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 const COMMENT_PATH = `/tasks/${TASK_ID}/comments/${COMMENT_ID}`
 
+// An entry of batchComments, as Zou reads it.
+const ENTRY = { task_id: TASK_ID, task_status_id: TASK_STATUS_ID, text: 'Ok' }
+
 // The entries of each person id, and the total of their durations.
 const TIME_SPENTS = {
   total: 60,
@@ -323,7 +326,9 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('batchComments posts comments carrying their own task', async () => {
-    const comments = [{ task_id: TASK_ID, text: 'Good' }]
+    const comments = [
+      { task_id: TASK_ID, task_status_id: TASK_STATUS_ID, text: 'Good' }
+    ]
     fake.reply(201, [{ id: COMMENT_ID }])
     expect(await kitsu.task.batchComments(comments)).toEqual([
       { id: COMMENT_ID }
@@ -336,17 +341,29 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('batchComments posts comments for one task', async () => {
-    fake.reply(201, []).reply(201, [])
-    await kitsu.task.batchComments([{ text: 'Good' }], {
-      task: { id: TASK_ID }
-    })
+    const comments = [{ task_status_id: TASK_STATUS_ID, text: 'Good' }]
+    fake.reply(201, [{ id: COMMENT_ID }]).reply(201, [])
+    await kitsu.task.batchComments(comments, { task: { id: TASK_ID } })
     await kitsu.task.batchComments()
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/tasks/${TASK_ID}/batch-comment`,
-      body: { comments: [{ text: 'Good' }] }
+      body: { comments }
     })
     expect(fake.calls[1].body).toEqual({ comments: [] })
+  })
+
+  it.each([
+    ['comment instead of text', [{ ...ENTRY, text: undefined, comment: 'Ok' }]],
+    ['no task status', [{ ...ENTRY, task_status_id: undefined }]],
+    ['no task', [{ ...ENTRY, task_id: undefined }]],
+    ['no list', ENTRY]
+  ])('batchComments refuses %s without any request', async (_, comments) => {
+    // Zou would answer 500.
+    await expect(kitsu.task.batchComments(comments)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('addTasksBatchComments posts the same comment on several tasks', async () => {
