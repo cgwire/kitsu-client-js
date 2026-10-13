@@ -551,14 +551,28 @@ export const filesApi = http => {
      * @param {string} name
      * @param {string} shortName
      * @param {string} fileExtension Main extension written by the software.
-     * @param {{secondaryExtensions?: string[], signal?: AbortSignal}} [options]
+     * @param {{
+     *   secondaryExtensions?: string[],
+     *   version?: string,
+     *   monthlyCost?: number,
+     *   inventoryAmount?: number,
+     *   signal?: AbortSignal
+     * }} [options] version, monthlyCost and inventoryAmount describe the
+     *   license, as in the form of Kitsu. The options only go to a created
+     *   software: an existing one comes back as it is.
      * @returns {Promise<Entity>} The created or existing software.
      */
     newSoftware: async (
       name,
       shortName,
       fileExtension,
-      { secondaryExtensions, signal } = {}
+      {
+        secondaryExtensions,
+        version,
+        monthlyCost,
+        inventoryAmount,
+        signal
+      } = {}
     ) =>
       (await firstByName('softwares', name, signal)) ||
       http.create(
@@ -567,7 +581,10 @@ export const filesApi = http => {
           name,
           short_name: shortName,
           file_extension: fileExtension,
-          secondary_extensions: secondaryExtensions
+          secondary_extensions: secondaryExtensions,
+          version,
+          monthly_cost: monthlyCost,
+          inventory_amount: inventoryAmount
         }),
         { signal }
       ),

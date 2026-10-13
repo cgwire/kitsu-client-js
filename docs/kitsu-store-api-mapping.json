@@ -2967,7 +2967,7 @@
     "route": "/data/softwares",
     "client": "files.newSoftware",
     "status": "existing",
-    "note": "Body differs: the client looks the name up first (GET data/softwares?name=) and only sends name, short_name, file_extension, secondary_extensions. Kitsu also sends version, monthly_cost and inventory_amount: the function needs these options."
+    "note": "The client looks the name up first (GET data/softwares?name=) and returns the software found. Body: name, short_name, file_extension, then secondary_extensions, version, monthly_cost and inventory_amount from the options secondaryExtensions, version, monthlyCost and inventoryAmount."
   },
   {
     "module": "software",
