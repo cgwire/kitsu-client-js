@@ -247,6 +247,13 @@ describe('asset namespace: asset types', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  it('getAssetTypeUrl rejects a malformed asset type before any request', async () => {
+    await expect(
+      kitsu.asset.getAssetTypeUrl(PROJECT_ID, 'Props')
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getAssetTypeFromAsset fetches the type of the asset', async () => {
     fake.reply(200, { id: ASSET_TYPE_ID, name: 'Props' })
     const assetType = await kitsu.asset.getAssetTypeFromAsset({

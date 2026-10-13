@@ -225,6 +225,20 @@ describe('asset namespace: assets', () => {
     })
   })
 
+  // Even when the asset exists and no creation follows.
+  it('newAsset rejects a malformed asset type or episode before any request', async () => {
+    const errors = await Promise.all(
+      [
+        kitsu.asset.newAsset(PROJECT_ID, null, 'Bunny'),
+        kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'Bunny', {
+          episode: 'E01'
+        })
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('newAsset returns the existing asset instead of creating it', async () => {
     fake.reply(200, [{ id: ASSET_ID, name: 'Bunny' }])
     const asset = await kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'Bunny')
