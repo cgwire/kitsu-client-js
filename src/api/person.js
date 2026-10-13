@@ -725,16 +725,19 @@ export const personApi = http => ({
    * @param {Date|string} date "YYYY-MM-DD"
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity|null>} The day off of the person covering that
-   *   day, null when the person does not exist.
+   *   day, null when there is none or when the person does not exist.
    */
-  getDayOffByDate: async (person, date, { signal } = {}) =>
-    orNull(
+  getDayOffByDate: async (person, date, { signal } = {}) => {
+    const dayOff = await orNull(
       http.get(
         `data/persons/${idOf(person)}/day-offs/${dayOf(date)}`,
         {},
         { signal }
       )
-    ),
+    )
+    // Zou answers an empty object when no day off covers the day.
+    return dayOff && dayOff.id ? dayOff : null
+  },
 
   /**
    * @param {Model} person

@@ -108,14 +108,31 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it('getDayOffByDate reads the day off of a person on a day', async () => {
-    fake.reply(200, { id: OTHER_ID })
+    const dayOff = {
+      id: OTHER_ID,
+      date: '2026-09-18',
+      end_date: '2026-09-21',
+      person_id: PERSON_ID
+    }
+    fake.reply(200, dayOff)
     expect(
       await kitsu.person.getDayOffByDate({ id: PERSON_ID }, '2026-09-19')
-    ).toEqual({ id: OTHER_ID })
+    ).toEqual(dayOff)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/${PERSON_ID}/day-offs/2026-09-19`
     })
+  })
+
+  // Zou answers an empty object when no day off covers the day.
+  it('getDayOffByDate returns null when no day off covers the day', async () => {
+    fake.reply(200, {})
+    expect(
+      await kitsu.person.getDayOffByDate(PERSON_ID, '2026-09-22')
+    ).toBeNull()
+    expect(fake.calls[0].path).toBe(
+      `/data/persons/${PERSON_ID}/day-offs/2026-09-22`
+    )
   })
 
   it('getDayOffByDate returns null when the person does not exist', async () => {
