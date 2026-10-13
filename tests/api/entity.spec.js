@@ -162,6 +162,16 @@ describe('entity namespace', () => {
     })
   })
 
+  it('newEntityType rejects a missing name before any request', async () => {
+    const errors = await Promise.all(
+      [undefined, null, ''].map(name =>
+        kitsu.entity.newEntityType(name).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeEntityType deletes the type', async () => {
     fake.reply(204)
     await kitsu.entity.removeEntityType({ id: OTHER_ID })

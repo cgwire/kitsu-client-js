@@ -110,7 +110,7 @@ export const entityApi = http => ({
    * @returns {Promise<Entity>} The created entity type.
    */
   newEntityType: async (name, { signal } = {}) =>
-    http.create('entity-types', { name }, { signal }),
+    http.create('entity-types', { name: requiredOf('name', name) }, { signal }),
 
   /**
    * @param {Model} entityType
