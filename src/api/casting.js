@@ -340,10 +340,14 @@ export const castingApi = http => {
       read(`data/projects/${idOf(project)}/sequences/all/casting`, signal),
 
     /**
+     * Delete the link through the generic route, like gazu: it needs an
+     * admin, and Zou deletes the row alone, without updating the casting
+     * counts of the entity nor sending a casting event. To take an asset out
+     * of a casting, use uncastAsset.
      * @param {Model} entityLink
      * @param {RequestOptions} [options]
-     * @returns {Promise<Model|{id: string}>} The deleted link, as given (an
-     *   id comes back as `{ id }`), like gazu.
+     * @returns {Promise<{id: string, [field: string]: any}>} The deleted link,
+     *   as given (an id comes back as `{ id }`), like gazu.
      */
     deleteEntityLink: async (entityLink, { signal } = {}) => {
       const id = idOf(entityLink)
