@@ -71,6 +71,35 @@ const retryAfterOf = response => {
     : Math.max(0, Math.ceil((date - Date.now()) / 1000))
 }
 
+// The answer with a body that calls release once it ends, fails or is
+// cancelled. A stream source of its own: browsers ignore the cancel hook of
+// a transformer.
+const releasing = (response, release) => {
+  const reader = response.body.getReader()
+  const body = new ReadableStream(
+    {
+      pull: stream =>
+        reader.read().then(
+          ({ done, value }) => {
+            if (!done) return stream.enqueue(value)
+            release()
+            return stream.close()
+          },
+          err => {
+            release()
+            throw err
+          }
+        ),
+      cancel: reason => {
+        release()
+        return reader.cancel(reason)
+      }
+    },
+    { highWaterMark: 0 }
+  )
+  return new Response(body, response)
+}
+
 const NOT_STREAMED = Symbol('not streamed')
 
 const isAuthFailure = err =>
@@ -152,17 +181,11 @@ export const createHttp = (config, session) => {
       }
       if (raw && response.body) {
         // The body is still to be read by the caller: the abort wiring
-        // stays until the body is read to its end or an abort (caller
-        // signal, abortAll) releases it.
+        // stays until the body ends, fails or is cancelled, or an abort
+        // (caller signal, abortAll) releases it.
         streaming = true
         controller.signal.addEventListener('abort', release, { once: true })
-        // cancel (the caller drops the body) is newer than the DOM typings.
-        const transformer = /** @type {Transformer} */ ({
-          flush: release,
-          cancel: release
-        })
-        const body = response.body.pipeThrough(new TransformStream(transformer))
-        return new Response(body, response)
+        return releasing(response, release)
       }
       if (raw) return response
       if (read) return await read(response)
@@ -327,7 +350,8 @@ export const createHttp = (config, session) => {
    * @param {string} path
    * @param {{query?: object, signal?: AbortSignal}} [options]
    * @returns {Promise<Response>} The raw response: the caller reads
-   *   .blob() or .body. The client never writes to disk.
+   *   .blob() or .body, or cancels the body it does not want, which holds
+   *   its connection until then. The client never writes to disk.
    */
   const download = (path, { query, signal } = {}) =>
     request('GET', path, { query, signal, raw: true })

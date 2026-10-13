@@ -411,7 +411,10 @@ describe('gazu helpers', () => {
 
 describe('timeouts and cancellation', () => {
   beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
 
   // A body that never ends and fails when the request is aborted, as the
   // body of a real fetch does.
@@ -533,6 +536,61 @@ describe('timeouts and cancellation', () => {
     })
     const response = await http.request('GET', 'data/tasks', { raw: true })
     expect(await response.text()).toBe('movie')
+    http.abortAll()
+    expect(signals[0].aborted).toBe(false)
+  })
+
+  // Browsers ignore the cancel hook of a transformer: releasing a download
+  // must not depend on it.
+  const withoutTransformerCancel = () =>
+    vi.stubGlobal(
+      'TransformStream',
+      class extends TransformStream {
+        constructor(transformer = {}) {
+          super({ ...transformer, cancel: undefined })
+        }
+      }
+    )
+
+  it('releases a raw response whose body is cancelled', async () => {
+    withoutTransformerCancel()
+    const signals = []
+    const cancelled = vi.fn()
+    const http = makeHttp(async (url, init) => {
+      signals.push(init.signal)
+      const body = new ReadableStream({
+        pull: stream => stream.enqueue(new Uint8Array(1024)),
+        cancel: cancelled
+      })
+      return new Response(body, { status: 200 })
+    })
+    const caller = new AbortController()
+    const removed = vi.spyOn(caller.signal, 'removeEventListener')
+    const response = await http.request('GET', 'data/tasks', {
+      raw: true,
+      signal: caller.signal
+    })
+    await response.body.cancel()
+    // The connection is released, and the caller signal let go.
+    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
+    http.abortAll()
+    expect(signals[0].aborted).toBe(false)
+  })
+
+  it('releases a raw response whose body fails midway', async () => {
+    withoutTransformerCancel()
+    const signals = []
+    const http = makeHttp(async (url, init) => {
+      signals.push(init.signal)
+      // undici when the connection drops in the middle of the body.
+      const body = new ReadableStream({
+        pull: stream => stream.error(new TypeError('terminated'))
+      })
+      return new Response(body, { status: 200 })
+    })
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    await expect(response.arrayBuffer()).rejects.toThrow('terminated')
     http.abortAll()
     expect(signals[0].aborted).toBe(false)
   })
