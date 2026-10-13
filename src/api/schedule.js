@@ -323,8 +323,10 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Apply the dates, estimations and assignees of a version to the tasks of
-   * its production.
+   * Copy the start dates, due dates and estimations of the task links of a
+   * version onto the tasks of its production (the assignees are not
+   * applied), then lock the version and record it as the
+   * from_schedule_version_id of the project.
    * @param {Model} version
    * @param {RequestOptions} [options]
    * @returns {Promise<{success: boolean, task_count: number}>} The number of
