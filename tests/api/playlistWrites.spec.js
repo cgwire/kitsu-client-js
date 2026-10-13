@@ -683,6 +683,27 @@ describe('playlist namespace: writes', () => {
     })
   })
 
+  // Zou keeps a link given a day open to the end of that day.
+  it('newShareLink sends the local day of a Date', async () => {
+    fake.reply(201, { token: TOKEN })
+    await kitsu.playlist.newShareLink(PLAYLIST_ID, {
+      expirationDate: new Date(2026, 9, 13, 18, 30)
+    })
+    expect(fake.calls[0].body).toEqual({
+      can_comment: true,
+      expiration_date: '2026-10-13'
+    })
+  })
+
+  it('newShareLink rejects an invalid Date without any request', async () => {
+    await expect(
+      kitsu.playlist.newShareLink(PLAYLIST_ID, {
+        expirationDate: new Date('not a date')
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('newShareLink leaves out a blank date and a blank password', async () => {
     fake.reply(201, { token: TOKEN })
     await kitsu.playlist.newShareLink(PLAYLIST_ID, {
