@@ -4,6 +4,7 @@ import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   BUILD_JOB_ID,
+  DEPARTMENT_ID,
   ENTITY_ID,
   EPISODE_ID,
   OTHER_ID,
@@ -12,6 +13,7 @@ import {
   PREVIEW_FILE_ID,
   PROJECT_ID,
   SHOT_ID,
+  STUDIO_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
@@ -674,6 +676,18 @@ describe('playlist namespace: writes', () => {
       path: `/data/playlists/${PLAYLIST_ID}/notify-clients`
     })
     expect(fake.calls[0].body).toEqual({})
+  })
+
+  it('notifyClientsPlaylistReady tells the clients of a studio and a department', async () => {
+    fake.reply(200, { status: 'success' })
+    await kitsu.playlist.notifyClientsPlaylistReady(PLAYLIST_ID, {
+      studio: { id: STUDIO_ID },
+      department: DEPARTMENT_ID
+    })
+    expect(fake.calls[0].body).toEqual({
+      studio_id: STUDIO_ID,
+      department_id: DEPARTMENT_ID
+    })
   })
 
   it('newShareLink creates a link open to comments by default', async () => {

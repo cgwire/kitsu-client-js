@@ -1788,7 +1788,7 @@
     "route": "/data/playlists/<id>/notify-clients",
     "client": "playlist.notifyClientsPlaylistReady",
     "status": "existing",
-    "note": "Body differs: Kitsu sends studio_id and department_id, the client sends an empty body (add studio and department options)."
+    "note": "Kitsu sends studio_id and department_id: the studio and department options of the client."
   },
   {
     "module": "playlists",
