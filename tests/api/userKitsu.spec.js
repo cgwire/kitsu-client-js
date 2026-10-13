@@ -38,7 +38,8 @@ describe('user namespace: Kitsu coverage', () => {
     })
   })
 
-  it('getChatMessage reads one message, null on 404', async () => {
+  // Zou only answers a 404 for a missing entity: a missing message is a 500.
+  it('getChatMessage reads one message, null when the entity is missing', async () => {
     fake.reply(200, { id: CHAT_MESSAGE_ID }).reply(404, {})
     expect(
       await kitsu.user.getChatMessage(

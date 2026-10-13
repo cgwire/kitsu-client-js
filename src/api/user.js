@@ -463,10 +463,13 @@ export const userApi = http => ({
     http.get(`data/entities/${idOf(entity)}/chat/messages`, {}, { signal }),
 
   /**
+   * Zou fails (ServerError) on a message that does not exist, and refuses
+   * (NotAllowedError) a message of another chat.
    * @param {Model} entity The entity the chat is about (see joinChat).
    * @param {Model} chatMessage
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The message, null when missing.
+   * @returns {Promise<Entity|null>} The message, null when the entity does
+   *   not exist.
    */
   getChatMessage: async (entity, chatMessage, { signal } = {}) =>
     orNull(
