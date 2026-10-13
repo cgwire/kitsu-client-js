@@ -933,7 +933,7 @@
     "route": "/data/attachment-files/<id>/file/<file_name>",
     "client": "files.downloadAttachmentFile",
     "status": "existing",
-    "note": "The client first reads data/attachment-files/<id> to get the name, encodes it, and returns a raw Response: call .blob() on it."
+    "note": "Zou never reads the file name segment: the client puts the id there, so a stored name holding a \"/\" cannot break the route, and returns a raw Response in one request: call .blob() on it."
   },
   {
     "module": "hardware",

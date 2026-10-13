@@ -199,32 +199,39 @@ describe('files namespace: downloads', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
-  it('downloadAttachmentFile reads the file under its name', async () => {
-    const path = `/data/attachment-files/${ATTACHMENT_ID}/file/notes.pdf`
-    fake.reply(200, { id: ATTACHMENT_ID, name: 'notes.pdf' })
+  // Zou never reads the file name segment: it names the download from its
+  // record.
+  it('downloadAttachmentFile reads the file in one request', async () => {
+    const path = `/data/attachment-files/${ATTACHMENT_ID}/file/${ATTACHMENT_ID}`
     fake.on('GET', path, rawResponse)
     const response = await kitsu.files.downloadAttachmentFile({
       id: ATTACHMENT_ID
     })
     expect(await response.text()).toBe('bytes')
     expect(fake.calls.map(call => `${call.method} ${call.path}`)).toEqual([
-      `GET /data/attachment-files/${ATTACHMENT_ID}`,
       `GET ${path}`
     ])
   })
 
-  it('downloadAttachmentFile keeps a free-form name inside the path', async () => {
-    fake.reply(200, { id: ATTACHMENT_ID, name: 'retake #2/final?.pdf' })
-    fake.reply(200, {})
-    await kitsu.files.downloadAttachmentFile(ATTACHMENT_ID)
-    expect(fake.calls[1].path).toBe(
-      `/data/attachment-files/${ATTACHMENT_ID}/file/retake%20%232%2Ffinal%3F.pdf`
+  // Decoded by the WSGI server, a "/" in the name would split the segment.
+  it('downloadAttachmentFile never puts the stored name in the path', async () => {
+    fake.on(
+      'GET',
+      `/data/attachment-files/${ATTACHMENT_ID}/file/${ATTACHMENT_ID}`,
+      rawResponse
     )
-    expect([...fake.calls[1].query.keys()]).toEqual([])
+    await kitsu.files.downloadAttachmentFile({
+      id: ATTACHMENT_ID,
+      name: 'renders/sh010.png'
+    })
+    expect(fake.calls[0].path).toBe(
+      `/data/attachment-files/${ATTACHMENT_ID}/file/${ATTACHMENT_ID}`
+    )
+    expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
   it('downloadAttachmentFile rejects when the attachment is missing', async () => {
-    fake.reply(404, {})
+    fake.reply(404, { error: true, message: '404 Not Found' })
     await expect(
       kitsu.files.downloadAttachmentFile(ATTACHMENT_ID)
     ).rejects.toBeInstanceOf(NotFoundError)
