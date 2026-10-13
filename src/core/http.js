@@ -39,6 +39,18 @@ const readBody = async response =>
     response.headers.get('Content-Type') || ''
   )
 
+// An answer of the API that is not the data asked for. The cause option of
+// Error is ES2022: the parse failure is set by hand for the floor.
+const notData = (info, status, detail, body, cause) =>
+  Object.assign(
+    new KitsuError(`${info.method} ${info.path} answered ${status} ${detail}`, {
+      ...info,
+      status,
+      body
+    }),
+    cause && { cause }
+  )
+
 const NOT_STREAMED = Symbol('not streamed')
 
 const isAuthFailure = err =>
@@ -83,6 +95,7 @@ export const createHttp = (config, session) => {
     const responseTimer = isFormData(body) ? null : arm(timeout.response)
     const deadlineTimer = bounded ? arm(timeout.deadline) : null
     let streaming = false
+    let status = null
 
     try {
       const response = await fetchImpl(url, {
@@ -93,6 +106,7 @@ export const createHttp = (config, session) => {
         credentials
       })
       clearTimeout(responseTimer)
+      status = response.status
       if (!response.ok) {
         const { data } = await readBody(response).catch(() => ({ data: '' }))
         throw errorFromResponse(response.status, { ...info, body: data || '' })
@@ -113,14 +127,12 @@ export const createHttp = (config, session) => {
       }
       if (raw) return response
       if (read) return await read(response)
-      const { data, isJson } = await readBody(response)
-      // A page served with a 2xx (host without "/api", SSO portal) must not
-      // reach the caller as if it were data.
+      const { data, isJson, error } = await readBody(response)
+      // A page served with a 2xx (host without "/api", SSO portal), or JSON
+      // cut short, must not reach the caller as if it were data.
       if (!isJson) {
-        throw new KitsuError(
-          `${method} ${path} answered ${response.status} without JSON`,
-          { ...info, status: response.status, body: data }
-        )
+        const detail = error ? 'with malformed JSON' : 'without JSON'
+        throw notData(info, response.status, detail, data, error)
       }
       return data
     } catch (err) {
@@ -132,7 +144,12 @@ export const createHttp = (config, session) => {
           ? err
           : new DOMException('The operation was aborted', 'AbortError')
       }
-      if (err instanceof KitsuError || err instanceof SyntaxError) throw err
+      if (err instanceof KitsuError) throw err
+      // A body read by options.read that does not parse (NDJSON): the API
+      // answered, so this is no transport failure.
+      if (err instanceof SyntaxError) {
+        throw notData(info, status, 'with a malformed body', '', err)
+      }
       throw new NetworkError(`${method} ${path} failed: ${err.message}`, info)
     } finally {
       clearTimeout(responseTimer)
@@ -225,10 +242,9 @@ export const createHttp = (config, session) => {
       if (entities !== NOT_STREAMED) return entities
     } catch (err) {
       const answered =
-        err instanceof SyntaxError ||
-        (err instanceof KitsuError &&
-          err.status &&
-          !(err instanceof NotAuthenticatedError))
+        err instanceof KitsuError &&
+        err.status &&
+        !(err instanceof NotAuthenticatedError)
       if (!answered) throw err
     }
     return get(path, query, options)
