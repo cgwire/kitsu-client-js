@@ -1,6 +1,7 @@
 import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
+  dayOf,
   idOf,
   idsOf,
   optionalIdOf,
@@ -745,33 +746,31 @@ export const projectApi = http => ({
     http.fetchAll(entriesOf(project, budget), {}, { signal }),
 
   /**
+   * Add a line to the budget: a person or a position of a department, paid
+   * a daily salary over some months. gazu takes a name, a date and an
+   * amount instead, which Zou does not read.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} department
+   * @param {Date|string} startDate A Date object or a YYYY-MM-DD string.
+   * @param {number} monthsDuration
+   * @param {number} dailySalary
    * @param {{
    *   person?: Model,
    *   position?: string,
    *   seniority?: string,
-   *   startDate?: Date|string,
-   *   monthsDuration?: number,
-   *   dailySalary?: number,
    *   signal?: AbortSignal
-   * }} [options] startDate is a Date object or a YYYY-MM-DD string.
+   * }} [options]
    * @returns {Promise<Entity>} The created budget entry.
    */
   createBudgetEntry: async (
     project,
     budget,
     department,
-    {
-      person,
-      position,
-      seniority,
-      startDate,
-      monthsDuration,
-      dailySalary,
-      signal
-    } = {}
+    startDate,
+    monthsDuration,
+    dailySalary,
+    { person, position, seniority, signal } = {}
   ) =>
     http.create(
       entriesOf(project, budget),
@@ -780,9 +779,10 @@ export const projectApi = http => ({
         person_id: optionalIdOf(person),
         position,
         seniority,
-        start_date: dateOf(startDate),
-        months_duration: monthsDuration,
-        daily_salary: dailySalary
+        // Zou cannot store an entry without them: it answers 500.
+        start_date: dayOf(requiredOf('startDate', startDate)),
+        months_duration: requiredOf('monthsDuration', monthsDuration),
+        daily_salary: requiredOf('dailySalary', dailySalary)
       }),
       { signal }
     ),

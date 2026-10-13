@@ -348,7 +348,7 @@
     "route": "/data/projects/<id>/budgets/<id>/entries",
     "client": "project.createBudgetEntry",
     "status": "existing",
-    "note": "The client takes the department positionally and the other fields as options (person, position, seniority, startDate, monthsDuration, dailySalary)."
+    "note": "The client takes the department, the start date, the duration in months and the daily salary positionally, since Zou cannot store an entry without them, and person, position and seniority as options. gazu takes a name, a date and an amount instead, which Zou does not read."
   },
   {
     "module": "budget",
