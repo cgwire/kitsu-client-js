@@ -3444,7 +3444,7 @@
     "route": "/data/tasks/<id>/comments/<id>/reply",
     "client": "task.replyToComment",
     "status": "existing",
-    "note": "Body differs: Kitsu switches to multipart with file-N fields when the reply has attachments, the client only sends JSON ({ text, person_id }). Attachments on a reply need an extension of the client function."
+    "note": "JSON, or multipart when attachments are given, like Kitsu: Zou reads the files whatever their field names (Kitsu sends file-N, the client file, file-1...)."
   },
   {
     "module": "tasks",

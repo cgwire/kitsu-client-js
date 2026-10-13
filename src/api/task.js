@@ -1638,19 +1638,33 @@ export const taskApi = http => {
       http.post(`${commentPath('data', task, comment)}/ack`, {}, { signal }),
 
     /**
+     * Reply to the comment. Sent as JSON, or as a multipart form when there
+     * are attachments.
      * @param {Model} task
      * @param {Model} comment
      * @param {string} text
-     * @param {RequestOptions} [options]
+     * @param {TransferOptions & {attachments?: Blob[]}} [options]
      * @returns {Promise<Entity>} The created reply, authored by the current
-     *   user.
+     *   user, with its attachment_files when there are attachments.
      */
-    replyToComment: async (task, comment, text, { signal } = {}) =>
-      http.post(
-        `${commentPath('data', task, comment)}/reply`,
-        { text },
-        { signal }
-      ),
+    replyToComment: async (
+      task,
+      comment,
+      text,
+      { attachments, fileName, onProgress, signal } = {}
+    ) => {
+      const path = `${commentPath('data', task, comment)}/reply`
+      if (!attachments || attachments.length === 0) {
+        return http.post(path, { text }, { signal })
+      }
+      return http.upload(path, {
+        file: attachments,
+        fields: { text },
+        fileName,
+        onProgress,
+        signal
+      })
+    },
 
     /**
      * @param {Model} task
