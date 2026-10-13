@@ -64,6 +64,6 @@ these factories: its methods are internal and may change in any release.
 TypeScript finds the declarations of the subpaths (`/core`, `/utils`, `/task`...)
 with `moduleResolution` set to `node16`, `nodenext` or `bundler`. The older
 `node10` resolution only finds those of the root entry. CommonJS TypeScript
-code needs TypeScript 5.9 or later with `module` set to `node20` or
-`nodenext`: with `node16` or `node18`, TypeScript refuses to import an ES
-module (TS1479).
+code needs `module` set to `nodenext` (TypeScript 5.8 or later) or `node20`
+(TypeScript 5.9 or later): with `node16` or `node18`, TypeScript refuses to
+import an ES module (TS1479).
