@@ -17,6 +17,17 @@ import {
 
 const SHARE_TOKEN = /^[\w-]+$/
 
+// Keys of a read that are not fields to save: Zou would replace the build
+// jobs with the ones of the read (and refuse to drop one started since),
+// and ignores the others.
+const READ_ONLY_KEYS = [
+  'build_jobs',
+  'type',
+  'created_at',
+  'updated_at',
+  'first_preview_file_id'
+]
+
 // The token lands in a request path: checked like ids are, so caller input
 // can never reshape the route.
 const shareTokenOf = token => {
@@ -49,6 +60,17 @@ const withSavedEntries = playlist => {
   const { shots, ...fields } = playlist
   return shots === null ? fields : { ...fields, shots: shots.map(entryOf) }
 }
+
+const savedFieldsOf = playlist =>
+  typeof playlist === 'object'
+    ? withSavedEntries(
+        Object.fromEntries(
+          Object.entries(playlist).filter(
+            ([key]) => !READ_ONLY_KEYS.includes(key)
+          )
+        )
+      )
+    : playlist
 
 // An entry is an entity, or an (entity, preview file) couple.
 const coupleOf = entry => {
@@ -91,7 +113,7 @@ export const playlistApi = http => {
     )
 
   const savePlaylist = (playlist, signal) =>
-    http.update('playlists', idOf(playlist), withSavedEntries(playlist), {
+    http.update('playlists', idOf(playlist), savedFieldsOf(playlist), {
       signal
     })
 
@@ -233,7 +255,9 @@ export const playlistApi = http => {
      * Save the playlist. Its entries (shots) replace the stored ones, each
      * sent as an entity_id and a preview_file_id, null when it has none.
      * shots: null, the entries of a playlist read before its first one,
-     * leaves the stored entries as they are.
+     * leaves the stored entries as they are. The keys of a read that are not
+     * fields to save (build_jobs, type, created_at, updated_at,
+     * first_preview_file_id) are left out.
      * @param {Entity} playlist
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>}
