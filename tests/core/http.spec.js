@@ -12,7 +12,7 @@ import { createHttp } from '../../src/core/http.js'
 import { createCore } from '../../src/core/index.js'
 import { createSession } from '../../src/core/session.js'
 import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
-import { HOST, TASK_ID } from '../helpers/ids.js'
+import { HOST, PREVIEW_FILE_ID, TASK_ID } from '../helpers/ids.js'
 
 const stubSession = {
   generation: () => 0,
@@ -84,7 +84,8 @@ describe('http errors', () => {
       status: 500,
       path: 'data/tasks',
       method: 'GET',
-      body: { message: 'boom' }
+      body: { message: 'boom' },
+      retryAfter: null
     })
   })
 
@@ -219,6 +220,58 @@ describe('http errors', () => {
     expect(err).toBeInstanceOf(NetworkError)
     expect(err.message).toBe(`GET data/tasks failed: ${reason}`)
     expect(err.cause).toBe(reason)
+  })
+})
+
+describe('downloads', () => {
+  const PATH = `pictures/thumbnails/preview-files/${PREVIEW_FILE_ID}.png`
+
+  it('rejects a file Zou still builds, telling when to ask again', async () => {
+    const processing = {
+      status: 'processing',
+      preview_file_id: PREVIEW_FILE_ID
+    }
+    const fake = createFakeFetch().reply(202, processing, {
+      'Retry-After': '5'
+    })
+    const http = makeHttp(fake)
+    const err = await http.download(PATH).catch(e => e)
+    expect(err.constructor).toBe(KitsuError)
+    expect(err).toMatchObject({
+      status: 202,
+      path: PATH,
+      method: 'GET',
+      body: processing,
+      retryAfter: 5
+    })
+    // Zou tells "still processing" from "missing" to a JSON client only.
+    expect(fake.calls[0].headers.Accept).toBe('application/json')
+    http.abortAll()
+    expect(fake.calls[0].signal.aborted).toBe(false)
+  })
+
+  // Zou bounds the media requests it serves at once.
+  it('tells when to ask again a busy Zou', async () => {
+    const busy = {
+      error: true,
+      message: 'Too many media requests, retry later.'
+    }
+    const fake = createFakeFetch().reply(503, busy, { 'Retry-After': '5' })
+    const err = await makeHttp(fake)
+      .download(PATH)
+      .catch(e => e)
+    expect(err).toBeInstanceOf(ServerError)
+    expect(err).toMatchObject({ status: 503, body: busy, retryAfter: 5 })
+  })
+
+  it('reads a Retry-After given as a date', async () => {
+    const date = new Date(Date.now() + 30000).toUTCString()
+    const fake = createFakeFetch().reply(503, {}, { 'Retry-After': date })
+    const err = await makeHttp(fake)
+      .download(PATH)
+      .catch(e => e)
+    expect(err.retryAfter).toBeGreaterThanOrEqual(29)
+    expect(err.retryAfter).toBeLessThanOrEqual(30)
   })
 })
 

@@ -4,6 +4,9 @@
  * @property {string} [path]
  * @property {string} [method]
  * @property {any} [body] The parsed body of Zou when it sent one.
+ * @property {number|null} [retryAfter] Seconds to wait before asking again,
+ *   when the answer tells it (Retry-After): a file Zou still builds, a media
+ *   request refused while Zou is busy. Null otherwise.
  */
 
 export class KitsuError extends Error {
@@ -13,7 +16,7 @@ export class KitsuError extends Error {
    */
   constructor(
     message,
-    { status = null, path = '', method = '', body = '' } = {}
+    { status = null, path = '', method = '', body = '', retryAfter = null } = {}
   ) {
     super(message)
     /** @type {number|null} */
@@ -24,6 +27,8 @@ export class KitsuError extends Error {
     this.method = method
     /** @type {any} */
     this.body = body
+    /** @type {number|null} */
+    this.retryAfter = retryAfter
   }
 }
 
@@ -97,14 +102,18 @@ const STATUS_ERRORS = {
  * @param {ErrorInfo} info
  * @returns {KitsuError} The error class matching the status.
  */
-export const errorFromResponse = (status, { path, method, body }) => {
+export const errorFromResponse = (
+  status,
+  { path, method, body, retryAfter }
+) => {
   const ErrorClass =
     STATUS_ERRORS[status] || (status >= 500 ? ServerError : KitsuError)
   return new ErrorClass(`${method} ${path} failed with status ${status}`, {
     status,
     path,
     method,
-    body
+    body,
+    retryAfter
   })
 }
 
