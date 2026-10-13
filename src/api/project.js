@@ -409,9 +409,9 @@ export const projectApi = http => ({
    *   choices?: string[],
    *   forClient?: boolean,
    *   departments?: Model[],
-   *   taskTypeId?: Model,
+   *   taskType?: Model,
    *   signal?: AbortSignal
-   * }} [options] choices stays empty for free values. taskTypeId scopes the
+   * }} [options] choices stays empty for free values. taskType scopes the
    *   descriptor to a task type: required when entityType is Task, forbidden
    *   otherwise.
    * @returns {Promise<Entity>} The created metadata descriptor.
@@ -425,7 +425,7 @@ export const projectApi = http => ({
       choices = [],
       forClient = false,
       departments = [],
-      taskTypeId,
+      taskType,
       signal
     } = {}
   ) =>
@@ -438,7 +438,7 @@ export const projectApi = http => ({
         for_client: forClient,
         entity_type: entityType,
         departments: idsOf(departments),
-        task_type_id: optionalIdOf(taskTypeId)
+        task_type_id: optionalIdOf(taskType)
       }),
       { signal }
     ),
