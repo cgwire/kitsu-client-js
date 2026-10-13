@@ -745,8 +745,8 @@ export const taskApi = http => {
     /**
      * @param {Model} sequence
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Task types of the sequence tasks, sorted by
-     *   name.
+     * @returns {Promise<Entity[]>} Task types of the tasks of the shots and
+     *   scenes of the sequence, not of the sequence itself, sorted by name.
      */
     allTaskTypesForSequence: async (sequence, options) =>
       allTaskTypesForEntity(sequence, 'sequences', options),
@@ -754,8 +754,8 @@ export const taskApi = http => {
     /**
      * @param {Model} episode
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Task types of the episode tasks, sorted by
-     *   name.
+     * @returns {Promise<Entity[]>} Task types of the tasks of the shots and
+     *   scenes of the episode, not of the episode itself, sorted by name.
      */
     allTaskTypesForEpisode: async (episode, options) =>
       allTaskTypesForEntity(episode, 'episodes', options),
