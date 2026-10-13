@@ -216,18 +216,26 @@ export const taskApi = http => {
    * stored as null. An older Zou replaces them with the given ones. An
    * empty or null data clears them all.
    * @param {{id: string, assignees?: Model[]|null, [field: string]: any}} task
+   *   assignees replaces the assignees of the task, null clears them. Left
+   *   out or undefined, they stay as they are.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated task.
    */
-  const updateTask = async (task, { signal } = {}) =>
-    http.update(
+  const updateTask = async (task, { signal } = {}) => {
+    if (!task || typeof task !== 'object') {
+      throw new ParameterError('Wrong format: updateTask needs the task object')
+    }
+    // Undefined assignees are left out, as JSON drops them: an empty list
+    // would unassign everybody.
+    return http.update(
       'tasks',
       idOf(task),
-      'assignees' in task
-        ? { ...task, assignees: idsOf(task.assignees || []) }
-        : task,
+      task.assignees === undefined
+        ? task
+        : { ...task, assignees: idsOf(task.assignees || []) },
       { signal }
     )
+  }
 
   /**
    * @param {Model} entity
