@@ -134,7 +134,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:live": "node scripts/live-smoke.js",
-    "test:types": "tsc -p tests/consumer && tsc -p tests/consumer --module preserve --moduleResolution bundler",
+    "test:types": "tsc -p tests/consumer && tsc -p tests/consumer --module node20 && tsc -p tests/consumer --module preserve --moduleResolution bundler",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "types": "node scripts/clean-types.js && tsc -p tsconfig.json",
