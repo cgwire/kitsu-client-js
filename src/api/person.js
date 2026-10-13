@@ -423,6 +423,11 @@ export const personApi = http => ({
   updatePerson: async (person, options) => updatePerson(http, person, options),
 
   /**
+   * Without force, Zou refuses (400) to delete a person still linked to
+   * comments, assignments, time spents or logs. force deletes first their
+   * comments, notifications, events, login logs, subscriptions, time spents
+   * and search filters, across every production, and removes them from the
+   * teams, the assignments and the files they appear on.
    * @param {Model} person
    * @param {{force?: boolean, signal?: AbortSignal}} [options]
    * @returns {Promise<null>}
@@ -524,6 +529,8 @@ export const personApi = http => ({
   },
 
   /**
+   * Same rules as removePerson: without force, Zou refuses (400) a bot
+   * still linked to comments or logs, and force deletes them first.
    * @param {Model} bot
    * @param {{force?: boolean, signal?: AbortSignal}} [options]
    * @returns {Promise<null>}
