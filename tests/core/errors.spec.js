@@ -28,6 +28,8 @@ describe('errorFromResponse', () => {
     [403, NotAllowedError, 'NotAllowedError'],
     [404, NotFoundError, 'NotFoundError'],
     [413, TooBigFileError, 'TooBigFileError'],
+    // A token Zou cannot decode, signed with a former secret key for one.
+    [422, NotAuthenticatedError, 'NotAuthenticatedError'],
     [500, ServerError, 'ServerError'],
     [503, ServerError, 'ServerError'],
     [418, KitsuError, 'KitsuError']

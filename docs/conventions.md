@@ -30,7 +30,7 @@ Every error extends `KitsuError` and carries `status`, `path`, `method` and
 | Condition             | Error                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | 400                   | `ParameterError` (also thrown for a malformed argument)                                                       |
-| 401                   | `NotAuthenticatedError`                                                                                       |
+| 401, 422              | `NotAuthenticatedError` (Zou answers 422 for a token it cannot decode)                                        |
 | refused `logIn`       | `AuthFailedError`, or `MissingOtpError`, `WrongOtpError`, `TooManyLoginAttemptsError`, `DefaultPasswordError` |
 | 403                   | `NotAllowedError`                                                                                             |
 | 404                   | `NotFoundError`                                                                                               |
