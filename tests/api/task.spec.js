@@ -52,9 +52,7 @@ describe('task namespace: tasks, types and statuses', () => {
       SEQUENCE_ID,
       `/data/sequences/${SEQUENCE_ID}/tasks`
     ],
-    ['allTasksForScene', SCENE_ID, `/data/scenes/${SCENE_ID}/tasks`],
     ['allTasksForAsset', ASSET_ID, `/data/assets/${ASSET_ID}/tasks`],
-    ['allTasksForEpisode', EPISODE_ID, `/data/episodes/${EPISODE_ID}/tasks`],
     [
       'allShotTasksForSequence',
       SEQUENCE_ID,
@@ -82,6 +80,21 @@ describe('task namespace: tasks, types and statuses', () => {
       expect(fake.calls[1].query.get('relations')).toBe('true')
     }
   )
+
+  // Zou reads no relations parameter on these two routes.
+  it.each([
+    ['allTasksForScene', SCENE_ID, `/data/scenes/${SCENE_ID}/tasks`],
+    ['allTasksForEpisode', EPISODE_ID, `/data/episodes/${EPISODE_ID}/tasks`]
+  ])('%s lists sorted tasks, without relations', async (name, id, path) => {
+    fake.reply(200, UNSORTED).reply(200, [])
+    const tasks = await kitsu.task[name]({ id })
+    await kitsu.task[name](id, { relations: true })
+    expect(tasks.map(task => task.name)).toEqual(SORTED_NAMES)
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({ method: 'GET', path })
+      expect([...call.query.keys()]).toEqual([])
+    })
+  })
 
   it('allTasksForShot sorts the tasks by name', async () => {
     fake.reply(200, UNSORTED)
