@@ -17,6 +17,15 @@ const timerOf = (key, value) => {
   return value === 0 || value > MAX_TIMER ? Infinity : value
 }
 
+/**
+ * @param {ClientOptions} options
+ * @returns {'all'|'progress'|'none'} The uploads that go through XHR.
+ */
+const uploadsOverXhr = ({ xhrUploads, fetch }) => {
+  if (xhrUploads === true) return 'all'
+  return xhrUploads === false || fetch ? 'none' : 'progress'
+}
+
 const resolveTimeout = (timeout = {}) =>
   Object.freeze({
     response: timerOf('response', timeout.response),
@@ -30,12 +39,13 @@ const resolveTimeout = (timeout = {}) =>
  * @property {typeof fetch} [fetch] Defaults to the global fetch. Tauri apps
  *   inject the fetch of their http plugin here. Every request goes through
  *   it, uploads included: they then report no progress (see xhrUploads).
- * @property {boolean} [xhrUploads] Send the uploads given an onProgress
- *   through XMLHttpRequest, the only way to report their progress, which
- *   skips an injected fetch. Defaults to true without a fetch option, false
- *   with one. In bearer mode an upload to the origin of the page goes
- *   through fetch anyway: XMLHttpRequest would send the Kitsu session cookie
- *   of the page, which Zou reads before the token.
+ * @property {boolean} [xhrUploads] Which uploads go through
+ *   XMLHttpRequest, the only way to report their progress. Left out, the
+ *   uploads given an onProgress, none with a fetch option. true: every
+ *   upload, skipping an injected fetch and the headers it adds. false: none.
+ *   In bearer mode an upload to the origin of the page goes through fetch
+ *   anyway: XMLHttpRequest would send the Kitsu session cookie of the page,
+ *   which Zou reads before the token.
  * @property {'bearer'|'cookie'} [auth] Defaults to "bearer".
  * @property {import('./session.js').Tokens|null} [tokens] Resume a session.
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]
@@ -65,9 +75,9 @@ export const createCore = options => {
     host: options.host,
     // Wrapped: calling a detached window.fetch throws "Illegal invocation".
     fetch: options.fetch || ((input, init) => globalThis.fetch(input, init)),
-    // Uploads with progress use XHR, which goes out like the global fetch:
-    // an injected fetch carries them instead, unless the app opts back in.
-    xhrUploads: options.xhrUploads ?? !options.fetch,
+    // Which uploads use XHR. XHR goes out like the global fetch: an
+    // injected fetch carries them all instead, unless the app opts in.
+    xhrUploads: uploadsOverXhr(options),
     timeout: resolveTimeout(options.timeout || undefined),
     // Bearer mode never sends cookies: Zou reads the session cookie before
     // the Authorization header, so a bearer client living in a Kitsu page

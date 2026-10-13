@@ -30,14 +30,20 @@ const { comment, preview_file } = await kitsu.task.publishPreview(
 ```
 
 `onProgress` needs `XMLHttpRequest` (browsers and webviews): `fetch` cannot
-report upload progress. Without it, or on a client given its own `fetch`, the
-upload goes through `fetch` and `onProgress` is never called. A client whose
-`fetch` only wraps the global one (logs, headers) gets the progress back with
-`createClient({ host, fetch, xhrUploads: true })`: its uploads then skip that
-`fetch`. `xhrUploads: false` sends every upload through `fetch`. In bearer
-mode an upload to the origin of the page goes through `fetch` anyway, without
+report upload progress. By default an upload given an `onProgress` goes
+through `XMLHttpRequest` and any other through `fetch`, while a client given
+its own `fetch` sends every upload through it, without progress. The
+`xhrUploads` option decides instead: `true` sends every upload through
+`XMLHttpRequest`, `false` every upload through `fetch`. In bearer mode an
+upload to the origin of the page goes through `fetch` anyway, without
 progress: `XMLHttpRequest` would send the Kitsu session cookie of the page,
-which Zou reads before the token. In Node, write a download to disk yourself:
+which Zou reads before the token.
+
+With `xhrUploads: true`, uploads skip the `fetch` of the client, and so the
+headers it adds. It suits a `fetch` that only logs or traces, not one that
+adds a header the server needs, a gateway key for instance.
+
+In Node, write a download to disk yourself:
 
 ```js
 import { createWriteStream } from 'node:fs'
@@ -57,6 +63,6 @@ The plugin reads the whole file into memory and hands it to Rust as an array
 of bytes: fine for pictures and short movies, slow or failing for large ones.
 For those, add the origin of the app (`tauri://localhost` on macOS and Linux,
 `http://tauri.localhost` on Windows) to `CORS_ALLOWED_ORIGINS` in the
-configuration of Zou, and create the client with `xhrUploads: true`: uploads
-then go through the `XMLHttpRequest` of the webview, which streams the file
-and reports the progress.
+configuration of Zou, and create the client with `xhrUploads: true`: every
+upload then goes through the `XMLHttpRequest` of the webview, which streams the
+file and reports the progress, while the other requests keep the plugin.

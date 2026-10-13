@@ -318,7 +318,7 @@ describe('http.upload over XHR, instance wiring', () => {
     expect(onProgress).not.toHaveBeenCalled()
   })
 
-  // A fetch that only wraps the global one loses nothing to XHR.
+  // The uploads then skip the fetch of the client, and the headers it adds.
   it('skips an injected fetch for progress with xhrUploads', async () => {
     const xhrs = installFakeXhr()
     const fake = createFakeFetch()
@@ -336,6 +336,33 @@ describe('http.upload over XHR, instance wiring', () => {
     expect(await pending).toEqual({ id: 'c1' })
     expect(onProgress).toHaveBeenCalledWith({ loaded: 3, total: 6 })
     expect(fake.calls).toHaveLength(0)
+  })
+
+  // A Tauri app streams its large movies through the XHR of the webview.
+  it('sends an upload without onProgress through XHR with xhrUploads', async () => {
+    const xhrs = installFakeXhr()
+    const fake = createFakeFetch()
+    const kitsu = createClient({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'token' },
+      xhrUploads: true
+    })
+    const pending = kitsu.http.upload(PATH, { file: blob })
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    expect(xhrs[0].upload.onprogress).toBeUndefined()
+    xhrs[0].respond(201, { id: 'c1' })
+    expect(await pending).toEqual({ id: 'c1' })
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('by default sends an upload without onProgress through fetch', async () => {
+    const xhrs = installFakeXhr()
+    const { kitsu, fake } = makeClient({ globalFetch: true })
+    fake.reply(201, { id: 'c1' })
+    expect(await kitsu.http.upload(PATH, { file: blob })).toEqual({ id: 'c1' })
+    expect(fake.calls).toHaveLength(1)
+    expect(xhrs).toHaveLength(0)
   })
 
   it('never uploads over XHR with xhrUploads set to false', async () => {
