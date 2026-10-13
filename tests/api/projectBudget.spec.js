@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { NotFoundError } from '../../src/core/errors.js'
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { DEPARTMENT_ID, PERSON_ID, PROJECT_ID } from '../helpers/ids.js'
@@ -213,18 +214,62 @@ describe('project namespace: budgets', () => {
     })
   })
 
-  it('updateBudgetEntry saves the given payload', async () => {
-    fake.reply(200, { id: ENTRY_ID, amount: 500 })
+  // Zou writes every field of the entry, null for a missing one.
+  it('updateBudgetEntry merges the given fields into the entry', async () => {
+    const stored = {
+      ...ENTRY,
+      person_id: PERSON_ID,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    }
+    fake.reply(200, stored).reply(200, { ...stored, daily_salary: 450 })
+    const data = { daily_salary: 450 }
     expect(
-      await kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
-        amount: 500
-      })
-    ).toEqual({ id: ENTRY_ID, amount: 500 })
-    expect(fake.calls[0]).toMatchObject({
-      method: 'PUT',
-      path: `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries/${ENTRY_ID}`
+      await kitsu.project.updateBudgetEntry(
+        PROJECT_ID,
+        BUDGET_ID,
+        ENTRY_ID,
+        data
+      )
+    ).toEqual({ ...stored, daily_salary: 450 })
+    const path = `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries/${ENTRY_ID}`
+    expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
+    expect(fake.calls[1]).toMatchObject({ method: 'PUT', path })
+    expect(fake.calls[1].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      person_id: PERSON_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 450,
+      position: 'artist',
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
     })
-    expect(fake.calls[0].body).toEqual({ amount: 500 })
+    expect(data).toEqual({ daily_salary: 450 })
+  })
+
+  it('updateBudgetEntry sends a Date start date as a day', async () => {
+    fake.reply(200, ENTRY).reply(200, ENTRY)
+    await kitsu.project.updateBudgetEntry(
+      { id: PROJECT_ID },
+      { id: BUDGET_ID },
+      { id: ENTRY_ID },
+      { start_date: new Date(2026, 4, 4), person_id: null }
+    )
+    expect(fake.calls[1].body).toMatchObject({
+      start_date: '2026-05-04',
+      person_id: null
+    })
+  })
+
+  it('updateBudgetEntry rejects when the entry does not exist', async () => {
+    fake.reply(404, { message: 'Budget entry not found' })
+    await expect(
+      kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
+        daily_salary: 450
+      })
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(fake.calls).toHaveLength(1)
   })
 
   it('removeBudgetEntry deletes the entry', async () => {
