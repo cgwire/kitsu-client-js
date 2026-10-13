@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeClient } from '../helpers/client.js'
-import { FILTER_ID, FILTER_GROUP_ID, PROJECT_ID } from '../helpers/ids.js'
+import {
+  FILTER_ID,
+  FILTER_GROUP_ID,
+  OTHER_ID,
+  PROJECT_ID
+} from '../helpers/ids.js'
 
 describe('user namespace: filters', () => {
   let kitsu, fake
@@ -9,9 +14,34 @@ describe('user namespace: filters', () => {
     ;({ kitsu, fake } = makeClient())
   })
 
+  // Zou nests the filters by list type, then by project id or "all".
   it('allFilters lists the filters of the current user', async () => {
-    fake.reply(200, [{ id: FILTER_ID }])
-    expect(await kitsu.user.allFilters()).toEqual([{ id: FILTER_ID }])
+    const filters = {
+      asset: {
+        [PROJECT_ID]: [
+          {
+            id: FILTER_ID,
+            name: 'Wip',
+            search_query: 'status=wip',
+            list_type: 'asset',
+            project_id: PROJECT_ID
+          }
+        ]
+      },
+      todo: {
+        all: [
+          {
+            id: OTHER_ID,
+            name: 'Retakes',
+            search_query: 'status=retake',
+            list_type: 'todo',
+            project_id: null
+          }
+        ]
+      }
+    }
+    fake.reply(200, filters)
+    expect(await kitsu.user.allFilters()).toEqual(filters)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/user/filters'
@@ -72,10 +102,21 @@ describe('user namespace: filters', () => {
   })
 
   it('allFilterGroups lists the filter groups of the current user', async () => {
-    fake.reply(200, [{ id: FILTER_GROUP_ID }])
-    expect(await kitsu.user.allFilterGroups()).toEqual([
-      { id: FILTER_GROUP_ID }
-    ])
+    const groups = {
+      shot: {
+        [PROJECT_ID]: [
+          {
+            id: FILTER_GROUP_ID,
+            name: 'Anim',
+            color: '#00FF00',
+            list_type: 'shot',
+            project_id: PROJECT_ID
+          }
+        ]
+      }
+    }
+    fake.reply(200, groups)
+    expect(await kitsu.user.allFilterGroups()).toEqual(groups)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/user/filter-groups'
