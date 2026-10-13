@@ -2,6 +2,8 @@
 // types" builds, through the "exports" map: what a TypeScript consumer gets.
 import {
   createClient,
+  KitsuError,
+  MissingOtpError,
   NotFoundError,
   type ClientOptions,
   type Entity,
@@ -13,6 +15,7 @@ import {
 import { createCore } from '@cgwire/kitsu-client/core'
 import {
   formatRevision,
+  formatToTimecode,
   frameToSeconds,
   getEntityFrameStart,
   sortByName,
@@ -87,6 +90,43 @@ const useUtilities = async () => {
   const sortedTypes: Entity[] = sortTaskTypes(taskTypes, project)
   const statuses = await kitsu.task.allTaskStatuses()
   const sortedStatuses: Entity[] = sortTaskStatuses(statuses, project)
+  const timecode: string = formatToTimecode(shot?.data?.frame_in, project?.fps)
+  // @ts-expect-error sortByPersonName sorts ids, not the person dicts
+  sortByPersonName(persons, personMap)
+  // @ts-expect-error a timecode is a string
+  const wrongTimecode: number = formatToTimecode(0)
+}
+
+// The quick start of the README and the upload of docs/files.md.
+const quickStart = async () => {
+  kitsu.setToken('token')
+  const projects: Entity[] = await kitsu.project.allOpenProjects()
+  const shots: Entity[] = await kitsu.shot.allShotsForProject(projects[0])
+  const tasks: Entity[] = await kitsu.task.allTasksForShot(shots[0])
+  await kitsu.task.publishPreview(tasks[0], model, new Blob([]), {
+    comment: 'First pass',
+    onProgress: ({ loaded, total }) => {
+      const ratio: number = loaded / total
+    }
+  })
+}
+
+// Errors narrow with instanceof, as docs/authentication.md shows.
+const handleErrors = async () => {
+  try {
+    await kitsu.task.getTask(model)
+  } catch (err) {
+    // @ts-expect-error a caught value is unknown until narrowed
+    err.status
+    if (err instanceof NotFoundError) {
+      const status: number | null = err.status
+      const path: string = err.path
+    }
+    if (err instanceof MissingOtpError) {
+      const methods: string[] = err.enabledMethods
+      const kitsuError: KitsuError = err
+    }
+  }
 }
 
 // Every subpath builds its namespace from the http of a core.
