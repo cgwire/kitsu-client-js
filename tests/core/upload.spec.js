@@ -183,6 +183,45 @@ describe('http.upload over XHR', () => {
     expect(xhrs[1].headers.Authorization).toBe('Bearer new')
   })
 
+  it('rejects at once when aborted while the token is refreshed', async () => {
+    const xhrs = installFakeXhr()
+    let answer
+    const refreshAnswer = new Promise(resolve => {
+      answer = resolve
+    })
+    const fake = createFakeFetch().on(
+      'GET',
+      '/auth/refresh-token',
+      () => refreshAnswer
+    )
+    vi.stubGlobal('fetch', fake)
+    const kitsu = createClient({
+      host: HOST,
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const controller = new AbortController()
+    const pending = kitsu.http
+      .upload(PATH, {
+        file: blob,
+        onProgress: () => {},
+        signal: controller.signal
+      })
+      .catch(e => e)
+    await vi.waitFor(() => expect(xhrs).toHaveLength(1))
+    xhrs[0].respond(401, { msg: 'Token has expired' })
+    await vi.waitFor(() =>
+      expect(fake.calls.map(call => call.path)).toContain('/auth/refresh-token')
+    )
+    controller.abort()
+    const settled = await Promise.race([
+      pending,
+      new Promise(resolve => setTimeout(() => resolve('pending'), 50))
+    ])
+    answer(jsonResponse(200, { access_token: 'new' }))
+    expect(settled.name).toBe('AbortError')
+    expect(xhrs).toHaveLength(1)
+  })
+
   it('wraps a network failure', async () => {
     const xhrs = installFakeXhr()
     const { kitsu } = makeClient({ globalFetch: true })
