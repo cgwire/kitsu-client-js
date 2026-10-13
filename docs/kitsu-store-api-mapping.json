@@ -1662,7 +1662,7 @@
     "route": "/data/projects/<id>/playlists/<id>",
     "client": "playlist.getPlaylistForProject",
     "status": "added",
-    "note": "playlist.getPlaylist reads /data/playlists/<id> (plain CRUD); the project route returns the playlist with its build jobs and enriched entries."
+    "note": "playlist.getPlaylist reads /data/playlists/<id> (plain CRUD), its build jobs as ids and its entries as stored; the project route returns the build jobs as summaries and the entries enriched with the previews of their entity."
   },
   {
     "module": "playlists",
