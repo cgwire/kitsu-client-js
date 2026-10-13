@@ -609,6 +609,53 @@ describe('utils/sorting', () => {
   })
 })
 
+const permutationsOf = entries =>
+  entries.length < 2
+    ? [entries]
+    : entries.flatMap((entry, index) =>
+        permutationsOf(entries.filter((_, other) => other !== index)).map(
+          rest => [entry, ...rest]
+        )
+      )
+
+// Zou writes an empty episode_name for an entity outside any episode, and
+// the tasks of several productions mix project names.
+describe('utils/sorting gives one order whatever the input order', () => {
+  const expectStable = (entries, sort, expected) => {
+    for (const permutation of permutationsOf(entries)) {
+      expect(idsOf(sort(permutation))).toEqual(expected)
+    }
+  }
+
+  it('sortEdits and sortSequences with an entry outside the episodes', () => {
+    const entries = [
+      { episode_name: 'E02', name: 'A', id: 3 },
+      { episode_name: '', name: 'Trailer', id: 1 },
+      { episode_name: 'E01', name: 'A', id: 2 }
+    ]
+    expectStable(entries, sortEdits, [1, 2, 3])
+    expectStable(entries, sortSequences, [1, 2, 3])
+  })
+
+  it('sortShots with a shot outside the episodes', () => {
+    const entries = [
+      { episode_name: 'E02', sequence_name: 'SE01', name: 'SH01', id: 3 },
+      { sequence_name: 'SE01', name: 'SH01', id: 1 },
+      { episode_name: 'E01', sequence_name: 'SE01', name: 'SH01', id: 2 }
+    ]
+    expectStable(entries, sortShots, [1, 2, 3])
+  })
+
+  it('sortTasks with a task without project name', () => {
+    const entries = [
+      { project_name: 'Cosmos', task_type_id: 'task-type-1', id: 3 },
+      { task_type_id: 'task-type-1', id: 1 },
+      { project_name: 'Agent 327', task_type_id: 'task-type-1', id: 2 }
+    ]
+    expectStable(entries, tasks => sortTasks(tasks, taskTypeMap), [1, 2, 3])
+  })
+})
+
 // Deliberate change from Kitsu, which sorts in place.
 describe('utils/sorting returns new arrays', () => {
   const expectUntouched = (entries, sort) => {
