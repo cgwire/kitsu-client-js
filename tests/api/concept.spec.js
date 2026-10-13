@@ -7,7 +7,8 @@ import {
   CONCEPT_ID,
   OTHER_ID,
   PROJECT_ID,
-  SHOT_ID
+  SHOT_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const UNSORTED = [{ name: 'ruins' }, { name: 'Castle' }, { name: 'forest' }]
@@ -41,11 +42,14 @@ describe('concept namespace', () => {
     })
   })
 
-  it('allPreviewsForConcept lists the previews of a concept', async () => {
-    fake.reply(200, [{ id: OTHER_ID }])
+  it('allPreviewsForConcept groups the previews of a concept by task type', async () => {
+    const previews = { [TASK_TYPE_ID]: [{ id: OTHER_ID, revision: 3 }] }
+    fake.reply(200, previews).reply(200, {})
     expect(
       await kitsu.concept.allPreviewsForConcept({ id: CONCEPT_ID })
-    ).toEqual([{ id: OTHER_ID }])
+    ).toEqual(previews)
+    // A concept without any preview: an empty dict, not a list.
+    expect(await kitsu.concept.allPreviewsForConcept(CONCEPT_ID)).toEqual({})
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/concepts/${CONCEPT_ID}/preview-files`
