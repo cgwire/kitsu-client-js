@@ -106,7 +106,10 @@ const personComparator = compareBy(
 
 /**
  * Sort assets: canceled last, then by asset type name, shared assets after
- * the project ones, then by name.
+ * the project ones, then by name. The asset type name comes with getAsset and
+ * allAssetsWithTasks, not with the plain listings. `shared` is not a field of
+ * the API: Kitsu sets it on the assets of other projects, such as those of
+ * allSharedAssetsUsedInProject, to sort them last.
  * @template T
  * @param {T[]} assets
  * @returns {T[]} A new sorted array.

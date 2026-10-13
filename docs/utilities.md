@@ -6,7 +6,8 @@ Pure functions, importable on their own from `@cgwire/kitsu-client/utils`:
 
 - sorting in the canonical Kitsu order: `sortAssets`, `sortShots`,
   `sortTasks`, `sortTaskStatuses`, `sortPeople`, `sortByName`... They return
-  new arrays;
+  new arrays. Like Kitsu, they read names that only some listings carry: the
+  `*WithTasks` ones give `asset_type_name` and `episode_name`, for instance;
 - frames and timecodes: `frameToSeconds`, `formatToTimecode`, `roundToFrame`...
   They read the fps string that Zou stores and, like Zou, count an empty one
   as 25;
