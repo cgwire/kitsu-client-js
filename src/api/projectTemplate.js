@@ -34,6 +34,20 @@ const withoutLinks = template =>
 // string there, then fails on every later read of the link.
 const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
 
+// Zou filters a name with ILIKE: the case is ignored, "_" and "%" match any
+// character, and the rows come in no set order. Only a row with that name
+// is a match, with its exact case first: Zou keeps "Feature" and "feature"
+// apart.
+const sameNameOf = (entries, name) => {
+  const rows = Array.isArray(entries) ? entries : []
+  const lower = String(name).toLowerCase()
+  return (
+    rows.find(entry => entry.name === name) ||
+    rows.find(entry => String(entry.name).toLowerCase() === lower) ||
+    null
+  )
+}
+
 const boardRolesOf = roles => {
   if (
     roles === null ||
@@ -90,15 +104,17 @@ export const projectTemplateApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The project template matching the name,
-     *   null when missing.
+     * @returns {Promise<Entity|null>} The project template of that name, the
+     *   case ignored but an exact match first, null when none.
      */
     getProjectTemplateByName: async (name, { signal } = {}) =>
-      http.fetchFirst(
-        'project-templates',
-        { name: requiredOf('name', name) },
-        { signal }
-      ),
+      http
+        .fetchAll(
+          'project-templates',
+          { name: requiredOf('name', name) },
+          { signal }
+        )
+        .then(entries => sameNameOf(entries, name)),
 
     /**
      * Create a project template without any link. The production settings
