@@ -122,6 +122,29 @@ describe('asset namespace: assets', () => {
     expect(fake.calls[1].query.get('entity_type_id')).toBe(ASSET_TYPE_ID)
   })
 
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getAssetByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'chr-hero' }
+    const asset = { id: ASSET_ID, name: 'chr_hero' }
+    fake.reply(200, [nearName, asset]).reply(200, [nearName, asset])
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      asset
+    )
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, '%')).toBeNull()
+  })
+
+  it('getAssetByName ignores the case like gazu, the exact spelling first', async () => {
+    const upper = { id: ASSET_ID, name: 'Chr_Hero' }
+    const lower = { id: OTHER_ID, name: 'chr_hero' }
+    fake.reply(200, [upper]).reply(200, [upper, lower])
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      upper
+    )
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      lower
+    )
+  })
+
   it('getAsset accepts an object or an id and returns null on 404', async () => {
     fake.reply(200, { id: ASSET_ID }).reply(404, {})
     expect(await kitsu.asset.getAsset({ id: ASSET_ID })).toEqual({
@@ -171,6 +194,19 @@ describe('asset namespace: assets', () => {
       is_shared: true,
       description: 'A rabbit',
       episode_id: EPISODE_ID
+    })
+  })
+
+  it('newAsset creates the asset when only a close name exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'chr-hero' }])
+      .reply(201, { id: ASSET_ID, name: 'chr_hero' })
+    expect(
+      await kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'chr_hero')
+    ).toEqual({ id: ASSET_ID, name: 'chr_hero' })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      body: { name: 'chr_hero' }
     })
   })
 

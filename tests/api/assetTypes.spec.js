@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { makeClient } from '../helpers/client.js'
-import { ASSET_ID, ASSET_TYPE_ID, PROJECT_ID, SHOT_ID } from '../helpers/ids.js'
+import {
+  ASSET_ID,
+  ASSET_TYPE_ID,
+  OTHER_ID,
+  PROJECT_ID,
+  SHOT_ID
+} from '../helpers/ids.js'
 
 const UNSORTED = [{ name: 'props' }, { name: 'Characters' }, { name: 'fx' }]
 const SORTED_NAMES = ['Characters', 'fx', 'props']
@@ -54,18 +60,31 @@ describe('asset namespace: asset types', () => {
     })
   })
 
-  it('getAssetTypeByName filters the entity types by name', async () => {
+  // The entity types also hold the types of the shots, sequences, episodes,
+  // edits, scenes and concepts: the asset types only are looked up.
+  it('getAssetTypeByName filters the asset types by name', async () => {
     fake.reply(200, [{ id: ASSET_TYPE_ID, name: 'Props' }]).reply(200, [])
     expect(await kitsu.asset.getAssetTypeByName('Props')).toEqual({
       id: ASSET_TYPE_ID,
       name: 'Props'
     })
-    expect(await kitsu.asset.getAssetTypeByName('Nope')).toBeNull()
+    expect(await kitsu.asset.getAssetTypeByName('Shot')).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: '/data/entity-types'
+      path: '/data/asset-types'
     })
     expect(fake.calls[0].query.get('name')).toBe('Props')
+  })
+
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getAssetTypeByName keeps the exact name, the case aside', async () => {
+    const types = [
+      { id: OTHER_ID, name: 'Set-Dress' },
+      { id: ASSET_TYPE_ID, name: 'Set_Dress' }
+    ]
+    fake.reply(200, types).reply(200, types)
+    expect(await kitsu.asset.getAssetTypeByName('set_dress')).toEqual(types[1])
+    expect(await kitsu.asset.getAssetTypeByName('Set%')).toBeNull()
   })
 
   it('newAssetType creates the type when the name is free', async () => {
@@ -76,7 +95,7 @@ describe('asset namespace: asset types', () => {
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: '/data/entity-types'
+      path: '/data/asset-types'
     })
     expect(fake.calls[0].query.get('name')).toBe('Props')
     expect(fake.calls[1]).toMatchObject({
