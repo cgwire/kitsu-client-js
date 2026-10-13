@@ -2796,7 +2796,7 @@
     "route": "/data/projects/<id>/sequences",
     "client": "shot.newSequence",
     "status": "existing",
-    "note": "Same route. The client first looks the sequence up by name and only sends name and episode_id: Kitsu also sends description and data, to accept as options in Task 26."
+    "note": "Same route. The client first looks the sequence up by its name in the episode, or outside any episode, and returns it when it exists. Body: name, episode_id, description and data, like Kitsu."
   },
   {
     "module": "shots",
@@ -2805,7 +2805,7 @@
     "route": "/data/projects/<id>/episodes",
     "client": "shot.newEpisode",
     "status": "existing",
-    "note": "Same route. The client first looks the episode up by name and only sends name: Kitsu also sends description, status and data, to accept as options in Task 26."
+    "note": "Same route. The client first looks the episode up by name and returns it when it exists. Body: name, description, status and data, like Kitsu."
   },
   {
     "module": "shots",

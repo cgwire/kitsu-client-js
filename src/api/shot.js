@@ -303,15 +303,31 @@ export const shotApi = http => {
      * existing sequence is then returned.
      * @param {Model} project
      * @param {string} name
-     * @param {{episode?: Model, signal?: AbortSignal}} [options]
+     * @param {{
+     *   episode?: Model,
+     *   description?: string,
+     *   data?: object,
+     *   signal?: AbortSignal
+     * }} [options] data is a free field for metadata of any kind.
      * @returns {Promise<Entity>} The created or existing sequence.
      */
-    newSequence: async (project, name, { episode, signal } = {}) => {
+    newSequence: async (
+      project,
+      name,
+      { episode, description, data, signal } = {}
+    ) => {
       const existing = await sequenceByName(project, name, episode, signal)
       if (existing) return existing
       return http.post(
         `data/projects/${idOf(project)}/sequences`,
-        { name, ...withoutNil({ episode_id: optionalIdOf(episode) }) },
+        {
+          name,
+          ...withoutNil({
+            episode_id: optionalIdOf(episode),
+            description,
+            data
+          })
+        },
         { signal }
       )
     },
@@ -438,15 +454,25 @@ export const shotApi = http => {
      * (case-insensitive): the existing episode is then returned.
      * @param {Model} project
      * @param {string} name
-     * @param {RequestOptions} [options]
+     * @param {{
+     *   description?: string,
+     *   status?: 'running'|'complete'|'standby'|'canceled',
+     *   data?: object,
+     *   signal?: AbortSignal
+     * }} [options] status is running by default. data is a free field for
+     *   metadata of any kind.
      * @returns {Promise<Entity>} The created or existing episode.
      */
-    newEpisode: async (project, name, { signal } = {}) => {
+    newEpisode: async (
+      project,
+      name,
+      { description, status, data, signal } = {}
+    ) => {
       const existing = await episodeByName(project, name, signal)
       if (existing) return existing
       return http.post(
         `data/projects/${idOf(project)}/episodes`,
-        { name },
+        { name, ...withoutNil({ description, status, data }) },
         { signal }
       )
     },
