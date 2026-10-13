@@ -1145,19 +1145,22 @@ export const projectApi = http => ({
     fieldName,
     data,
     { signal } = {}
-  ) =>
-    http.update(
+  ) => {
+    // A forgotten descriptor is reported as its missing entity_type.
+    const descriptor = { ...data }
+    return http.update(
       'metadata-descriptors/all-projects',
       fieldSegmentOf(fieldName),
       {
-        ...data,
-        entity_type: requiredOf('entity_type', data.entity_type),
-        ...(Array.isArray(data.departments)
-          ? { departments: idsOf(data.departments) }
+        ...descriptor,
+        entity_type: requiredOf('entity_type', descriptor.entity_type),
+        ...(Array.isArray(descriptor.departments)
+          ? { departments: idsOf(descriptor.departments) }
           : {})
       },
       { signal }
-    ),
+    )
+  },
 
   /**
    * Remove the descriptors sharing a field name from every open project.

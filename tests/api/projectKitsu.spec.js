@@ -708,6 +708,16 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    it('updateMetadataDescriptorOnAllProjects rejects a missing descriptor', async () => {
+      await expect(
+        kitsu.project.updateMetadataDescriptorOnAllProjects('difficulty')
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.updateMetadataDescriptorOnAllProjects('difficulty', null)
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('updateMetadataDescriptorOnAllProjects keeps the field name inside its path segment', async () => {
       fake.reply(200, [])
       await kitsu.project.updateMetadataDescriptorOnAllProjects('a/b', {
