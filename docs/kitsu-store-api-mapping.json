@@ -1968,7 +1968,7 @@
     "route": "/data/tasks/open-tasks/stats",
     "client": "task.getOpenTasksStats",
     "status": "existing",
-    "note": "The client returns null on a 404"
+    "note": "Statistics of each open production, by project id."
   },
   {
     "module": "productions",
@@ -3471,7 +3471,7 @@
     "route": "/data/persons/task-dates",
     "client": "task.getPersonsTasksDates",
     "status": "existing",
-    "note": "Client returns null on a 404."
+    "note": "A list, one entry per person."
   },
   {
     "module": "taskstatus",

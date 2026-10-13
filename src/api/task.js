@@ -64,6 +64,29 @@ import * as urls from '../utils/urls.js'
  */
 
 /**
+ * @typedef {object} ProjectTasksStats
+ * @property {number} amount Number of tasks.
+ * @property {number} amount_done Number of done tasks.
+ * @property {number} total_duration Time spent on the tasks, in minutes.
+ * @property {number} total_estimation Their estimations, in minutes.
+ * @property {{task_type_id: string, task_status_id: string,
+ *   project_id: string, amount: number, amount_done: number,
+ *   total_duration: number, total_estimation: number}[]} task_types The
+ *   same counts for each task type and task status.
+ */
+
+/**
+ * @typedef {object} PersonTasksDates
+ * @property {string} person_id
+ * @property {string|null} min_date First start date of the tasks of the
+ *   person.
+ * @property {string|null} max_date Last due date of the tasks of the person.
+ * @property {{start_date: string, end_date: string}[]} busy_periods When the
+ *   person works in the productions the user is not part of, without their
+ *   tasks.
+ */
+
+/**
  * @typedef {object} TransferOptions
  * @property {string} [fileName] Names the first file sent: a bare Blob has no
  *   name, and a preview needs one, Zou reads the preview type from the
@@ -805,19 +828,23 @@ export const taskApi = http => {
       ),
 
     /**
+     * Statistics of the tasks of the open productions, concepts left out.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} Statistics of the open tasks.
+     * @returns {Promise<Record<string, ProjectTasksStats>>} The statistics of
+     *   each production, by project id.
      */
     getOpenTasksStats: async ({ signal } = {}) =>
-      orNull(http.get('data/tasks/open-tasks/stats', {}, { signal })),
+      http.get('data/tasks/open-tasks/stats', {}, { signal }),
 
     /**
+     * For the team schedule, the first and last dates of the tasks of each
+     * person in the open productions, for supervisors and above. Below
+     * admin, the productions the user is not part of come as busy periods.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} For each person, the first and last task
-     *   start and due dates.
+     * @returns {Promise<PersonTasksDates[]>} One entry per person.
      */
     getPersonsTasksDates: async ({ signal } = {}) =>
-      orNull(http.get('data/persons/task-dates', {}, { signal })),
+      http.get('data/persons/task-dates', {}, { signal }),
 
     getTaskByEntity,
 
