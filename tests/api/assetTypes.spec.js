@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   ASSET_TYPE_ID,
   OTHER_ID,
   PROJECT_ID,
-  SHOT_ID
+  SHOT_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const UNSORTED = [{ name: 'props' }, { name: 'Characters' }, { name: 'fx' }]
@@ -105,6 +107,32 @@ describe('asset namespace: asset types', () => {
     })
   })
 
+  it('newAssetType sends the short name, the description and the task types', async () => {
+    fake.reply(200, []).reply(201, { id: ASSET_TYPE_ID, name: 'Props' })
+    await kitsu.asset.newAssetType('Props', {
+      shortName: 'PRP',
+      description: 'Movable objects',
+      taskTypes: [{ id: TASK_TYPE_ID }, OTHER_ID]
+    })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/entity-types',
+      body: {
+        name: 'Props',
+        short_name: 'PRP',
+        description: 'Movable objects',
+        task_types: [TASK_TYPE_ID, OTHER_ID]
+      }
+    })
+  })
+
+  it('newAssetType rejects a malformed task type before any request', async () => {
+    await expect(
+      kitsu.asset.newAssetType('Props', { taskTypes: ['modeling'] })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('newAssetType returns the existing type instead of creating it', async () => {
     fake.reply(200, [{ id: ASSET_TYPE_ID, name: 'Props' }])
     expect(await kitsu.asset.newAssetType('Props')).toEqual({
@@ -114,18 +142,61 @@ describe('asset namespace: asset types', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
-  it('updateAssetType saves only the name, through the entity types route', async () => {
+  it('updateAssetType saves the editable fields, through the entity types route', async () => {
     fake.reply(200, { id: ASSET_TYPE_ID, name: 'Props' })
+    // An asset type as getAssetType reads it.
     await kitsu.asset.updateAssetType({
       id: ASSET_TYPE_ID,
       name: 'Props',
-      created_at: '2026-01-01'
+      short_name: 'PRP',
+      description: null,
+      task_types: [TASK_TYPE_ID],
+      archived: false,
+      type: 'AssetType',
+      created_at: '2026-01-01T10:00:00'
     })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/entity-types/${ASSET_TYPE_ID}`
     })
-    expect(fake.calls[0].body).toEqual({ name: 'Props' })
+    expect(fake.calls[0].body).toEqual({
+      name: 'Props',
+      short_name: 'PRP',
+      description: null,
+      task_types: [TASK_TYPE_ID],
+      archived: false
+    })
+  })
+
+  it('updateAssetType sends only the given fields, task types as ids', async () => {
+    fake.reply(200, { id: ASSET_TYPE_ID }).reply(200, { id: ASSET_TYPE_ID })
+    await kitsu.asset.updateAssetType({ id: ASSET_TYPE_ID, archived: true })
+    await kitsu.asset.updateAssetType({
+      id: ASSET_TYPE_ID,
+      task_types: [{ id: TASK_TYPE_ID }]
+    })
+    expect(fake.calls.map(call => call.body)).toEqual([
+      { archived: true },
+      { task_types: [TASK_TYPE_ID] }
+    ])
+  })
+
+  // Zou would apply an empty body and answer the type unchanged.
+  it('updateAssetType rejects a type with nothing to save before any request', async () => {
+    const wrongTypes = [
+      ASSET_TYPE_ID,
+      { id: ASSET_TYPE_ID },
+      { id: ASSET_TYPE_ID, created_at: '2026-01-01T10:00:00' },
+      { id: ASSET_TYPE_ID, name: '' },
+      { id: ASSET_TYPE_ID, task_types: TASK_TYPE_ID }
+    ]
+    const errors = await Promise.all(
+      wrongTypes.map(assetType =>
+        kitsu.asset.updateAssetType(assetType).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeAssetType deletes the type through the entity types route', async () => {

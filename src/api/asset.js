@@ -25,6 +25,42 @@ const ASSET_PLACEHOLDERS = {
   source_id: ''
 }
 
+// What Kitsu edits on an asset type: task_types are the task types applied
+// to the assets of that type.
+const ASSET_TYPE_FIELDS = [
+  'name',
+  'short_name',
+  'description',
+  'task_types',
+  'archived'
+]
+
+// An id alone, or an object without any field to save, would send an empty
+// body that Zou answers with the unchanged type.
+const assetTypeFieldsOf = assetType => {
+  const fields =
+    assetType !== null && typeof assetType === 'object'
+      ? ASSET_TYPE_FIELDS.filter(key => assetType[key] !== undefined)
+      : []
+  if (fields.length === 0) {
+    throw new ParameterError(
+      `Missing parameter: assetType has no field to save (${ASSET_TYPE_FIELDS.join(', ')})`
+    )
+  }
+  if (fields.includes('name')) requiredOf('name', assetType.name)
+  const taskTypes = assetType.task_types
+  const listed = Array.isArray(taskTypes)
+  if (fields.includes('task_types') && taskTypes !== null && !listed) {
+    throw new ParameterError('Wrong format: task_types must be a list')
+  }
+  return Object.fromEntries(
+    fields.map(key => [
+      key,
+      key === 'task_types' && listed ? idsOf(taskTypes) : assetType[key]
+    ])
+  )
+}
+
 // Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
 // gazu the case is ignored, but the name must match, and the exact spelling
 // wins over another case.
@@ -417,23 +453,53 @@ export const assetApi = http => {
 
     /**
      * Create an asset type, or return the one that already has that name
-     * (case-insensitive). Zou refuses a name taken by another entity type,
-     * such as Shot or Concept (ParameterError).
+     * (case-insensitive), as it is. Zou refuses a name taken by another
+     * entity type, such as Shot or Concept (ParameterError).
      * @param {string} name
-     * @param {RequestOptions} [options]
+     * @param {{
+     *   shortName?: string,
+     *   description?: string,
+     *   taskTypes?: Model[],
+     *   signal?: AbortSignal
+     * }} [options] taskTypes are the task types applied to the assets of the
+     *   type.
      * @returns {Promise<Entity>} The created (or already existing) asset type.
      */
-    newAssetType: async (name, { signal } = {}) => {
+    newAssetType: async (
+      name,
+      { shortName, description, taskTypes, signal } = {}
+    ) => {
+      const body = {
+        name,
+        ...withoutNil({
+          short_name: shortName,
+          description,
+          task_types:
+            taskTypes === null || taskTypes === undefined
+              ? null
+              : idsOf(taskTypes)
+        })
+      }
       const existing = await assetTypeByName(name, signal)
       if (existing !== null) return existing
-      return http.create('entity-types', { name }, { signal })
+      return http.create('entity-types', body, { signal })
     },
 
     /**
-     * Save the name of the asset type. It must already exist. Asset types are
-     * entity types in Zou: data/asset-types is read-only, writes go through
-     * data/entity-types.
-     * @param {{id: string, name: string}} assetType
+     * Save the asset type. It must already exist. Asset types are entity
+     * types in Zou: data/asset-types is read-only, writes go through
+     * data/entity-types. Only the editable fields given are sent: name,
+     * short_name, description, task_types and archived.
+     * @param {{
+     *   id: string,
+     *   name?: string,
+     *   short_name?: string|null,
+     *   description?: string|null,
+     *   task_types?: Model[]|null,
+     *   archived?: boolean,
+     *   [field: string]: any
+     * }} assetType task_types are the task types applied to the assets of
+     *   the type, as entities or ids.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset type.
      */
@@ -441,7 +507,7 @@ export const assetApi = http => {
       http.update(
         'entity-types',
         idOf(assetType),
-        { name: assetType.name },
+        assetTypeFieldsOf(assetType),
         { signal }
       ),
 
