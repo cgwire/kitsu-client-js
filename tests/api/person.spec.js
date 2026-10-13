@@ -369,6 +369,17 @@ describe('person namespace', () => {
     })
   })
 
+  // Spread, an id string would send one key per character.
+  it('updatePerson and updateBot reject a person given by its id', async () => {
+    await expect(kitsu.person.updatePerson(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    await expect(kitsu.person.updateBot(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removePerson deletes the person, forcing on demand', async () => {
     fake.reply(204).reply(204)
     await kitsu.person.removePerson(PERSON_ID)
