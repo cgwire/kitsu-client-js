@@ -1,9 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeClient } from '../helpers/client.js'
-import { ENTITY_ID, NOTIFICATION_ID, TASK_ID } from '../helpers/ids.js'
+import {
+  ENTITY_ID,
+  NOTIFICATION_ID,
+  PERSON_ID,
+  TASK_ID
+} from '../helpers/ids.js'
 
 const LOG_ID = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
+const DAY_OFF_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 
 describe('user namespace: time, notifications, subscriptions, chats', () => {
   let kitsu, fake
@@ -87,16 +93,22 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     })
   })
 
-  it('getDayOff reads the day off of a date, null on 404', async () => {
-    fake.reply(200, { date: '2026-09-19' }).reply(404, {})
-    expect(await kitsu.user.getDayOff('2026-09-19')).toEqual({
-      date: '2026-09-19'
-    })
-    expect(await kitsu.user.getDayOff('2026-09-19')).toBeNull()
+  // Zou answers an empty object, never a 404, when no day off covers the day.
+  it('getDayOff reads the day off of a date, null when there is none', async () => {
+    const dayOff = {
+      id: DAY_OFF_ID,
+      date: '2026-09-18',
+      end_date: '2026-09-21',
+      person_id: PERSON_ID
+    }
+    fake.reply(200, dayOff).reply(200, {})
+    expect(await kitsu.user.getDayOff('2026-09-19')).toEqual(dayOff)
+    expect(await kitsu.user.getDayOff(new Date(2026, 8, 22))).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/user/day-offs/2026-09-19'
     })
+    expect(fake.calls[1].path).toBe('/data/user/day-offs/2026-09-22')
   })
 
   it('date path functions reject anything but a day', async () => {

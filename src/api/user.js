@@ -351,10 +351,17 @@ export const userApi = http => ({
    * @param {Date|string} date The day ("YYYY-MM-DD").
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity|null>} Day off of the user covering that day,
-   *   an empty object when there is none.
+   *   null when there is none.
    */
-  getDayOff: async (date, { signal } = {}) =>
-    orNull(http.get(`data/user/day-offs/${dayOf(date)}`, {}, { signal })),
+  getDayOff: async (date, { signal } = {}) => {
+    const dayOff = await http.get(
+      `data/user/day-offs/${dayOf(date)}`,
+      {},
+      { signal }
+    )
+    // Zou answers an empty object when no day off covers the day.
+    return dayOff && dayOff.id ? dayOff : null
+  },
 
   /**
    * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
