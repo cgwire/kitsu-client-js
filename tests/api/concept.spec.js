@@ -113,6 +113,33 @@ describe('concept namespace', () => {
     ).toBeNull()
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, the lookup would miss the concept and newConcept create it again.
+  it('newConcept finds a concept whose name holds a backslash or a wildcard', async () => {
+    const concept = { id: CONCEPT_ID, name: 'Castle\\v2_100%' }
+    fake.reply(200, [concept])
+    expect(
+      await kitsu.concept.newConcept(PROJECT_ID, 'Castle\\v2_100%')
+    ).toEqual(concept)
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].query.get('name')).toBe('Castle\\\\v2\\_100\\%')
+  })
+
+  // Zou keeps "CASTLE" and "Castle" apart, and its ILIKE filter finds both.
+  it('getConceptByName prefers the exact spelling over another case', async () => {
+    const concepts = [
+      { id: OTHER_ID, name: 'CASTLE' },
+      { id: CONCEPT_ID, name: 'Castle' }
+    ]
+    fake.reply(200, concepts).reply(200, concepts)
+    expect(await kitsu.concept.getConceptByName(PROJECT_ID, 'Castle')).toEqual(
+      concepts[1]
+    )
+    expect(await kitsu.concept.getConceptByName(PROJECT_ID, 'castle')).toEqual(
+      concepts[0]
+    )
+  })
+
   it('newConcept creates the concept when only a close name exists', async () => {
     fake
       .reply(200, [{ id: OTHER_ID, name: 'Castle-1' }])
