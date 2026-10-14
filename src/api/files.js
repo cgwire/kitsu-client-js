@@ -57,8 +57,8 @@ import * as urls from '../utils/urls.js'
  * @property {string} [fileName] Name sent with the file: a bare Blob has none.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
- *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress, unless it was created with xhrUploads: true.
+ *   client given its own fetch (Tauri) calls it only with xhrUploads: true,
+ *   and a bearer client never for an upload to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 

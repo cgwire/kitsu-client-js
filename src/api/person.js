@@ -1067,8 +1067,9 @@ export const personApi = http => ({
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal
    * }} [options] onProgress needs XMLHttpRequest (browsers, webviews): fetch
-   *   cannot report it. A client given its own fetch (Tauri) uploads through
-   *   it and never calls onProgress, unless created with xhrUploads: true.
+   *   cannot report it. A client given its own fetch (Tauri) calls it only
+   *   with xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<{thumbnail_path: string}>} Path of the stored picture,
    *   relative to the host url.
    */
@@ -1090,8 +1091,9 @@ export const personApi = http => ({
    *   signal?: AbortSignal
    * }} [options] update also rewrites the persons that already exist.
    *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
-   *   report it. A client given its own fetch (Tauri) uploads through it and
-   *   never calls onProgress, unless created with xhrUploads: true.
+   *   report it. A client given its own fetch (Tauri) calls it only with
+   *   xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<Entity[]>} The persons created or updated by the import.
    */
   importPersonsWithCsv: async (
