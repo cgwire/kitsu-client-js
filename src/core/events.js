@@ -287,10 +287,10 @@ export const createEvents = ({
 
     /**
      * Called with the socket.io reason whenever the connection is lost or
-     * closed. After "io server disconnect" (Zou rejected the token) the
-     * client checks the session with a request: an expired token is renewed
-     * and the socket reopens. Otherwise the socket reopens at the next
-     * session change, or tries again at the next on().
+     * closed. After "io server disconnect" (Zou rejected the token), a
+     * bearer session holding a refresh token is checked with a request: an
+     * expired token is renewed and the socket reopens. Otherwise the socket
+     * reopens at the next session change, or tries again at the next on().
      * @param {(reason: string) => void} handler
      * @returns {Off}
      * @throws {ParameterError} At once, for a handler that is not a
