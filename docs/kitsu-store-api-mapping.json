@@ -1725,7 +1725,7 @@
     "route": "/data/playlists",
     "client": "playlist.newPlaylist",
     "status": "existing",
-    "note": "Kitsu posts to /data/playlists/ with a trailing slash. Client first looks the playlist up by its exact name in the episode (extra GET /data/playlists) and returns it when found, where gazu takes the first playlist of the project with an alike name. Body: the taskType option of the client gives task_type_id."
+    "note": "Kitsu posts to /data/playlists/ with a trailing slash. Client first looks the playlist up by its name in the episode, or without episode on the same side (Main Pack, or All for the same entity type), with an extra GET /data/playlists, and returns it when found, where gazu takes the first playlist of the project with an alike name. Body: the taskType option of the client gives task_type_id."
   },
   {
     "module": "playlists",

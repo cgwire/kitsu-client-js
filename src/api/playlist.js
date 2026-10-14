@@ -100,10 +100,18 @@ const latestPreviewOf = previewFiles =>
     )
 
 export const playlistApi = http => {
-  // Zou keeps one playlist per name, project and episode. Its name filter
-  // cannot ask for the playlists without episode: the episode is checked on
-  // the rows.
-  const playlistByName = async (project, name, episode, signal) => {
+  // Zou keeps one playlist per name inside an episode only: without one, a
+  // Main Pack playlist and the All playlist of each entity type can share a
+  // name. Its name filter cannot ask for the playlists without episode: the
+  // episode, the side (Main Pack or All) and, on the All side, the entity
+  // type are checked on the rows. An unset is_for_all is Main Pack, an unset
+  // for_entity a shot, as Zou lists them.
+  const playlistByName = async (
+    project,
+    name,
+    { episode, isForAll, forEntity },
+    signal
+  ) => {
     const episodeId = optionalIdOf(episode)
     const playlists = await http.fetchAll(
       'playlists',
@@ -114,10 +122,13 @@ export const playlistApi = http => {
       },
       { signal }
     )
-    return sameNameOf(
-      playlists.filter(playlist => episodeId !== null || !playlist.episode_id),
-      name
-    )
+    const forAll = Boolean(isForAll)
+    const inScope = playlist =>
+      episodeId !== null ||
+      (!playlist.episode_id &&
+        Boolean(playlist.is_for_all) === forAll &&
+        (!forAll || (playlist.for_entity || 'shot') === forEntity))
+    return sameNameOf(playlists.filter(inScope), name)
   }
 
   const entityPreviewFiles = (entity, signal) =>
@@ -219,22 +230,35 @@ export const playlistApi = http => {
 
     /**
      * The playlist of this name (the case ignored, an exact match first) in
-     * the episode, or in the project itself without episode: Zou keeps one
-     * playlist per name, project and episode. gazu takes the first playlist
-     * of the project whose name is alike, whatever its episode.
+     * the episode, or without episode among the playlists of the project
+     * itself: the Main Pack ones, or with isForAll the All ones of the
+     * forEntity type. Zou keeps one playlist per name inside an episode
+     * only: without one, a Main Pack playlist and the All playlist of each
+     * entity type can share a name. gazu takes the first playlist of the
+     * project whose name is alike, whatever its episode.
      * @param {Model} project
      * @param {string} name
-     * @param {{episode?: Model|null, signal?: AbortSignal}} [options]
+     * @param {{
+     *   episode?: Model|null,
+     *   isForAll?: boolean,
+     *   forEntity?: 'shot'|'asset'|'sequence'|'edit'|'episode',
+     *   signal?: AbortSignal
+     * }} [options] isForAll and forEntity (shot by default) only apply
+     *   without episode, as in newPlaylist.
      * @returns {Promise<Entity|null>} Null when no playlist there has this
      *   name.
      */
-    getPlaylistByName: async (project, name, { episode = null, signal } = {}) =>
-      playlistByName(project, name, episode, signal),
+    getPlaylistByName: async (
+      project,
+      name,
+      { episode = null, isForAll = false, forEntity = 'shot', signal } = {}
+    ) =>
+      playlistByName(project, name, { episode, isForAll, forEntity }, signal),
 
     /**
      * Create a playlist, or return the playlist that already has this name
-     * in the episode (in the project itself without episode), as
-     * getPlaylistByName finds it.
+     * in the episode, or without episode on the same side (Main Pack, or All
+     * for the same entity type), as getPlaylistByName finds it.
      * @param {Model} project
      * @param {string} name
      * @param {{
@@ -245,9 +269,10 @@ export const playlistApi = http => {
      *   taskType?: Model|null,
      *   signal?: AbortSignal
      * }} [options] Without episode the playlist belongs to the project:
-     *   isForAll files it under "All Assets" instead of "Main Pack" in the
-     *   web UI. forClient shares it with the clients. taskType is the task
-     *   type it reviews, whose latest preview addEntitiesToPlaylist picks.
+     *   isForAll files it under All, with the playlists of its forEntity
+     *   type, instead of Main Pack in the web UI. forClient shares it with
+     *   the clients. taskType is the task type it reviews, whose latest
+     *   preview addEntitiesToPlaylist picks.
      * @returns {Promise<Entity>}
      */
     newPlaylist: async (
@@ -271,7 +296,12 @@ export const playlistApi = http => {
         episode_id: optionalIdOf(episode),
         task_type_id: optionalIdOf(taskType)
       })
-      const existing = await playlistByName(project, name, episode, signal)
+      const existing = await playlistByName(
+        project,
+        name,
+        { episode, isForAll, forEntity },
+        signal
+      )
       return existing || http.create('playlists', data, { signal })
     },
 
