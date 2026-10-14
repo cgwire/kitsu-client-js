@@ -160,6 +160,18 @@ describe('asset namespace: assets', () => {
     )
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, the lookup would miss the asset and newAsset create it again.
+  it('newAsset finds an asset whose name holds a backslash or a wildcard', async () => {
+    const asset = { id: ASSET_ID, name: 'prop\\v2_100%' }
+    fake.reply(200, [asset])
+    expect(
+      await kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'prop\\v2_100%')
+    ).toEqual(asset)
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].query.get('name')).toBe('prop\\\\v2\\_100\\%')
+  })
+
   it('getAsset accepts an object or an id and returns null on 404', async () => {
     fake.reply(200, { id: ASSET_ID }).reply(404, {})
     expect(await kitsu.asset.getAsset({ id: ASSET_ID })).toEqual({
