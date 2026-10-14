@@ -58,6 +58,23 @@ describe('shot namespace: reads', () => {
     expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'sh010')).toEqual(lower)
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups escape the backslash and the wildcards of LIKE', async () => {
+    const shot = { id: SHOT_ID, name: 'SH\\010_A', parent_id: SEQUENCE_ID }
+    fake.reply(200, [shot]).reply(200, []).reply(200, [])
+    expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH\\010_A')).toEqual(
+      shot
+    )
+    expect(await kitsu.shot.getSequenceByName(PROJECT_ID, 'SQ\\')).toBeNull()
+    expect(await kitsu.shot.getEpisodeByName(PROJECT_ID, 'E01%')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'SH\\\\010\\_A',
+      'SQ\\\\',
+      'E01\\%'
+    ])
+  })
+
   it('getShotByName keeps the shots of the sequence only', async () => {
     fake.reply(200, [{ id: OTHER_ID, name: 'SH010', parent_id: OTHER_ID }])
     expect(await kitsu.shot.getShotByName(SEQUENCE_ID, 'SH010')).toBeNull()
