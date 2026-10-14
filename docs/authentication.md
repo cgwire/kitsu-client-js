@@ -105,3 +105,9 @@ overtaken by a later `logIn`, `logOut`, `setToken` or two-factor setup keeps
 nothing of its answer and rejects with an `AbortError`, even when the later
 call fails: a login sent twice with a single-use code (a recovery code, an
 email OTP) can end with no session at all.
+
+In cookie mode the browser keeps the session, and it applies the cookies of
+every answer that lands, those of an overtaken `logIn` included: the browser
+stays logged in as that user until a later `logIn` succeeds or a `logOut`
+reaches Zou, and meanwhile the requests of the client carry that session. A
+`logOut` that resolves is the way to be sure the browser holds none.
