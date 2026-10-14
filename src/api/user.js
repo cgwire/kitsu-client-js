@@ -438,8 +438,11 @@ export const userApi = http => ({
   },
 
   /**
-   * List the notifications of the user, most recent first, 100 at most: to
-   * read the older ones, pass the created_at of the last one as before.
+   * List the notifications of the user, most recent first, 100 at most. Zou
+   * sorts and filters them to the microsecond but serves their created_at to
+   * the second: as before, the created_at of the last one would skip the
+   * others of that second. To read the older ones, pass it plus one second,
+   * drop the notifications already read, and stop at a page with no new one.
    * @param {{
    *   after?: Date|string,
    *   before?: Date|string,
