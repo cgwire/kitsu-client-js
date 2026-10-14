@@ -433,6 +433,40 @@ describe('a caller abort while the token is refreshed', () => {
     ).toHaveLength(3)
   })
 
+  it('lets go of the caller signal once the refresh is over', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : expired()
+      )
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const caller = new AbortController()
+    const added = vi.spyOn(caller.signal, 'addEventListener')
+    const removed = vi.spyOn(caller.signal, 'removeEventListener')
+
+    expect(
+      await http.get('data/persons', {}, { signal: caller.signal })
+    ).toEqual([])
+
+    // The two attempts and the wait for the refresh each listened.
+    const listenersOf = spy => spy.mock.calls.map(([, listener]) => listener)
+    expect(listenersOf(added)).toHaveLength(3)
+    expect(listenersOf(removed)).toEqual(
+      expect.arrayContaining(listenersOf(added))
+    )
+  })
+
   it('reports the abort, not the refused refresh, to the caller who aborted', async () => {
     const onUnauthorized = vi.fn()
     const { caller, aborted, other, answer, refreshSent } =
