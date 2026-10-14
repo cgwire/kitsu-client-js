@@ -111,6 +111,17 @@ describe('scene namespace: reads', () => {
     )
   })
 
+  // The name is compared on the rows, never sent as a LIKE pattern.
+  it('getSceneByName finds a name holding a backslash or a wildcard', async () => {
+    const scene = { id: SCENE_ID, name: 'SC\\010_%', parent_id: SEQUENCE_ID }
+    const lookAlike = { id: OTHER_ID, name: 'SC010', parent_id: SEQUENCE_ID }
+    fake.reply(200, [lookAlike, scene]).reply(200, [lookAlike])
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'SC\\010_%')).toEqual(
+      scene
+    )
+    expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'SC\\010')).toBeNull()
+  })
+
   it('getSceneByName gives null when the sequence does not exist', async () => {
     fake.reply(404, { message: 'Sequence not found' })
     expect(await kitsu.scene.getSceneByName(SEQUENCE_ID, 'SC010')).toBeNull()

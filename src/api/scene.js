@@ -3,6 +3,7 @@ import {
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -12,18 +13,6 @@ import {
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
-
-// Like gazu the case is ignored, but the name must match, and the exact
-// spelling wins over another case.
-const findByName = (entries, name) => {
-  const wanted = String(name)
-  const matches = entries.filter(
-    entry =>
-      typeof entry.name === 'string' &&
-      entry.name.toLowerCase() === wanted.toLowerCase()
-  )
-  return matches.find(entry => entry.name === wanted) || matches[0] || null
-}
 
 export const sceneApi = http => {
   const fetchScene = (scene, signal) =>
@@ -93,7 +82,8 @@ export const sceneApi = http => {
      * @param {string} sceneName
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The scene of the sequence with that
-     *   name (case-insensitive), null when there is none.
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
     getSceneByName: async (sequence, sceneName, { signal } = {}) => {
       const sequenceId = idOf(sequence)
@@ -103,7 +93,7 @@ export const sceneApi = http => {
       const scenes = await orNull(
         http.fetchAll(`sequences/${sequenceId}/scenes`, {}, { signal })
       )
-      return findByName(scenes || [], sceneName)
+      return sameNameOf(scenes, sceneName)
     },
 
     /**
@@ -144,7 +134,8 @@ export const sceneApi = http => {
      * @param {string} name
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The asset instance of the scene with
-     *   that name (case-insensitive), null when there is none.
+     *   that name (the case ignored, an exact match first), null when there
+     *   is none.
      */
     getAssetInstanceByName: async (scene, name, { signal } = {}) => {
       const sceneId = idOf(scene)
@@ -154,7 +145,7 @@ export const sceneApi = http => {
       const instances = await orNull(
         http.get(`data/scenes/${sceneId}/asset-instances`, {}, { signal })
       )
-      return findByName(Object.values(instances || {}).flat(), name)
+      return sameNameOf(Object.values(instances || {}).flat(), name)
     },
 
     /**
