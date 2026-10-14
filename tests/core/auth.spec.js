@@ -5,6 +5,7 @@ import {
   AuthFailedError,
   KitsuError,
   MissingOtpError,
+  NotAuthenticatedError,
   NotFoundError,
   ServerError
 } from '../../src/core/errors.js'
@@ -192,6 +193,32 @@ describe('session helpers', () => {
     expect(kitsu.getTokens()).toBeNull()
     expect(onTokensChange.mock.calls).toEqual([[null]])
     expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  // Zou renews the token of a browser in a cookie only: nothing to revoke
+  // the session with.
+  it('logOut gives up when the renewal brings no access token', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/auth/logout', () => jsonResponse(401, {}))
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { refresh: true })
+      )
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'expired', refresh_token: 'refresh' }
+    })
+
+    const err = await kitsu.logOut().catch(e => e)
+
+    expect(err).toBeInstanceOf(NotAuthenticatedError)
+    expect(
+      fake.calls.map(call => [call.path, call.headers.Authorization])
+    ).toEqual([
+      ['/auth/logout', 'Bearer expired'],
+      ['/auth/refresh-token', 'Bearer refresh']
+    ])
+    expect(kitsu.getTokens()).toBeNull()
   })
 })
 
