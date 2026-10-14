@@ -1,6 +1,7 @@
 import { ParameterError } from '../core/errors.js'
 import {
   dateOf,
+  fieldsOf,
   idOf,
   idsOf,
   optionalIdOf,
@@ -30,12 +31,15 @@ const optionalIdsOf = models =>
   models === undefined || models === null ? models : idsOf(models)
 
 // Up to 0.2.0 the changes were options: such a call would now save nothing.
-const refuseOptionChanges = (options, names, saved) => {
-  if (names.some(name => name in options)) {
+// Null options are no options.
+const optionsOf = (options, names, saved) => {
+  const given = options ?? {}
+  if (names.some(name => name in given)) {
     throw new ParameterError(
       `Wrong format: the changes are fields of the ${saved}, not options`
     )
   }
+  return given
 }
 
 export const scheduleApi = http => ({
@@ -73,17 +77,19 @@ export const scheduleApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateMilestone: async (milestone, options = {}) => {
-    refuseOptionChanges(options, ['date', 'name', 'taskType'], 'milestone')
+  updateMilestone: async (milestone, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['date', 'name', 'taskType'],
+      'milestone'
+    )
+    const id = idOf(milestone)
+    const { date, name, task_type_id } = fieldsOf(milestone)
     return http.update(
       'milestones',
-      idOf(milestone),
-      withoutUndefined({
-        date: dateOf(milestone.date),
-        name: milestone.name,
-        task_type_id: milestone.task_type_id
-      }),
-      { signal: options.signal }
+      id,
+      withoutUndefined({ date: dateOf(date), name, task_type_id }),
+      { signal }
     )
   },
 
@@ -188,21 +194,23 @@ export const scheduleApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleItem: async (scheduleItem, options = {}) => {
-    refuseOptionChanges(
+  updateScheduleItem: async (scheduleItem, options) => {
+    const { signal } = optionsOf(
       options,
       ['startDate', 'endDate', 'manDays'],
       'schedule item'
     )
+    const id = idOf(scheduleItem)
+    const { start_date, end_date, man_days } = fieldsOf(scheduleItem)
     return http.update(
       'schedule-items',
-      idOf(scheduleItem),
+      id,
       withoutUndefined({
-        start_date: dateOf(scheduleItem.start_date),
-        end_date: dateOf(scheduleItem.end_date),
-        man_days: scheduleItem.man_days
+        start_date: dateOf(start_date),
+        end_date: dateOf(end_date),
+        man_days
       }),
-      { signal: options.signal }
+      { signal }
     )
   },
 
@@ -265,17 +273,19 @@ export const scheduleApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersion: async (version, options = {}) => {
-    refuseOptionChanges(options, ['name', 'canceled', 'locked'], 'version')
+  updateScheduleVersion: async (version, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['name', 'canceled', 'locked'],
+      'version'
+    )
+    const id = idOf(version)
+    const { name, canceled, locked } = fieldsOf(version)
     return http.update(
       'production-schedule-versions',
-      idOf(version),
-      withoutUndefined({
-        name: version.name,
-        canceled: version.canceled,
-        locked: version.locked
-      }),
-      { signal: options.signal }
+      id,
+      withoutUndefined({ name, canceled, locked }),
+      { signal }
     )
   },
 
@@ -409,22 +419,24 @@ export const scheduleApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersionTaskLink: async (taskLink, options = {}) => {
-    refuseOptionChanges(
+  updateScheduleVersionTaskLink: async (taskLink, options) => {
+    const { signal } = optionsOf(
       options,
       ['startDate', 'dueDate', 'estimation', 'assignees'],
       'task link'
     )
+    const id = idOf(taskLink)
+    const { start_date, due_date, estimation, assignees } = fieldsOf(taskLink)
     return http.update(
       'production-schedule-version-task-links',
-      idOf(taskLink),
+      id,
       withoutUndefined({
-        start_date: dateOf(taskLink.start_date),
-        due_date: dateOf(taskLink.due_date),
-        estimation: taskLink.estimation,
-        assignees: optionalIdsOf(taskLink.assignees)
+        start_date: dateOf(start_date),
+        due_date: dateOf(due_date),
+        estimation,
+        assignees: optionalIdsOf(assignees)
       }),
-      { signal: options.signal }
+      { signal }
     )
   },
 

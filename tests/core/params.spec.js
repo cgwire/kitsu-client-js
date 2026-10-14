@@ -9,6 +9,7 @@ import {
   dateOf,
   datetimeOf,
   dayOf,
+  fieldsOf,
   idOf,
   idsOf,
   likeLiteralOf,
@@ -87,6 +88,15 @@ describe('requiredOf', () => {
     expect(() => requiredOf('name', '')).toThrow(/name is required/)
     expect(() => requiredOf('name', null)).toThrow(ParameterError)
     expect(() => requiredOf('name', undefined)).toThrow(ParameterError)
+  })
+})
+
+describe('fieldsOf', () => {
+  it('returns the object to save, and rejects an id that holds nothing', () => {
+    const shot = { id: SHOT_ID, name: 'SH010' }
+    expect(fieldsOf(shot)).toBe(shot)
+    expect(() => fieldsOf(SHOT_ID)).toThrow(ParameterError)
+    expect(() => fieldsOf(null)).toThrow(/expected the object to save/)
   })
 })
 
