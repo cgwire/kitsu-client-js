@@ -120,9 +120,16 @@ const releasing = (response, release) => {
 const abortError = () =>
   new DOMException('The operation was aborted', 'AbortError')
 
-// Settles like the promise, or rejects with an AbortError as soon as the
-// signal aborts: the shared token refresh goes on for the other requests.
-const unlessAborted = (promise, signal) =>
+/**
+ * Settles like the promise, or rejects with an AbortError as soon as the
+ * signal aborts: what the promise stands for goes on for the others, a
+ * shared token refresh for instance.
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<T>}
+ */
+export const unlessAborted = (promise, signal) =>
   signal
     ? new Promise((resolve, reject) => {
         const abort = () => reject(abortError())

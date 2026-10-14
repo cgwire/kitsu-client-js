@@ -377,6 +377,30 @@ describe('overlapping session changes', () => {
     expect(fake.calls.map(call => call.path)).toEqual(['/auth/logout'])
   })
 
+  it('in cookie mode rejects at once a queued change whose signal aborts', async () => {
+    const { kitsu, fake, release, sent } = parked({
+      auth: 'cookie',
+      tokens: null
+    })
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret').catch(e => e)
+    const controller = new AbortController()
+    const loggingOut = kitsu.logOut({ signal: controller.signal }).catch(e => e)
+    await sent(1)
+
+    controller.abort()
+
+    // Settled while the logIn before it still waits for its answer.
+    const settled = await Promise.race([
+      loggingOut,
+      new Promise(resolve => setTimeout(() => resolve('pending'), 50))
+    ])
+    expect(settled.name).toBe('AbortError')
+    release('/auth/login', { user: { id: 'bob' } })
+    expect((await loggingIn).name).toBe('AbortError')
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/login'])
+  })
+
   // Dropping the session runs app code, which may start the next change.
   it('in cookie mode sends a change started by the logOut itself after it', async () => {
     let next = null
