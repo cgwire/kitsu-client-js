@@ -21,9 +21,14 @@
   `kitsu.task.updateTask({ id, priority: 2 })` sends `{ priority: 2 }`. Zou
   checks the keys of the body against what the role of the user may write,
   and an `id` key would fail that check.
-- **An update changes only the fields it is given.** Where Zou replaces the
-  whole object, a metadata descriptor or a budget entry for instance, the
-  client reads the object first and sends it merged with the given fields.
+- **An update changes only the fields it is given.** A field given as
+  `undefined` is not given. Where Zou replaces the whole object, a metadata
+  descriptor or a budget entry for instance, the client reads the object
+  first and sends it merged with the given fields. One exception:
+  `kitsu.project.updateMetadataDescriptorOnAllProjects` updates the
+  descriptors of several projects, which can differ, and reads none of them.
+  Zou resets the `data_type`, `choices`, `departments` and `for_client` it is
+  not given: give the whole descriptor.
 - **`get*` of a single entity resolves to `null` when it does not exist**,
   whether Zou answers a 404 or an empty object.
 - **Functions never throw synchronously**: a wrong argument is a rejected
