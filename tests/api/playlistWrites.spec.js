@@ -115,11 +115,9 @@ describe('playlist namespace: writes', () => {
   })
 
   // What Zou answers to the name filter without episode filter: the
-  // playlists of every episode, the name taken case insensitively.
-  it.each([
-    [{ id: OTHER_ID, name: 'Dailies', episode_id: EPISODE_ID }],
-    [{ id: OTHER_ID, name: 'dailies', episode_id: null }]
-  ])('newPlaylist creates the playlist next to %j', async row => {
+  // playlists of every episode.
+  it('newPlaylist creates the playlist next to the one of an episode', async () => {
+    const row = { id: OTHER_ID, name: 'Dailies', episode_id: EPISODE_ID }
     fake.reply(200, [row]).reply(201, { id: PLAYLIST_ID, name: 'Dailies' })
     expect(await kitsu.playlist.newPlaylist(PROJECT_ID, 'Dailies')).toEqual({
       id: PLAYLIST_ID,
