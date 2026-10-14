@@ -161,7 +161,10 @@ export const authApi = (http, session) => {
      * Log in with user credentials. In bearer mode the tokens are kept by
      * this client only. The last session change started wins: when a
      * logIn, logOut, setToken or two-factor setup starts before the answer
-     * lands, this logIn keeps nothing and rejects with an AbortError.
+     * lands, this logIn keeps nothing and rejects with an AbortError. In
+     * cookie mode the browser applies the cookies of that answer all the
+     * same: it stays logged in as that user, for the requests of the client
+     * too, until a later logIn succeeds or a logOut reaches Zou.
      * @param {string} email
      * @param {string} password
      * @param {LogInOptions} [options]
