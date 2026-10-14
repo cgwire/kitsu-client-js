@@ -33,6 +33,11 @@
   not given: give the whole descriptor.
 - **`get*` of a single entity resolves to `null` when it does not exist**,
   whether Zou answers a 404 or an empty object.
+- **A name lookup finds that name only**: `get*ByName`, and the `new*`
+  functions that return the entity that already exists, escape the `%`, `_`
+  and backslash that Zou would read as a pattern, and keep the entity of that
+  name in the given parent (project, episode, sequence), its exact case
+  first, then the same name in another case.
 - **Functions never throw synchronously**: a wrong argument is a rejected
   promise. They never mutate their arguments. The pure helpers of
   `@cgwire/kitsu-client/utils` throw instead (see
