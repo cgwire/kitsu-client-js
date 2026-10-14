@@ -51,7 +51,10 @@ Every error of a request or of an argument extends `KitsuError` and carries
 `status`, `path`, `method` and `body` (the parsed answer of the API). Only
 setup mistakes escape it: `createClient` throws a `TypeError` for a wrong
 option, and real-time events reject with an `Error` when socket.io-client
-cannot be loaded.
+cannot be loaded. So do options given as `null` instead of being left out:
+most functions destructure them, and reject with a plain `TypeError`
+(`kitsu.getCurrentUser(null)`, `kitsu.changePassword(oldPassword, password,
+null)`).
 
 | Condition             | Error                                                                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
