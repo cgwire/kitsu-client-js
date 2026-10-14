@@ -2,8 +2,10 @@ import { ParameterError } from '../core/errors.js'
 import {
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -33,20 +35,6 @@ const withoutLinks = template =>
 // The choices of the board roles of a task status link. Zou stores any
 // string there, then fails on every later read of the link.
 const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
-
-// Zou filters a name with ILIKE: the case is ignored, "_" and "%" match any
-// character, and the rows come in no set order. Only a row with that name
-// is a match, with its exact case first: Zou keeps "Feature" and "feature"
-// apart.
-const sameNameOf = (entries, name) => {
-  const rows = Array.isArray(entries) ? entries : []
-  const lower = String(name).toLowerCase()
-  return (
-    rows.find(entry => entry.name === name) ||
-    rows.find(entry => String(entry.name).toLowerCase() === lower) ||
-    null
-  )
-}
 
 const boardRolesOf = roles => {
   if (
@@ -111,7 +99,7 @@ export const projectTemplateApi = http => {
       http
         .fetchAll(
           'project-templates',
-          { name: requiredOf('name', name) },
+          { name: likeLiteralOf(name) },
           { signal }
         )
         .then(entries => sameNameOf(entries, name)),
