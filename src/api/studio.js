@@ -1,16 +1,18 @@
 import { ParameterError } from '../core/errors.js'
-import { idOf, orNull, requiredOf, sortedByName } from '../core/params.js'
+import {
+  idOf,
+  likeLiteralOf,
+  orNull,
+  requiredOf,
+  sameNameOf,
+  sortedByName
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
-
-// Zou filters a name with ILIKE, whose escape character is the backslash:
-// escaped, "%" and "_" only match themselves. The case is still ignored, so
-// the exact spelling wins over a name that only differs by its case.
-const likeEscaped = name => String(name).replace(/[\\%_]/g, '\\$&')
 
 /** @param {any} http */
 export const studioApi = http => ({
@@ -35,14 +37,10 @@ export const studioApi = http => ({
    * @returns {Promise<Entity|null>} The studio of this name, the case
    *   ignored but an exact match first, null when there is none.
    */
-  getStudioByName: async (name, { signal } = {}) => {
-    const wanted = requiredOf('name', name)
-    const studios = await orNull(
-      http.fetchAll('studios', { name: likeEscaped(wanted) }, { signal })
-    )
-    if (!Array.isArray(studios)) return null
-    return studios.find(studio => studio.name === wanted) || studios[0] || null
-  },
+  getStudioByName: async (name, { signal } = {}) =>
+    orNull(
+      http.fetchAll('studios', { name: likeLiteralOf(name) }, { signal })
+    ).then(studios => sameNameOf(studios, name)),
 
   /**
    * Studio names are unique: the API refuses a name already in use.

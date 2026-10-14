@@ -49,11 +49,16 @@ describe('studio namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Angers')
   })
 
-  // Left as is, "Studio_A" would also find "Studio-A".
-  it('getStudioByName escapes the LIKE wildcards', async () => {
-    fake.reply(200, [])
+  // Left as is, "Studio_A" would also find "Studio-A", and a trailing
+  // backslash, the escape character of LIKE, would fail the query.
+  it('getStudioByName escapes the LIKE wildcards and the backslash', async () => {
+    fake.reply(200, []).reply(200, [])
     await kitsu.studio.getStudioByName('Studio_A 100%')
-    expect(fake.calls[0].query.get('name')).toBe('Studio\\_A 100\\%')
+    await kitsu.studio.getStudioByName('Angers\\')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Studio\\_A 100\\%',
+      'Angers\\\\'
+    ])
   })
 
   // Zou keeps "Paris" and "paris" apart, and its ILIKE filter finds both.
