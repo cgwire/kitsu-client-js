@@ -1,9 +1,11 @@
 import { ParameterError } from '../core/errors.js'
 import {
   idOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   withoutNil
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
@@ -113,9 +115,6 @@ const fromOneOf = (label, value) => {
   )
 }
 
-// The backslash is the escape character of the LIKE patterns of PostgreSQL.
-const likeEscaped = name => String(name).replace(/[\\%_]/g, '\\$&')
-
 const instanceEntityPath = (assetInstance, temporalEntity) =>
   `data/asset-instances/${idOf(assetInstance)}/entities/${idOf(temporalEntity)}`
 
@@ -124,22 +123,17 @@ export const filesApi = http => {
   // returned by its name would lose its JSDoc in the declarations.
 
   /**
-   * Zou filters a name with ILIKE: escaped, "%" and "_" only match
-   * themselves. The case is still ignored, so the exact spelling wins over
-   * a name that only differs by its case, which Zou keeps apart.
+   * The row of that name, the case ignored but an exact match first: Zou
+   * keeps "Maya" and "maya" apart.
    * @param {string} model
    * @param {string} name
    * @param {AbortSignal} [signal]
    * @returns {Promise<Entity|null>}
    */
-  const byName = async (model, name, signal) => {
-    const wanted = requiredOf('name', name)
-    const entries = await orNull(
-      http.fetchAll(model, { name: likeEscaped(wanted) }, { signal })
-    )
-    if (!Array.isArray(entries)) return null
-    return entries.find(entry => entry.name === wanted) || entries[0] || null
-  }
+  const byName = async (model, name, signal) =>
+    orNull(
+      http.fetchAll(model, { name: likeLiteralOf(name) }, { signal })
+    ).then(entries => sameNameOf(entries, name))
 
   /**
    * @param {string} path
