@@ -35,15 +35,17 @@ Tauri), download the file and show it as an object URL:
 
 ```js
 // Cookie mode, on the site of Kitsu
-img.src = `/api/${getPreviewFilePath(previewFile)}`
+img.src = `/api/pictures/thumbnails/preview-files/${previewFile.id}.png`
 
 // Any other client
 const response = await kitsu.files.downloadPreviewFileThumbnail(previewFile)
 img.src = URL.createObjectURL(await response.blob())
 ```
 
-Call `URL.revokeObjectURL` once the image is gone. A movie shown this way
-plays only once fully downloaded: `downloadPreviewLowdefMovie` keeps it small.
+`getPreviewFilePath` points to the original file instead: the full picture,
+or the mp4 of a movie. Call `URL.revokeObjectURL` once the image is gone. A
+movie shown this way plays only once fully downloaded:
+`downloadPreviewLowdefMovie` keeps it small.
 
 ## Smaller bundles
 
