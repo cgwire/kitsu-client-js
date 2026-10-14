@@ -1,8 +1,9 @@
 import {
   idOf,
   idsOf,
+  likeLiteralOf,
   orNull,
-  requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -13,29 +14,16 @@ import {
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
-// Zou matches a name filter with ILIKE: any case, _ and % as wildcards. Like
-// gazu the case is ignored, but the name must match, and the exact spelling
-// wins over another case.
-const findByName = (entries, name) => {
-  const wanted = String(name)
-  const matches = (Array.isArray(entries) ? entries : []).filter(
-    entry =>
-      typeof entry.name === 'string' &&
-      entry.name.toLowerCase() === wanted.toLowerCase()
-  )
-  return matches.find(entry => entry.name === wanted) || matches[0] || null
-}
-
 export const conceptApi = http => {
   const conceptByName = async (project, name, signal) => {
     const concepts = await orNull(
       http.fetchAll(
         'concepts',
-        { project_id: idOf(project), name: requiredOf('name', name) },
+        { project_id: idOf(project), name: likeLiteralOf(name) },
         { signal }
       )
     )
-    return findByName(concepts, name)
+    return sameNameOf(concepts, name)
   }
 
   return {
@@ -110,14 +98,15 @@ export const conceptApi = http => {
      * @param {string} conceptName
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The concept of the project with that
-     *   name (case-insensitive), null when there is none.
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
     getConceptByName: async (project, conceptName, { signal } = {}) =>
       conceptByName(project, conceptName, signal),
 
     /**
-     * Create a concept in the project, unless one already has that name
-     * (case-insensitive).
+     * Create a concept in the project, unless one already has that name, as
+     * getConceptByName finds it.
      * @param {Model} project
      * @param {string} name
      * @param {{
