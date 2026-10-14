@@ -72,6 +72,23 @@ describe('projectTemplate namespace: templates', () => {
     ).toBeNull()
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('getProjectTemplateByName escapes the backslash and the wildcards of LIKE', async () => {
+    const template = { id: TEMPLATE_ID, name: 'TV\\Show_100%' }
+    fake.reply(200, [template]).reply(200, [])
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('TV\\Show_100%')
+    ).toEqual(template)
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('Feature\\')
+    ).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'TV\\\\Show\\_100\\%',
+      'Feature\\\\'
+    ])
+  })
+
   it('getProjectTemplateByName rejects a blank name', async () => {
     await expect(
       kitsu.projectTemplate.getProjectTemplateByName('')
