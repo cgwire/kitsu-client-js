@@ -835,6 +835,24 @@ describe('events', () => {
       expect(sockets).toHaveLength(1)
     })
 
+    // Lost for good: a socket Zou refuses again leaves the session alone.
+    it('reports a refused refresh once, whatever the refusals that follow', async () => {
+      const { io, sockets } = createFakeIo()
+      const { kitsu, onUnauthorized, refreshes } = makeRenewingCore(io, () =>
+        jsonResponse(401, {})
+      )
+      await kitsu.events.on('x', () => {})
+      sockets[0].drops(CLOSED_BY_SERVER)
+      await vi.waitFor(() => expect(onUnauthorized).toHaveBeenCalledTimes(1))
+
+      await kitsu.events.on('y', () => {})
+      sockets[1].drops(CLOSED_BY_SERVER)
+
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(onUnauthorized).toHaveBeenCalledTimes(1)
+      expect(refreshes()).toEqual(['Bearer refresh'])
+    })
+
     // Zou restarts: its event stream is back before its API.
     it('tries again at the next refusal after a refresh with no answer', async () => {
       const { io, sockets } = createFakeIo()
