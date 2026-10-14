@@ -98,6 +98,19 @@ describe('entity namespace', () => {
     expect(await kitsu.entity.getEntityByName('hero')).toEqual(lower)
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups escape the backslash and the wildcards of LIKE', async () => {
+    const entity = { id: ENTITY_ID, name: 'prop\\v2_100%' }
+    fake.reply(200, [entity]).reply(200, [])
+    expect(await kitsu.entity.getEntityByName('prop\\v2_100%')).toEqual(entity)
+    expect(await kitsu.entity.getEntityTypeByName('FX\\')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'prop\\\\v2\\_100\\%',
+      'FX\\\\'
+    ])
+  })
+
   it('getEntityType returns the type, null on 404', async () => {
     fake.reply(200, { id: OTHER_ID }).reply(404, {})
     expect(await kitsu.entity.getEntityType(OTHER_ID)).toEqual({ id: OTHER_ID })
