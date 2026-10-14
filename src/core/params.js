@@ -136,6 +136,39 @@ export const sortedByName = entries =>
     return keyA > keyB ? 1 : 0
   })
 
+/**
+ * Zou filters a name with ILIKE, where "%" and "_" match any character and
+ * the backslash escapes the next one: escaped, a name only matches itself,
+ * whatever its case. A blank name is refused: buildQuery would drop the
+ * filter, and the lookup would list every row.
+ * @param {string} name
+ * @returns {string} The name filter to send.
+ */
+export const likeLiteralOf = name =>
+  String(requiredOf('name', name)).replace(/[\\%_]/g, '\\$&')
+
+/**
+ * The row of that name, among rows matched whatever their case: the exact
+ * spelling first, Zou keeping "Props" and "props" apart, then the same name
+ * in another case.
+ * @param {Entity[]|null|undefined} entries
+ * @param {string} name
+ * @returns {Entity|null} null when no row has that name.
+ */
+export const sameNameOf = (entries, name) => {
+  const rows = Array.isArray(entries) ? entries : []
+  const wanted = String(name)
+  const lower = wanted.toLowerCase()
+  return (
+    rows.find(entry => entry.name === wanted) ||
+    rows.find(
+      entry =>
+        typeof entry.name === 'string' && entry.name.toLowerCase() === lower
+    ) ||
+    null
+  )
+}
+
 const twoDigits = value => String(value).padStart(2, '0')
 
 /**

@@ -11,9 +11,11 @@ import {
   dayOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil,
   withoutUndefined
@@ -133,6 +135,50 @@ describe('sortedByName', () => {
       { name: 'shot' }
     ])
     expect(entries[0]).toEqual({ name: 'shot' })
+  })
+})
+
+describe('likeLiteralOf', () => {
+  // The backslash is the escape character of the LIKE patterns of
+  // PostgreSQL: left as is, it hides the next character, and a trailing one
+  // fails the query.
+  it('escapes the backslash and the wildcards of ILIKE', () => {
+    expect(likeLiteralOf('Props')).toBe('Props')
+    expect(likeLiteralOf('Comp\\Paint')).toBe('Comp\\\\Paint')
+    expect(likeLiteralOf('Review\\')).toBe('Review\\\\')
+    expect(likeLiteralOf('FX_2D 100%')).toBe('FX\\_2D 100\\%')
+  })
+
+  it('rejects a blank name that buildQuery would drop', () => {
+    expect(() => likeLiteralOf('')).toThrow(ParameterError)
+    expect(() => likeLiteralOf(null)).toThrow(ParameterError)
+    expect(() => likeLiteralOf(undefined)).toThrow(/name is required/)
+  })
+})
+
+describe('sameNameOf', () => {
+  const twins = [
+    { id: 1, name: 'DONE' },
+    { id: 2, name: 'Done' }
+  ]
+
+  it('picks the exact spelling first, wherever Zou lists it', () => {
+    expect(sameNameOf(twins, 'Done')).toEqual({ id: 2, name: 'Done' })
+    expect(sameNameOf([...twins].reverse(), 'DONE')).toEqual({
+      id: 1,
+      name: 'DONE'
+    })
+  })
+
+  it('falls back on the same name in another case', () => {
+    expect(sameNameOf(twins, 'done')).toEqual({ id: 1, name: 'DONE' })
+  })
+
+  it('keeps only a row of that name, null otherwise', () => {
+    const rows = [{ id: 1, name: 'Props 2' }, { id: 2 }, { id: 3, name: null }]
+    expect(sameNameOf(rows, 'Props')).toBeNull()
+    expect(sameNameOf([], 'Props')).toBeNull()
+    expect(sameNameOf(null, 'Props')).toBeNull()
   })
 })
 
