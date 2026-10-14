@@ -405,11 +405,11 @@ export const playlistApi = http => {
      *   signal?: AbortSignal
      * }} [options] previousPreviewFile picks the entry to change, as Kitsu
      *   does: the first entry of the entity with this preview, or without
-     *   preview when null. Nothing changes when no entry matches. Without
-     *   it, every entry of the entity gets the new preview: an entity
-     *   reviewed under several previews (one per task type) then ends with
-     *   as many identical entries. With persist set to false nothing is
-     *   saved.
+     *   preview when null. Without it, every entry of the entity gets the
+     *   new preview: an entity reviewed under several previews (one per task
+     *   type) then ends with as many identical entries. When no entry
+     *   matches, nothing is sent and the playlist comes back unchanged. With
+     *   persist set to false nothing is saved.
      * @returns {Promise<Entity>} The updated playlist.
      */
     updateEntityPreview: async (
@@ -435,6 +435,9 @@ export const playlistApi = http => {
       )
       const changes = (entry, index) =>
         previousId === undefined ? isOfEntity(entry) : index === target
+      // Saved anyway, the entries of a playlist read earlier would undo the
+      // ones added since.
+      if (!entries.some(changes)) return { ...current, shots: entries }
       const shots = entries.map((entry, index) =>
         changes(entry, index)
           ? { ...entry, preview_file_id: previewFileId }

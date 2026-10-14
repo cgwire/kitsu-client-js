@@ -480,14 +480,35 @@ describe('playlist namespace: writes', () => {
     }
   )
 
-  it('updateEntityPreview changes nothing when no entry has the previous preview', async () => {
+  // Saved anyway, a playlist read earlier would undo the entries added since.
+  it('updateEntityPreview sends nothing when no entry has the previous preview', async () => {
     const updated = await kitsu.playlist.updateEntityPreview(
       REVIEWED_TWICE,
       OTHER_ID,
       NEWER_PREVIEW_ID,
-      { previousPreviewFile: PREVIEW_FILE_ID, persist: false }
+      { previousPreviewFile: PREVIEW_FILE_ID }
     )
     expect(updated).toEqual(REVIEWED_TWICE)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateEntityPreview sends nothing for an entity out of the playlist', async () => {
+    fake.reply(200, STORED)
+    expect(
+      await kitsu.playlist.updateEntityPreview(
+        REVIEWED_TWICE,
+        ENTITY_ID,
+        NEWER_PREVIEW_ID
+      )
+    ).toEqual(REVIEWED_TWICE)
+    expect(
+      await kitsu.playlist.updateEntityPreview(
+        LIST_ROW,
+        ENTITY_ID,
+        NEWER_PREVIEW_ID
+      )
+    ).toEqual({ ...LIST_ROW, shots: STORED_ENTRIES })
+    expect(fake.calls.map(call => call.method)).toEqual(['GET'])
   })
 
   it('removeEntityFromPlaylist keeps the stored entries of a list row', async () => {
@@ -595,11 +616,13 @@ describe('playlist namespace: writes', () => {
   })
 
   it('updateEntityPreview takes stored shots: null as an empty list', async () => {
-    fake.reply(200, { id: PLAYLIST_ID, shots: null }).reply(200, {})
-    await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
-      id: NEWER_PREVIEW_ID
-    })
-    expect(fake.calls[1].body).toEqual({ shots: [] })
+    fake.reply(200, { id: PLAYLIST_ID, shots: null })
+    expect(
+      await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
+        id: NEWER_PREVIEW_ID
+      })
+    ).toEqual({ id: PLAYLIST_ID, shots: [] })
+    expect(fake.calls.map(call => call.method)).toEqual(['GET'])
   })
 
   it('addEntityToPlaylist without persist adds to the stored entries', async () => {
@@ -826,7 +849,11 @@ describe('playlist namespace: writes', () => {
     ['removeEntityFromPlaylist', [{ id: PLAYLIST_ID, shots: [] }, SHOT_ID]],
     [
       'updateEntityPreview',
-      [{ id: PLAYLIST_ID, shots: [] }, SHOT_ID, PREVIEW_FILE_ID]
+      [
+        { id: PLAYLIST_ID, shots: [{ entity_id: SHOT_ID }] },
+        SHOT_ID,
+        PREVIEW_FILE_ID
+      ]
     ],
     ['deletePlaylist', [PLAYLIST_ID]],
     ['removeBuildJob', [PLAYLIST_ID, BUILD_JOB_ID]],
