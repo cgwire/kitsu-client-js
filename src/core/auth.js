@@ -5,6 +5,7 @@ import {
   ParameterError,
   loginErrorFrom
 } from './errors.js'
+import { unlessAborted } from './http.js'
 import { requiredOf, withoutNil } from './params.js'
 
 /**
@@ -77,7 +78,8 @@ export const authApi = (http, session) => {
   // Cookie mode: the browser keeps the session and applies the cookies of
   // each answer as it lands. A change waits for the one before it to settle,
   // so its cookies land in call order too. Until its turn it is in flight
-  // all the same: its signal or close() still keeps it from being sent.
+  // all the same: its signal rejects it at once, and its signal or close()
+  // keeps it from being sent when its turn comes.
   let previous = Promise.resolve()
   let closes = 0
   const inTurn = (run, signal) => {
@@ -93,7 +95,7 @@ export const authApi = (http, session) => {
       () => {},
       () => {}
     )
-    return turn
+    return unlessAborted(turn, signal)
   }
 
   // Zou answers a two-factor registration with a new token pair, also set
