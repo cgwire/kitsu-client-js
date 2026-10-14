@@ -467,6 +467,44 @@ describe('a caller abort while the token is refreshed', () => {
     )
   })
 
+  // The refresh is answered, then the caller gives up before its replay:
+  // here the replay of another request, which resumes first, aborts it.
+  it('replays nothing for a caller who aborted as the new token came in', async () => {
+    const caller = new AbortController()
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call => {
+        if (call.headers.Authorization !== 'Bearer new') return expired()
+        caller.abort()
+        return jsonResponse(200, [])
+      })
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const aborted = http
+      .get('data/persons', {}, { signal: caller.signal })
+      .catch(e => e)
+    const other = http.get('data/persons')
+
+    expect(await other).toEqual([])
+    expect((await aborted).name).toBe('AbortError')
+    expect(
+      fake.calls.map(call => [call.path, call.headers.Authorization])
+    ).toEqual([
+      ['/data/persons', 'Bearer old'],
+      ['/data/persons', 'Bearer old'],
+      ['/auth/refresh-token', 'Bearer refresh'],
+      ['/data/persons', 'Bearer new']
+    ])
+  })
+
   it('reports the abort, not the refused refresh, to the caller who aborted', async () => {
     const onUnauthorized = vi.fn()
     const { caller, aborted, other, answer, refreshSent } =
