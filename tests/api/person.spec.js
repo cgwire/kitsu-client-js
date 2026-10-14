@@ -106,6 +106,21 @@ describe('person namespace', () => {
     expect(fake.calls[3].body).toMatchObject({ name: 'FX_2D' })
   })
 
+  // Zou keeps "COMP" and "Comp" apart, and its ILIKE filter finds both.
+  it('getDepartmentByName prefers the exact spelling over another case', async () => {
+    const departments = [
+      { id: OTHER_ID, name: 'COMP' },
+      { id: DEPARTMENT_ID, name: 'Comp' }
+    ]
+    fake.reply(200, departments).reply(200, departments)
+    expect(await kitsu.person.getDepartmentByName('Comp')).toEqual(
+      departments[1]
+    )
+    expect(await kitsu.person.getDepartmentByName('comp')).toEqual(
+      departments[0]
+    )
+  })
+
   it('getDepartment returns the department, null on 404', async () => {
     fake.reply(200, { id: DEPARTMENT_ID }).reply(404, {})
     expect(await kitsu.person.getDepartment({ id: DEPARTMENT_ID })).toEqual({
