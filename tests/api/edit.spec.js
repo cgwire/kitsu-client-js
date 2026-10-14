@@ -53,6 +53,31 @@ describe('edit namespace', () => {
     expect(await kitsu.edit.getEditByName(PROJECT_ID, 'EP01_cut')).toBeNull()
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, the lookup would miss the edit and newEdit create it again.
+  it('newEdit finds an edit whose name holds a backslash or a wildcard', async () => {
+    const edit = { id: EDIT_ID, name: 'Cut\\v2_100%', parent_id: null }
+    fake.reply(200, [edit])
+    expect(await kitsu.edit.newEdit(PROJECT_ID, 'Cut\\v2_100%')).toEqual(edit)
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].query.get('name')).toBe('Cut\\\\v2\\_100\\%')
+  })
+
+  // Zou keeps "TRAILER" and "Trailer" apart, and its ILIKE filter finds both.
+  it('getEditByName prefers the exact spelling over another case', async () => {
+    const edits = [
+      { id: OTHER_ID, name: 'TRAILER', parent_id: null },
+      { id: EDIT_ID, name: 'Trailer', parent_id: null }
+    ]
+    fake.reply(200, edits).reply(200, edits)
+    expect(await kitsu.edit.getEditByName(PROJECT_ID, 'Trailer')).toEqual(
+      edits[1]
+    )
+    expect(await kitsu.edit.getEditByName(PROJECT_ID, 'trailer')).toEqual(
+      edits[0]
+    )
+  })
+
   it('getEditByName keeps the edit of the given episode', async () => {
     const edits = [
       { id: OTHER_ID, name: 'Animatic', parent_id: OTHER_EPISODE_ID },
