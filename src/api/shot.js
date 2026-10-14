@@ -1,10 +1,12 @@
 import { KitsuError } from '../core/errors.js'
 import {
   idOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   placeholdersToNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -49,21 +51,6 @@ const idKey = id => (id ? String(id).toLowerCase() : null)
 
 const childOf = parentId => entry => idKey(entry.parent_id) === idKey(parentId)
 
-// Zou matches a name filter with ILIKE (any case, _ and % as wildcards) and
-// gives a vendor every episode or sequence they are assigned to, whatever
-// the filters. Like gazu the case is ignored, but the name and the parent
-// must match, and the exact spelling wins over another case.
-const findByName = (entries, name, inParent) => {
-  const wanted = String(name)
-  const matches = (Array.isArray(entries) ? entries : []).filter(
-    entry =>
-      typeof entry.name === 'string' &&
-      entry.name.toLowerCase() === wanted.toLowerCase() &&
-      inParent(entry)
-  )
-  return matches.find(entry => entry.name === wanted) || matches[0] || null
-}
-
 export const shotApi = http => {
   const fetchOne = (model, entity, signal) =>
     http.fetchOne(model, idOf(entity), { signal })
@@ -78,10 +65,11 @@ export const shotApi = http => {
   }
 
   // A missing sequence or episode in the filters answers a 404: nothing has
-  // that name there.
+  // that name there. Zou gives a vendor every episode or sequence they are
+  // assigned to, whatever the filters: the parent is checked on the rows.
   const named = (path, query, name, inParent, signal) =>
     orNull(http.fetchAll(path, query, { signal })).then(entries =>
-      findByName(entries, name, inParent)
+      sameNameOf(Array.isArray(entries) ? entries.filter(inParent) : [], name)
     )
 
   // A sequence name is unique per episode on a TV show, per project
@@ -90,7 +78,7 @@ export const shotApi = http => {
   const sequenceByName = async (project, name, episode, signal) => {
     const projectId = idOf(project)
     const episodeId = optionalIdOf(episode)
-    const filter = { name: requiredOf('name', name) }
+    const filter = { name: likeLiteralOf(name) }
     return named(
       'sequences',
       episodeId === null
@@ -105,7 +93,7 @@ export const shotApi = http => {
   const episodeByName = async (project, name, signal) =>
     named(
       'episodes',
-      { project_id: idOf(project), name: requiredOf('name', name) },
+      { project_id: idOf(project), name: likeLiteralOf(name) },
       name,
       () => true,
       signal
@@ -115,7 +103,7 @@ export const shotApi = http => {
     const sequenceId = idOf(sequence)
     return named(
       'shots/all',
-      { sequence_id: sequenceId, name: requiredOf('name', name) },
+      { sequence_id: sequenceId, name: likeLiteralOf(name) },
       name,
       childOf(sequenceId),
       signal
@@ -229,7 +217,8 @@ export const shotApi = http => {
      * @param {string} episodeName
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The episode of the project with that
-     *   name (case-insensitive), null when there is none.
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
     getEpisodeByName: async (project, episodeName, { signal } = {}) =>
       episodeByName(project, episodeName, signal),
@@ -260,8 +249,8 @@ export const shotApi = http => {
      * @param {{episode?: Model, signal?: AbortSignal}} [options] With an
      *   episode (TV show), the lookup is scoped to it. Without one, only a
      *   sequence of the project outside any episode matches.
-     * @returns {Promise<Entity|null>} The sequence with that name
-     *   (case-insensitive), null when there is none.
+     * @returns {Promise<Entity|null>} The sequence with that name (the case
+     *   ignored, an exact match first), null when there is none.
      */
     getSequenceByName: async (
       project,
@@ -292,15 +281,15 @@ export const shotApi = http => {
      * @param {string} shotName
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The shot of the sequence with that name
-     *   (case-insensitive), null when there is none.
+     *   (the case ignored, an exact match first), null when there is none.
      */
     getShotByName: async (sequence, shotName, { signal } = {}) =>
       shotByName(sequence, shotName, signal),
 
     /**
      * Create a sequence, unless the episode, or the project outside any
-     * episode, already has one with that name (case-insensitive): the
-     * existing sequence is then returned.
+     * episode, already has one with that name, as getSequenceByName finds
+     * it: the existing sequence is then returned.
      * @param {Model} project
      * @param {string} name
      * @param {{
@@ -333,9 +322,9 @@ export const shotApi = http => {
     },
 
     /**
-     * Create a shot, unless one already has that name in the sequence
-     * (case-insensitive): the existing shot is then returned. Frame in and
-     * frame out are stored in the shot metadata.
+     * Create a shot, unless one already has that name in the sequence, as
+     * getShotByName finds it: the existing shot is then returned. Frame in
+     * and frame out are stored in the shot metadata.
      * @param {Model} project
      * @param {Model} sequence
      * @param {string} name
@@ -450,8 +439,8 @@ export const shotApi = http => {
       http.put(`data/shots/${idOf(shot)}`, { canceled: false }, { signal }),
 
     /**
-     * Create an episode, unless one already has that name in the project
-     * (case-insensitive): the existing episode is then returned.
+     * Create an episode, unless one already has that name in the project, as
+     * getEpisodeByName finds it: the existing episode is then returned.
      * @param {Model} project
      * @param {string} name
      * @param {{
