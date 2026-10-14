@@ -254,7 +254,7 @@ describe('asset namespace: Kitsu coverage', () => {
   it('shareAssets rejects an empty or ambiguous selection before any request', async () => {
     const calls = [
       { project: PROJECT_ID, assets: [], isShared: false },
-      { assets: [] },
+      { assets: [], all: true },
       { project: PROJECT_ID },
       { project: PROJECT_ID, assets: ASSET_ID },
       { project: PROJECT_ID, assets: [ASSET_ID], assetType: ASSET_TYPE_ID },
@@ -266,6 +266,15 @@ describe('asset namespace: Kitsu coverage', () => {
       calls.map(options => kitsu.asset.shareAssets(options).catch(err => err))
     )
     errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Without project, Zou shares none of an empty list and answers [].
+  it('shareAssets resolves an empty list without project to [] without any request', async () => {
+    expect(await kitsu.asset.shareAssets({ assets: [] })).toEqual([])
+    expect(
+      await kitsu.asset.shareAssets({ assets: [], isShared: false })
+    ).toEqual([])
     expect(fake.calls).toHaveLength(0)
   })
 })

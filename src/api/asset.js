@@ -208,9 +208,11 @@ export const assetApi = http => {
      *   all?: boolean,
      *   isShared?: boolean,
      *   signal?: AbortSignal
-     * }} [options] Give one of assets, assetType or all: true. assets cannot
-     *   be empty: Zou would read an empty list as every asset of the project.
-     *   assetType and all need the project.
+     * }} [options] Give one of assets, assetType or all: true. With a
+     *   project, assets cannot be empty: Zou would read an empty list as
+     *   every asset of the project. Without one, an empty list shares nothing
+     *   and resolves to [] without any request. assetType and all need the
+     *   project.
      * @returns {Promise<Entity[]>} The updated assets.
      */
     shareAssets: async ({
@@ -229,11 +231,6 @@ export const assetApi = http => {
       if (listed && !Array.isArray(assets)) {
         throw new ParameterError('Wrong format: assets must be a list')
       }
-      if (listed && assets.length === 0) {
-        throw new ParameterError(
-          'Missing parameter: assets is empty, all: true shares every asset of the project'
-        )
-      }
       const scopes = [listed, assetTypeId !== null, Boolean(all)]
       if (!scopes.includes(true)) {
         throw new ParameterError(
@@ -248,6 +245,14 @@ export const assetApi = http => {
       if (projectId === null && !listed) {
         throw new ParameterError(
           'Missing parameter: project is required with assetType or all'
+        )
+      }
+      // Zou shares nothing for an empty list without project, and every
+      // asset of the project for one with it.
+      if (listed && assets.length === 0) {
+        if (projectId === null) return []
+        throw new ParameterError(
+          'Missing parameter: assets is empty, all: true shares every asset of the project'
         )
       }
       const typeScope =

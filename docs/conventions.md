@@ -11,11 +11,13 @@
 - **Required arguments are positional**, in the same order as gazu. Optional
   ones go in one trailing options object, which also takes an `AbortSignal`:
   `kitsu.task.allTasksForShot(shot, { relations: true, signal })`.
-- **An empty selection is refused.** Zou reads an empty list as everything in
-  scope, so a selection that came out empty would create tasks or share
-  assets across the whole production: it rejects with a `ParameterError`
-  instead. Every entity is an explicit option:
+- **An empty selection is refused where Zou would widen it.** Zou reads an
+  empty list as everything in scope, so a selection that came out empty
+  would create tasks or share assets across the whole production: it rejects
+  with a `ParameterError` instead. Every entity is an explicit option:
   `kitsu.task.createTasks(project, taskType, 'shots', { all: true })`.
+  `kitsu.asset.shareAssets` given an empty list without a project, which Zou
+  takes as no asset, resolves to `[]` without any request.
 - **Returned values are the raw dicts of the API**, with snake_case keys.
 - **An update sends the id in the request path only**:
   `kitsu.task.updateTask({ id, priority: 2 })` sends `{ priority: 2 }`. Zou
