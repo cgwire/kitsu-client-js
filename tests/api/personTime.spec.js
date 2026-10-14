@@ -99,20 +99,24 @@ describe('person namespace: time spents', () => {
     })
   })
 
-  // A host given without its /api suffix answers the page of the web app.
+  // A proxy or a portal can answer a 2xx page of its own. The core refuses
+  // an HTML one before the reader runs: plain text reaches the CSV check.
   it('getPresenceLog refuses a page served instead of the table', async () => {
-    const page = '<!doctype html><title>Kitsu</title>'
+    const page = 'Bad gateway'
     fake.on(
       'GET',
       '/data/persons/presence-logs/2026-03',
       () =>
         new Response(page, {
           status: 200,
-          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
         })
     )
     const err = await kitsu.person.getPresenceLog(2026, 3).catch(e => e)
     expect(err).toBeInstanceOf(KitsuError)
+    expect(err.message).toBe(
+      'GET data/persons/presence-logs/2026-03 answered 200 without CSV'
+    )
     expect(err).toMatchObject({
       status: 200,
       path: 'data/persons/presence-logs/2026-03',
