@@ -344,10 +344,10 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('getTaskByEntity looks a task up by entity, type and name', async () => {
-    fake.reply(200, [{ id: TASK_ID }]).reply(200, [])
+    fake.reply(200, [{ id: TASK_ID, name: 'main' }]).reply(200, [])
     expect(
       await kitsu.task.getTaskByEntity({ id: ENTITY_ID }, TASK_TYPE_ID)
-    ).toEqual({ id: TASK_ID })
+    ).toEqual({ id: TASK_ID, name: 'main' })
     expect(
       await kitsu.task.getTaskByEntity(
         ENTITY_ID,
@@ -382,10 +382,11 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('newTask returns the existing task of the entity', async () => {
-    fake.reply(200, [{ id: TASK_ID }])
+    fake.reply(200, [{ id: TASK_ID, name: 'main' }])
     const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
     expect(await kitsu.task.newTask(entity, TASK_TYPE_ID)).toEqual({
-      id: TASK_ID
+      id: TASK_ID,
+      name: 'main'
     })
     expect(fake.calls).toHaveLength(1)
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({
@@ -393,6 +394,18 @@ describe('task namespace: tasks, types and statuses', () => {
       task_type_id: TASK_TYPE_ID,
       entity_id: ENTITY_ID
     })
+  })
+
+  // Zou keeps "MAIN" and "main" apart, and its ILIKE filter finds both.
+  it('newTask returns the task of that exact name before another case', async () => {
+    const tasks = [
+      { id: OTHER_ID, name: 'MAIN' },
+      { id: TASK_ID, name: 'main' }
+    ]
+    fake.reply(200, tasks)
+    const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
+    expect(await kitsu.task.newTask(entity, TASK_TYPE_ID)).toEqual(tasks[1])
+    expect(fake.calls).toHaveLength(1)
   })
 
   it('newTask creates the task with the default status', async () => {

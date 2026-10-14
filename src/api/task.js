@@ -5,9 +5,11 @@ import {
   dayOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -171,16 +173,6 @@ const namedPreviewOf = (file, fileName) => {
 }
 
 /**
- * Zou matches a name filter with ILIKE, where % and _ are wildcards: a name
- * holding one would match other rows. Escaped, it matches literally, case
- * aside.
- * @param {string} name
- * @returns {string}
- */
-const literalNameOf = name =>
-  String(requiredOf('name', name)).replace(/[\\%_]/g, '\\$&')
-
-/**
  * Zou reads an empty list as no selection at all and widens the request to
  * everything in scope: a selection that came out empty is refused instead.
  * @param {string} label Name of the parameter, for the error message.
@@ -311,43 +303,48 @@ export const taskApi = http => {
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
    * @returns {Promise<Entity|null>} The task of the entity for this task type
-   *   and name, whatever its case, null when missing.
+   *   and name, the case ignored but an exact match first, null when
+   *   missing.
    */
   const getTaskByEntity = async (
     entity,
     taskType,
     { name = 'main', signal } = {}
   ) =>
-    http.fetchFirst(
-      'tasks',
-      {
-        name: literalNameOf(name),
-        task_type_id: idOf(taskType),
-        entity_id: idOf(entity)
-      },
-      { signal }
-    )
+    orNull(
+      http.fetchAll(
+        'tasks',
+        {
+          name: likeLiteralOf(name),
+          task_type_id: idOf(taskType),
+          entity_id: idOf(entity)
+        },
+        { signal }
+      )
+    ).then(tasks => sameNameOf(tasks, name))
 
   /**
    * @param {string} name
    * @param {TaskTypeFilters} [options] forEntity is the entity type the task
    *   type applies to ("Asset", "Shot", ...).
-   * @returns {Promise<Entity|null>} First task type with this name, whatever
-   *   its case.
+   * @returns {Promise<Entity|null>} The task type of this name, the case
+   *   ignored but an exact match first, null when there is none.
    */
   const getTaskTypeByName = async (
     name,
     { forEntity, department, signal } = {}
   ) =>
-    http.fetchFirst(
-      'task-types',
-      {
-        name: literalNameOf(name),
-        for_entity: forEntity,
-        department_id: optionalIdOf(department)
-      },
-      { signal }
-    )
+    orNull(
+      http.fetchAll(
+        'task-types',
+        {
+          name: likeLiteralOf(name),
+          for_entity: forEntity,
+          department_id: optionalIdOf(department)
+        },
+        { signal }
+      )
+    ).then(taskTypes => sameNameOf(taskTypes, name))
 
   /**
    * @param {RequestOptions} [options]
@@ -938,11 +935,14 @@ export const taskApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First task status with this name,
-     *   whatever its case.
+     * @returns {Promise<Entity|null>} The task status of this name, the case
+     *   ignored but an exact match first, null when there is none. Zou keeps
+     *   "Done" and "DONE" apart.
      */
     getTaskStatusByName: async (name, { signal } = {}) =>
-      http.fetchFirst('task-status', { name: literalNameOf(name) }, { signal }),
+      orNull(
+        http.fetchAll('task-status', { name: likeLiteralOf(name) }, { signal })
+      ).then(taskStatuses => sameNameOf(taskStatuses, name)),
 
     getTaskStatusByShortName,
 
@@ -996,8 +996,8 @@ export const taskApi = http => {
 
     /**
      * Create a task, or return the task that already exists for the same
-     * entity, task type and name (its status and assignees are then left as
-     * they are).
+     * entity, task type and name, as getTaskByEntity finds it (its status
+     * and assignees are then left as they are).
      * @param {string|{id: string, project_id?: string}} entity The entity is
      *   fetched when only its id is given: the task needs its project.
      * @param {Model} taskType
