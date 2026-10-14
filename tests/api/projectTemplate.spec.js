@@ -183,6 +183,14 @@ describe('projectTemplate namespace: templates', () => {
     expect(template.preview_background_files).toEqual([OTHER_ID])
   })
 
+  // An id would reach the body as one key per character.
+  it('updateProjectTemplate refuses a template given as its id', async () => {
+    await expect(
+      kitsu.projectTemplate.updateProjectTemplate(TEMPLATE_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeProjectTemplate deletes the template', async () => {
     fake.reply(204)
     await kitsu.projectTemplate.removeProjectTemplate({ id: TEMPLATE_ID })

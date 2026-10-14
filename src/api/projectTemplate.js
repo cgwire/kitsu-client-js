@@ -1,5 +1,6 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  fieldsOf,
   idOf,
   idsOf,
   likeLiteralOf,
@@ -160,7 +161,7 @@ export const projectTemplateApi = http => {
       http.update(
         'project-templates',
         idOf(projectTemplate),
-        withoutLinks(projectTemplate),
+        withoutLinks(fieldsOf(projectTemplate)),
         { signal }
       ),
 
