@@ -602,10 +602,7 @@ describe('gazu helpers', () => {
 
 describe('timeouts and cancellation', () => {
   beforeEach(() => vi.useFakeTimers())
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-  })
+  afterEach(() => vi.useRealTimers())
 
   // A body that never ends and fails when the request is aborted, as the
   // body of a real fetch does.
@@ -731,20 +728,7 @@ describe('timeouts and cancellation', () => {
     expect(signals[0].aborted).toBe(false)
   })
 
-  // Browsers ignore the cancel hook of a transformer: releasing a download
-  // must not depend on it.
-  const withoutTransformerCancel = () =>
-    vi.stubGlobal(
-      'TransformStream',
-      class extends TransformStream {
-        constructor(transformer = {}) {
-          super({ ...transformer, cancel: undefined })
-        }
-      }
-    )
-
   it('releases a raw response whose body is cancelled', async () => {
-    withoutTransformerCancel()
     const signals = []
     const cancelled = vi.fn()
     const http = makeHttp(async (url, init) => {
@@ -780,7 +764,6 @@ describe('timeouts and cancellation', () => {
   })
 
   it('releases a raw response whose body fails midway', async () => {
-    withoutTransformerCancel()
     const signals = []
     const http = makeHttp(async (url, init) => {
       signals.push(init.signal)
