@@ -3,9 +3,10 @@ import {
   dateOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
-  requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -99,25 +100,23 @@ const latestPreviewOf = previewFiles =>
     )
 
 export const playlistApi = http => {
-  // Zou keeps one playlist per name, project and episode. Its name filter is
-  // case insensitive and reads % and _ as wildcards, and it cannot ask for
-  // the playlists without episode: both are checked on the rows.
+  // Zou keeps one playlist per name, project and episode. Its name filter
+  // cannot ask for the playlists without episode: the episode is checked on
+  // the rows.
   const playlistByName = async (project, name, episode, signal) => {
     const episodeId = optionalIdOf(episode)
     const playlists = await http.fetchAll(
       'playlists',
       {
         project_id: idOf(project),
-        name: requiredOf('name', name),
+        name: likeLiteralOf(name),
         episode_id: episodeId
       },
       { signal }
     )
-    return (
-      playlists.find(
-        playlist =>
-          playlist.name === name && (episodeId !== null || !playlist.episode_id)
-      ) || null
+    return sameNameOf(
+      playlists.filter(playlist => episodeId !== null || !playlist.episode_id),
+      name
     )
   }
 
@@ -219,10 +218,10 @@ export const playlistApi = http => {
       http.fetchOne('playlists', idOf(playlist), { signal }),
 
     /**
-     * The playlist of this exact name (case included) in the episode, or in
-     * the project itself without episode: Zou keeps one playlist per name,
-     * project and episode. gazu takes the first playlist of the project
-     * whose name is alike, whatever its episode.
+     * The playlist of this name (the case ignored, an exact match first) in
+     * the episode, or in the project itself without episode: Zou keeps one
+     * playlist per name, project and episode. gazu takes the first playlist
+     * of the project whose name is alike, whatever its episode.
      * @param {Model} project
      * @param {string} name
      * @param {{episode?: Model|null, signal?: AbortSignal}} [options]

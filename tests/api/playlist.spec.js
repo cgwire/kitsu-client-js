@@ -177,6 +177,33 @@ describe('playlist namespace: reads', () => {
     expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
   })
 
+  // Zou keeps "DAILIES" and "Dailies" apart, and its ILIKE filter finds
+  // both.
+  it('getPlaylistByName falls back on the name in another case', async () => {
+    const playlist = { id: OTHER_ID, name: 'DAILIES', episode_id: null }
+    fake.reply(200, [playlist])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(playlist)
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('getPlaylistByName escapes the backslash and the wildcards of LIKE', async () => {
+    const playlist = { id: PLAYLIST_ID, name: 'Comp\\Paint', episode_id: null }
+    fake.reply(200, [playlist]).reply(200, []).reply(200, [])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Comp\\Paint')
+    ).toEqual(playlist)
+    await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Review\\')
+    await kitsu.playlist.getPlaylistByName(PROJECT_ID, '100%_done')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Comp\\\\Paint',
+      'Review\\\\',
+      '100\\%\\_done'
+    ])
+  })
+
   // _ is a wildcard of the name filter.
   it('getPlaylistByName gives null when only an alike name exists', async () => {
     fake.reply(200, [{ id: OTHER_ID, name: 'Review-1', episode_id: null }])
