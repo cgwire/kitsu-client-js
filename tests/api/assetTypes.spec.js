@@ -89,6 +89,17 @@ describe('asset namespace: asset types', () => {
     expect(await kitsu.asset.getAssetTypeByName('Set%')).toBeNull()
   })
 
+  it('getAssetTypeByName escapes the backslash and the wildcards of LIKE', async () => {
+    const type = { id: ASSET_TYPE_ID, name: 'FX\\Props_2' }
+    fake.reply(200, [type]).reply(200, [])
+    expect(await kitsu.asset.getAssetTypeByName('FX\\Props_2')).toEqual(type)
+    expect(await kitsu.asset.getAssetTypeByName('Props\\')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'FX\\\\Props\\_2',
+      'Props\\\\'
+    ])
+  })
+
   it('newAssetType creates the type when the name is free', async () => {
     fake.reply(200, []).reply(201, { id: ASSET_TYPE_ID, name: 'Props' })
     expect(await kitsu.asset.newAssetType('Props')).toEqual({
