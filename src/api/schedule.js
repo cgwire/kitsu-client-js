@@ -5,7 +5,8 @@ import {
   idsOf,
   optionalIdOf,
   requiredOf,
-  withoutNil
+  withoutNil,
+  withoutUndefined
 } from '../core/params.js'
 
 /**
@@ -24,13 +25,6 @@ const kindOf = kind => {
     `Wrong format: kind must be one of ${SCHEDULE_ITEM_KINDS.join(', ')}`
   )
 }
-
-// An update sends null on purpose (it clears the field): only the keys left
-// unset stay out of the body.
-const withoutUndefined = data =>
-  Object.fromEntries(
-    Object.entries(data).filter(([, value]) => value !== undefined)
-  )
 
 const optionalIdsOf = models =>
   models === undefined || models === null ? models : idsOf(models)

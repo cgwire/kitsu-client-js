@@ -15,7 +15,8 @@ import {
   orNull,
   requiredOf,
   sortedByName,
-  withoutNil
+  withoutNil,
+  withoutUndefined
 } from '../../src/core/params.js'
 import { OTHER_ID, SHOT_ID } from '../helpers/ids.js'
 
@@ -98,6 +99,18 @@ describe('withoutNil', () => {
     }
     expect(withoutNil(data)).toEqual({ name: 'a', nb: 0, flag: false })
     expect(data).toHaveProperty('description', null)
+  })
+})
+
+describe('withoutUndefined', () => {
+  it('returns a copy without the undefined values, null included', () => {
+    const data = { name: 'a', description: null, nb: 0, x: undefined }
+    expect(withoutUndefined(data)).toEqual({
+      name: 'a',
+      description: null,
+      nb: 0
+    })
+    expect(data).toHaveProperty('x', undefined)
   })
 })
 
