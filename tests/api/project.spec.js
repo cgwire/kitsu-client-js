@@ -299,6 +299,20 @@ describe('project namespace: projects', () => {
     expect(data).toEqual({ lut: 'rec709' })
   })
 
+  // JSON would drop the key, and Zou the stored metadata of that key.
+  it('updateProjectData keeps the metadata given as undefined', async () => {
+    fake
+      .reply(200, { id: PROJECT_ID, data: { lut: 'aces', ratio: '16:9' } })
+      .reply(200, {})
+    await kitsu.project.updateProjectData(PROJECT_ID, {
+      lut: 'rec709',
+      ratio: undefined
+    })
+    expect(fake.calls[1].body).toEqual({
+      data: { lut: 'rec709', ratio: '16:9' }
+    })
+  })
+
   it('updateProjectData starts from an empty object when data is null', async () => {
     fake.reply(200, { id: PROJECT_ID, data: null }).reply(200, {})
     await kitsu.project.updateProjectData(PROJECT_ID, { lut: 'aces' })

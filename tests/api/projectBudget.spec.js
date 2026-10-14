@@ -287,6 +287,35 @@ describe('project namespace: budgets', () => {
     })
   })
 
+  // A form gives its untouched fields as undefined: JSON would drop them and
+  // Zou clear them. A null still clears its field.
+  it('updateBudgetEntry keeps the fields given as undefined', async () => {
+    const stored = {
+      ...ENTRY,
+      person_id: PERSON_ID,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    }
+    fake.reply(200, stored).reply(200, stored)
+    await kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
+      daily_salary: 450,
+      person_id: undefined,
+      seniority: undefined,
+      exceptions: undefined,
+      position: null
+    })
+    expect(fake.calls[1].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      person_id: PERSON_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 450,
+      position: null,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    })
+  })
+
   it('updateBudgetEntry rejects an unknown position or seniority', async () => {
     const changes = [{ position: 'Lead' }, { seniority: 'intern' }]
     const errors = await Promise.all(

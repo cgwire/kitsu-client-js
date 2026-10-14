@@ -85,6 +85,17 @@ export const withoutNil = data =>
   )
 
 /**
+ * The keys left unset, the way JSON drops them. A null stays: it clears a
+ * field.
+ * @param {Record<string, any>} data
+ * @returns {Record<string, any>} A copy without the undefined values.
+ */
+export const withoutUndefined = data =>
+  Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  )
+
+/**
  * Some reads write a missing id as a placeholder string ('' or 'None') that
  * Zou refuses on save: each one goes back as the null it stands for.
  * @param {Record<string, any>} fields

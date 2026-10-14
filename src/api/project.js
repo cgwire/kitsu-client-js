@@ -7,7 +7,8 @@ import {
   optionalIdOf,
   requiredOf,
   sortedByName,
-  withoutNil
+  withoutNil,
+  withoutUndefined
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
@@ -286,8 +287,8 @@ export const projectApi = http => ({
     saveProject(http, project, { signal }),
 
   /**
-   * Merge data into the metadata of the project. Keys that are not given
-   * are left unchanged.
+   * Merge data into the metadata of the project. Keys that are not given,
+   * or given as undefined, are left unchanged.
    * @param {Model} project
    * @param {object} [data]
    * @param {RequestOptions} [options]
@@ -301,11 +302,12 @@ export const projectApi = http => ({
     )
     // Zou replaces the metadata of a project instead of merging them: the
     // merge is done here, and only the metadata go back, so the other fields
-    // and links keep any change made since the read.
+    // and links keep any change made since the read. A key given as
+    // undefined is not given: JSON would drop the stored one.
     return http.update(
       'projects',
       idOf(project),
-      { data: { ...current.data, ...data } },
+      { data: { ...current.data, ...withoutUndefined({ ...data }) } },
       { signal }
     )
   },
@@ -529,9 +531,10 @@ export const projectApi = http => ({
       ),
 
   /**
-   * Change fields of the descriptor. The others keep their value: the
-   * descriptor is read first and saved with the given fields merged in. A
-   * new name also renames the field, and its values move with it.
+   * Change fields of the descriptor. The others keep their value, as do
+   * the fields given as undefined: the descriptor is read first and saved
+   * with the given fields merged in. A new name also renames the field, and
+   * its values move with it.
    * @param {Model} project
    * @param {{id: string, [field: string]: any}} metadataDescriptor The id
    *   and the fields to change: name, data_type, choices, for_client and
@@ -553,8 +556,9 @@ export const projectApi = http => ({
     // Zou writes every field of the descriptor, its default for a missing
     // one: a partial body would reset the type, the choices, the departments
     // and the client visibility. The name is the exception: kept when it is
-    // missing, and any name sent sets the field name from it.
-    const merged = { ...current, ...metadataDescriptor }
+    // missing, and any name sent sets the field name from it. A field given
+    // as undefined keeps its value too.
+    const merged = { ...current, ...withoutUndefined(metadataDescriptor) }
     return http.update(
       descriptorsOf(project),
       id,
@@ -928,8 +932,9 @@ export const projectApi = http => ({
     http.fetchOne(entriesOf(project, budget), idOf(entry), { signal }),
 
   /**
-   * Change fields of the budget entry. The others keep their value: the
-   * entry is read first and saved whole with the given fields merged in.
+   * Change fields of the budget entry. The others keep their value, as do
+   * the fields given as undefined, while null clears a field: the entry is
+   * read first and saved whole with the given fields merged in.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} entry
@@ -950,8 +955,9 @@ export const projectApi = http => ({
     const current = await http.get(`data/${entries}/${id}`, {}, { signal })
     // Zou writes every field of the entry, null for a missing one: a partial
     // body would fail on the required ones and clear the person, the
-    // position, the seniority and the exceptions.
-    const merged = { ...current, ...data }
+    // position, the seniority and the exceptions. A field given as undefined
+    // keeps its value too.
+    const merged = { ...current, ...withoutUndefined({ ...data }) }
     return http.update(
       entries,
       id,

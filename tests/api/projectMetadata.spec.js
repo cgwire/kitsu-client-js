@@ -218,6 +218,42 @@ describe('project namespace: metadata descriptors', () => {
     })
   })
 
+  // A form gives its untouched fields as undefined: JSON would drop them and
+  // Zou reset them. A null still clears the departments.
+  it('updateMetadataDescriptor keeps the fields given as undefined', async () => {
+    fake
+      .reply(200, STORED_DESCRIPTOR)
+      .reply(200, {})
+      .reply(200, STORED_DESCRIPTOR)
+      .reply(200, {})
+    await kitsu.project.updateMetadataDescriptor(PROJECT_ID, {
+      id: DESCRIPTOR_ID,
+      name: 'Level',
+      data_type: undefined,
+      choices: undefined,
+      for_client: undefined,
+      departments: undefined
+    })
+    await kitsu.project.updateMetadataDescriptor(PROJECT_ID, {
+      id: DESCRIPTOR_ID,
+      choices: undefined,
+      departments: null
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Level',
+      data_type: 'list',
+      choices: ['easy', 'hard'],
+      for_client: true,
+      departments: [DEPARTMENT_ID]
+    })
+    expect(fake.calls[3].body).toEqual({
+      data_type: 'list',
+      choices: ['easy', 'hard'],
+      for_client: true,
+      departments: []
+    })
+  })
+
   it('updateMetadataDescriptor rejects when the descriptor does not exist', async () => {
     fake.reply(404, { message: 'Metadata descriptor not found' })
     await expect(
