@@ -129,6 +129,54 @@ describe('playlist namespace: writes', () => {
     })
   })
 
+  // Both without episode, where Zou keeps no name unique: the All playlist
+  // of the shots is not the Main Pack one of the assets.
+  it('newPlaylist creates an All playlist next to a Main Pack one of that name', async () => {
+    const mainPack = {
+      id: OTHER_ID,
+      name: 'Client review',
+      episode_id: null,
+      is_for_all: false,
+      for_entity: 'asset'
+    }
+    fake.reply(200, [mainPack]).reply(201, { id: PLAYLIST_ID })
+    expect(
+      await kitsu.playlist.newPlaylist(PROJECT_ID, 'Client review', {
+        isForAll: true,
+        forEntity: 'shot'
+      })
+    ).toEqual({ id: PLAYLIST_ID })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/playlists',
+      body: {
+        name: 'Client review',
+        project_id: PROJECT_ID,
+        for_entity: 'shot',
+        for_client: false,
+        is_for_all: true
+      }
+    })
+  })
+
+  it('newPlaylist returns the All playlist of the same entity type', async () => {
+    const allAssets = {
+      id: OTHER_ID,
+      name: 'Client review',
+      episode_id: null,
+      is_for_all: true,
+      for_entity: 'asset'
+    }
+    fake.reply(200, [allAssets])
+    expect(
+      await kitsu.playlist.newPlaylist(PROJECT_ID, 'Client review', {
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(allAssets)
+    expect(fake.calls).toHaveLength(1)
+  })
+
   it('updatePlaylist saves the playlist', async () => {
     const playlist = { id: PLAYLIST_ID, name: 'Renamed', shots: [] }
     fake.reply(200, playlist)

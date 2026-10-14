@@ -204,6 +204,80 @@ describe('playlist namespace: reads', () => {
     ])
   })
 
+  // Without episode Zou keeps no name unique: a Main Pack playlist and the
+  // All playlist of each entity type can share one.
+  it('getPlaylistByName without episode keeps the Main Pack or All side', async () => {
+    const side = (id, isForAll, forEntity) => ({
+      id,
+      name: 'Dailies',
+      episode_id: null,
+      is_for_all: isForAll,
+      for_entity: forEntity
+    })
+    const playlists = [
+      side(OTHER_ID, true, 'shot'),
+      side(ENTITY_ID, true, 'asset'),
+      side(PLAYLIST_ID, false, 'asset')
+    ]
+    fake.reply(200, playlists).reply(200, playlists).reply(200, playlists)
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(playlists[2])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true
+      })
+    ).toEqual(playlists[0])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(playlists[1])
+  })
+
+  // Rows written before the columns had a default: Zou lists them as Main
+  // Pack and shot playlists.
+  it('getPlaylistByName reads an unset side as Main Pack and an unset type as shot', async () => {
+    const mainPack = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      episode_id: null,
+      is_for_all: null,
+      for_entity: 'shot'
+    }
+    const allShots = { ...mainPack, id: OTHER_ID, is_for_all: true }
+    const unsetType = { ...allShots, for_entity: null }
+    fake.reply(200, [allShots, mainPack]).reply(200, [mainPack, unsetType])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(mainPack)
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true
+      })
+    ).toEqual(unsetType)
+  })
+
+  // Inside an episode the name is unique, whatever the side.
+  it('getPlaylistByName in an episode ignores the side and the type', async () => {
+    const playlist = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      episode_id: EPISODE_ID,
+      is_for_all: false,
+      for_entity: 'shot'
+    }
+    fake.reply(200, [playlist])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        episode: EPISODE_ID,
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(playlist)
+  })
+
   // _ is a wildcard of the name filter.
   it('getPlaylistByName gives null when only an alike name exists', async () => {
     fake.reply(200, [{ id: OTHER_ID, name: 'Review-1', episode_id: null }])
