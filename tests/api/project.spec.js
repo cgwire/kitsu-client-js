@@ -124,6 +124,21 @@ describe('project namespace: projects', () => {
     expect(await kitsu.project.getProjectStatusByName('Clos_d')).toBeNull()
   })
 
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups escape the backslash and the wildcards of LIKE', async () => {
+    const comp = { id: PROJECT_ID, name: 'Comp\\Paint' }
+    fake.reply(200, [comp]).reply(200, []).reply(200, [])
+    expect(await kitsu.project.getProjectByName('Comp\\Paint')).toEqual(comp)
+    expect(await kitsu.project.getProjectByName('Review\\')).toBeNull()
+    expect(await kitsu.project.getProjectStatusByName('WIP_100%')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Comp\\\\Paint',
+      'Review\\\\',
+      'WIP\\_100\\%'
+    ])
+  })
+
   it('newProject creates the project when only a look-alike exists', async () => {
     fake
       .reply(200, [{ id: OTHER_ID, name: 'Show-A' }])
@@ -132,6 +147,7 @@ describe('project namespace: projects', () => {
       id: PROJECT_ID,
       name: 'Show_A'
     })
+    expect(fake.calls[0].query.get('name')).toBe('Show\\_A')
     expect(fake.calls[1]).toMatchObject({
       method: 'POST',
       path: '/data/projects',

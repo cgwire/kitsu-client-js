@@ -4,8 +4,10 @@ import {
   dayOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil,
   withoutUndefined
@@ -136,23 +138,9 @@ const fieldSegmentOf = fieldName =>
 const saveProject = (http, project, options) =>
   http.update('projects', idOf(project), withLinkIds(project), options)
 
-// Zou filters a name with ILIKE: the case is ignored, "_" and "%" match any
-// character, and the rows come in no set order. Only a row with that name
-// is a match, with its exact case first: Zou keeps "Sprite" and "sprite"
-// apart.
-const sameNameOf = (entries, name) => {
-  const rows = Array.isArray(entries) ? entries : []
-  const lower = String(name).toLowerCase()
-  return (
-    rows.find(entry => entry.name === name) ||
-    rows.find(entry => String(entry.name).toLowerCase() === lower) ||
-    null
-  )
-}
-
 const fetchByName = (http, path, name, signal) =>
   http
-    .fetchAll(path, { name: requiredOf('name', name) }, { signal })
+    .fetchAll(path, { name: likeLiteralOf(name) }, { signal })
     .then(entries => sameNameOf(entries, name))
 
 export const projectApi = http => ({
