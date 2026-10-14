@@ -4,9 +4,11 @@ import {
   dayOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
@@ -130,21 +132,15 @@ const getQuotaShots = (
     )
   )
 
-// Zou matches ?name= with ILIKE, where "_" and "%" are wildcards: escaped,
-// a name only matches itself, whatever the case.
-const likeLiteralOf = name => String(name).replace(/[\\%_]/g, '\\$&')
-
 /**
  * @param {any} http
  * @param {string} name
  * @param {RequestOptions} [options]
  */
 const getDepartmentByName = (http, name, { signal } = {}) =>
-  http.fetchFirst(
-    'departments',
-    { name: likeLiteralOf(requiredOf('name', name)) },
-    { signal }
-  )
+  orNull(
+    http.fetchAll('departments', { name: likeLiteralOf(name) }, { signal })
+  ).then(departments => sameNameOf(departments, name))
 
 /**
  * @param {any} http
@@ -265,8 +261,8 @@ export const personApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The department bearing the name, whatever
-   *   the case, null when there is none.
+   * @returns {Promise<Entity|null>} The department of that name (the case
+   *   ignored, an exact match first), null when there is none.
    */
   getDepartmentByName: async (name, options) =>
     getDepartmentByName(http, name, options),
@@ -360,7 +356,8 @@ export const personApi = http => ({
     http.update('organisations', idOf(organisation), organisation, { signal }),
 
   /**
-   * Create a department, or return the existing one bearing that name.
+   * Create a department, or return the existing one of that name, as
+   * getDepartmentByName finds it.
    * @param {string} name
    * @param {{color?: string, archived?: boolean, signal?: AbortSignal}}
    *   [options] color is a hex string such as "#00FF00".
