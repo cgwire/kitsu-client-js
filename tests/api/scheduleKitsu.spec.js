@@ -611,6 +611,34 @@ describe('schedule namespace: updates', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // An id holds nothing to save: Zou would answer the empty update with the
+  // record, its updated_at bumped and an update event sent.
+  it.each([
+    ['updateMilestone', MILESTONE_ID],
+    ['updateScheduleItem', ITEM_ID],
+    ['updateScheduleVersion', VERSION_ID],
+    ['updateScheduleVersionTaskLink', LINK_ID]
+  ])('%s refuses an id given alone', async (name, id) => {
+    await expect(kitsu.schedule[name](id)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it.each([
+    ['updateMilestone', MILESTONE_ID, { name: 'Final' }],
+    ['updateScheduleItem', ITEM_ID, { man_days: 12 }],
+    ['updateScheduleVersion', VERSION_ID, { locked: true }],
+    ['updateScheduleVersionTaskLink', LINK_ID, { estimation: 60 }]
+  ])('%s takes null options as none', async (name, id, fields) => {
+    fake.reply(200, { id, ...fields })
+    expect(await kitsu.schedule[name]({ id, ...fields }, null)).toEqual({
+      id,
+      ...fields
+    })
+    expect(fake.calls[0].body).toEqual(fields)
+  })
+
   it('updateMilestone refuses an invalid Date', async () => {
     await expect(
       kitsu.schedule.updateMilestone({

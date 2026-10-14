@@ -72,6 +72,18 @@ export const requiredOf = (label, value) => {
 }
 
 /**
+ * An update needs the object to save: its id alone holds nothing to send,
+ * and a string would reach the body as one key per character.
+ * @template {object} T
+ * @param {T} entity
+ * @returns {T}
+ */
+export const fieldsOf = entity => {
+  if (entity && typeof entity === 'object') return entity
+  throw new ParameterError('Wrong format: expected the object to save')
+}
+
+/**
  * Same as gazu's "if value is not None": an unset optional key never reaches
  * Zou.
  * @param {Record<string, any>} data

@@ -2,6 +2,7 @@ import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
   dayOf,
+  fieldsOf,
   idOf,
   idsOf,
   likeLiteralOf,
@@ -33,16 +34,6 @@ const intOf = value => {
  * @returns {string} The integer on two digits, as gazu's zfill(2).
  */
 const twoDigits = value => String(intOf(value)).padStart(2, '0')
-
-/**
- * An update needs the object to save: its id alone holds nothing to send.
- * @param {Entity} entity
- * @returns {Entity}
- */
-const fieldsOf = entity => {
-  if (entity && typeof entity === 'object') return entity
-  throw new ParameterError('Wrong format: expected the object to save')
-}
 
 /**
  * A Date goes out as its local day, the way newDayOff sends it: JSON would
