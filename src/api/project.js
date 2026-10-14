@@ -1432,8 +1432,9 @@ export const projectApi = http => ({
    *   signal?: AbortSignal
    * }} [options] fileName names the file in place of its own name.
    *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
-   *   report it. A client given its own fetch (Tauri) uploads through it and
-   *   never calls onProgress, unless it is created with xhrUploads: true.
+   *   report it. A client given its own fetch (Tauri) calls it only with
+   *   xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<Entity>} The preview background file.
    */
   uploadPreviewBackgroundFile: async (
