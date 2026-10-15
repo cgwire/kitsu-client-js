@@ -123,6 +123,25 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     })
   })
 
+  it('allNotifications sends the filters as Zou reads them', async () => {
+    fake.reply(200, [])
+    await kitsu.user.allNotifications({
+      filters: {
+        before: '2026-10-15T10:00:00',
+        task_type_id: TASK_ID,
+        type: 'mention',
+        read: false,
+        watching: true
+      }
+    })
+    const { query } = fake.calls[0]
+    expect(query.get('before')).toBe('2026-10-15T10:00:00')
+    expect(query.get('task_type_id')).toBe(TASK_ID)
+    expect(query.get('type')).toBe('mention')
+    expect(query.get('read')).toBe('false')
+    expect(query.get('watching')).toBe('true')
+  })
+
   it('getNotification returns the notification, null on 404', async () => {
     fake.reply(200, { id: NOTIFICATION_ID }).reply(404, {})
     expect(await kitsu.user.getNotification(NOTIFICATION_ID)).toEqual({

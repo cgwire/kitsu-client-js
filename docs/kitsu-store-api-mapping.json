@@ -960,7 +960,7 @@
     "route": "/data/user/notifications",
     "client": "user.allNotifications",
     "status": "existing",
-    "note": "The client sends no query, Kitsu passes filter and paging params (after, before, limit, read, watching, type, task_type_id, task_status_id): the function needs a filters option."
+    "note": "Option filters: the filter and paging params of Kitsu (after, before, limit, read, watching, type, task_type_id, task_status_id)."
   },
   {
     "module": "notifications",
