@@ -6,7 +6,10 @@ import {
   ASSET_INSTANCE_ID,
   ENTITY_ID,
   OTHER_ID,
-  SHOT_ID
+  PROJECT_ID,
+  SHOT_ID,
+  SOFTWARE_ID,
+  TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 describe('files namespace: output types, softwares and file status', () => {
@@ -216,6 +219,74 @@ describe('files namespace: output types, softwares and file status', () => {
     const errors = await Promise.all(
       lookups.map(lookup => lookup().catch(err => err))
     )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+})
+
+describe('files namespace: softwares of the task types of a project', () => {
+  let kitsu, fake
+  beforeEach(() => {
+    ;({ kitsu, fake } = makeClient())
+  })
+
+  const link = {
+    project_id: PROJECT_ID,
+    task_type_id: TASK_TYPE_ID,
+    software_id: SOFTWARE_ID
+  }
+  const path = `/data/projects/${PROJECT_ID}/task-types/${TASK_TYPE_ID}/softwares`
+
+  it('allTaskTypeSoftwares lists the links of a project', async () => {
+    fake.reply(200, [link])
+    expect(await kitsu.files.allTaskTypeSoftwares({ id: PROJECT_ID })).toEqual([
+      link
+    ])
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: `/data/projects/${PROJECT_ID}/task-type-softwares`
+    })
+  })
+
+  it('addSoftwareToTaskType links a software to a task type', async () => {
+    fake.reply(201, link)
+    expect(
+      await kitsu.files.addSoftwareToTaskType(
+        { id: PROJECT_ID },
+        TASK_TYPE_ID,
+        { id: SOFTWARE_ID }
+      )
+    ).toEqual(link)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'POST',
+      path,
+      body: { software_id: SOFTWARE_ID }
+    })
+  })
+
+  it('removeSoftwareFromTaskType unlinks a software', async () => {
+    fake.reply(204)
+    await kitsu.files.removeSoftwareFromTaskType(
+      PROJECT_ID,
+      { id: TASK_TYPE_ID },
+      SOFTWARE_ID
+    )
+    expect(fake.calls[0]).toMatchObject({
+      method: 'DELETE',
+      path: `${path}/${SOFTWARE_ID}`
+    })
+  })
+
+  it('rejects a missing model before any request', async () => {
+    const errors = await Promise.all([
+      kitsu.files.allTaskTypeSoftwares(null).catch(err => err),
+      kitsu.files
+        .addSoftwareToTaskType(PROJECT_ID, null, SOFTWARE_ID)
+        .catch(err => err),
+      kitsu.files
+        .removeSoftwareFromTaskType(PROJECT_ID, TASK_TYPE_ID, undefined)
+        .catch(err => err)
+    ])
     errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
     expect(fake.calls).toHaveLength(0)
   })
