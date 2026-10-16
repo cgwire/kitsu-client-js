@@ -124,7 +124,7 @@ describe('events', () => {
     it.each([
       ['http://events.test', 'http://events.test/events'],
       ['http://events.test/', 'http://events.test/events']
-    ])('honours eventHost %s', async (eventHost, url) => {
+    ])('honors eventHost %s', async (eventHost, url) => {
       const { io, sockets } = createFakeIo()
       await makeCore(io, { eventHost }).events.on('x', () => {})
       expect(sockets[0].url).toBe(url)
