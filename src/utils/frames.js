@@ -92,24 +92,37 @@ export const formatTime = (rawTime, fps) => {
   return `${time.substring(11, 19)}:${frame}`
 }
 
+const EPSILON = 1e-9
+
+// The NTSC rates, 24000/1001 (23.976) for instance, count at the whole rate
+// they slow down: float divisions by 23.976 floor a second too low.
+const timecodeRateOf = fps => {
+  if (Number.isInteger(fps)) return fps
+  const nominal = Math.round(fps * 1.001)
+  return Math.abs(fps * 1.001 - nominal) < 0.005 ? nominal : fps
+}
+
 /**
  * Get the `HH:MM:SS:FF` timecode of a frame number. A missing or negative
- * frame counts as 0. A fractional fps counts at its nominal rate, like the
+ * frame counts as 0. An NTSC fps counts at its nominal rate, like the
  * non-drop-frame timecode of editing software: 24 frames a second at 23.976.
+ * Any other fractional fps counts real seconds: at 12.5, the seconds hold 13
+ * and 12 frames in turn.
  * @param {number|null} [frame] Frame number, counted from 0.
  * @param {number|string|null} [fps] Frames per second.
  * @returns {string} Timecode.
  */
 export const formatToTimecode = (frame, fps) => {
   const count = !frame || frame < 0 ? 0 : Math.floor(frame)
-  // Whole numbers only: float divisions by 23.976 floor a second too low.
-  const rate = Math.round(fpsOf(fps))
-  const seconds = Math.floor(count / rate)
+  const rate = timecodeRateOf(fpsOf(fps))
+  // A decimal rate such as 16.67 has no exact float: its products miss the
+  // whole numbers by a hair, on either side.
+  const seconds = Math.floor(count / rate + EPSILON)
   return [
     Math.floor(seconds / 3600),
     Math.floor(seconds / 60) % 60,
     seconds % 60,
-    count % rate
+    Math.max(0, Math.floor(count - seconds * rate + EPSILON))
   ]
     .map(part => part.toString().padStart(2, '0'))
     .join(':')
