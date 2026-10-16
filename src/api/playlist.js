@@ -385,9 +385,11 @@ export const playlistApi = http => {
     ) => {
       const entityId = idOf(entity)
       const current = await withEntries(playlist, signal)
-      const shots = entriesOf(current).filter(
-        entry => entry.entity_id !== entityId
-      )
+      const entries = entriesOf(current)
+      const shots = entries.filter(entry => entry.entity_id !== entityId)
+      // Saved anyway, the entries of a playlist read earlier would undo the
+      // ones added since.
+      if (shots.length === entries.length) return { ...current, shots }
       return saveEntries(current, shots, persist, signal)
     },
 

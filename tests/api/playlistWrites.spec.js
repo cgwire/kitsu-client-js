@@ -368,6 +368,21 @@ describe('playlist namespace: writes', () => {
     })
   })
 
+  // A playlist created then filled holds its old shots: null, and saving it
+  // would empty the playlist.
+  it('removeEntityFromPlaylist sends nothing when the entity is not in it', async () => {
+    const playlists = [
+      { id: PLAYLIST_ID, shots: [{ entity_id: OTHER_ID }] },
+      { id: PLAYLIST_ID, shots: null }
+    ]
+    for (const playlist of playlists) {
+      expect(
+        await kitsu.playlist.removeEntityFromPlaylist(playlist, SHOT_ID)
+      ).toEqual({ id: PLAYLIST_ID, shots: playlist.shots || [] })
+    }
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removeEntityFromPlaylist without persist sends nothing', async () => {
     expect(
       await kitsu.playlist.removeEntityFromPlaylist(
@@ -846,7 +861,10 @@ describe('playlist namespace: writes', () => {
     ['newPlaylist', [PROJECT_ID, 'Dailies']],
     ['updatePlaylist', [{ id: PLAYLIST_ID }]],
     ['addEntityToPlaylist', [PLAYLIST_ID, SHOT_ID]],
-    ['removeEntityFromPlaylist', [{ id: PLAYLIST_ID, shots: [] }, SHOT_ID]],
+    [
+      'removeEntityFromPlaylist',
+      [{ id: PLAYLIST_ID, shots: [{ entity_id: SHOT_ID }] }, SHOT_ID]
+    ],
     [
       'updateEntityPreview',
       [
