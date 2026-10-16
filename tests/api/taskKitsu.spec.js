@@ -80,11 +80,18 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect([...fake.calls[1].query.keys()]).toEqual([])
   })
 
-  it('allTasks refuses the filters object of 0.2 without any request', async () => {
-    // Dropped without a word, it would list the tasks of every production.
-    await expect(
-      kitsu.task.allTasks({ filters: { project_id: PROJECT_ID } })
-    ).rejects.toBeInstanceOf(ParameterError)
+  it('allTasks refuses the filters of 0.2 without any request', async () => {
+    // Dropped without a word, they would list the tasks of every production.
+    const wrongFilters = [
+      { filters: { project_id: PROJECT_ID } },
+      { project_id: PROJECT_ID },
+      { page: 2, limit: 50 }
+    ]
+    for (const filters of wrongFilters) {
+      await expect(kitsu.task.allTasks(filters)).rejects.toThrow(
+        /unknown option/
+      )
+    }
     await expect(
       kitsu.task.allTasks({ project: 'Agent 327' })
     ).rejects.toBeInstanceOf(ParameterError)
@@ -138,13 +145,32 @@ describe('task namespace: Kitsu store API coverage', () => {
     }
   )
 
+  // One options object serves the list and its chart.
+  it('getOpenTasksBurndown takes the options of allOpenTasks', async () => {
+    fake.reply(200, {})
+    await kitsu.task.getOpenTasksBurndown({
+      project: PROJECT_ID,
+      page: 2,
+      limit: 50
+    })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      project_id: PROJECT_ID
+    })
+    await expect(
+      kitsu.task.getOpenTasksBurndown({ projectId: PROJECT_ID })
+    ).rejects.toThrow(/^Wrong format: unknown option projectId$/)
+  })
+
   it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
-    '%s refuses the filters object of 0.2 without any request',
+    '%s refuses the filters of 0.2 without any request',
     async name => {
-      // Dropped without a word, it would cover every production.
+      // Dropped without a word, they would cover every production.
       await expect(
         kitsu.task[name]({ filters: { project_id: PROJECT_ID } })
-      ).rejects.toBeInstanceOf(ParameterError)
+      ).rejects.toThrow(/unknown option filters/)
+      await expect(
+        kitsu.task[name]({ project_id: PROJECT_ID, task_type_id: undefined })
+      ).rejects.toThrow(/unknown option project_id, the/)
       await expect(
         kitsu.task[name]({ project: 'Agent 327' })
       ).rejects.toBeInstanceOf(ParameterError)
