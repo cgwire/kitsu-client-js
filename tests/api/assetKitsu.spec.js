@@ -237,8 +237,8 @@ describe('asset namespace: Kitsu coverage', () => {
 
   it('shareAssets rejects an asset type without its project', async () => {
     await expect(
-      kitsu.asset.shareAssets({ assetType: ASSET_TYPE_ID, assets: [ASSET_ID] })
-    ).rejects.toBeInstanceOf(ParameterError)
+      kitsu.asset.shareAssets({ assetType: ASSET_TYPE_ID })
+    ).rejects.toThrow(/project is required with assetType/)
     expect(fake.calls).toHaveLength(0)
   })
 
