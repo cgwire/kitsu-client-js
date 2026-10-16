@@ -61,6 +61,17 @@ describe('event namespace: Kitsu logs', () => {
     expect(fake.calls[0].query.has('person_ids')).toBe(false)
   })
 
+  // Zou reads an empty list as no filter: the events of every person.
+  it.each(['allLastEvents', 'allLastLoginLogs'])(
+    '%s refuses an empty persons list before any request',
+    async name => {
+      await expect(kitsu.event[name]({ persons: [] })).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
   it('allLastEvents rejects a person given in place of a list', async () => {
     await expect(
       kitsu.event.allLastEvents({ persons: { id: PERSON_ID } })

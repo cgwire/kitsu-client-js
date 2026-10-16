@@ -8,12 +8,13 @@ import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
  */
 
 // null is no filter, as for the other options. Anything but a list, a single
-// person included, is refused before any request.
+// person included, is refused before any request, and so is an empty list:
+// Zou would read it as no filter and list every person.
 const personIdsOf = persons => {
   if (persons === null || persons === undefined) return []
-  if (Array.isArray(persons)) return idsOf(persons)
+  if (Array.isArray(persons) && persons.length > 0) return idsOf(persons)
   throw new ParameterError(
-    'Wrong format: persons must be a list of ids or entities'
+    'Wrong format: persons must be a non-empty list of ids or entities'
   )
 }
 
