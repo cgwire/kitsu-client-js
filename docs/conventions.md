@@ -11,6 +11,11 @@
 - **Required arguments are positional**, in the same order as gazu. Optional
   ones go in one trailing options object, which also takes an `AbortSignal`:
   `kitsu.task.allTasksForShot(shot, { relations: true, signal })`.
+- **Filters are named options**, in camelCase:
+  `kitsu.task.allTasks({ project, taskType })`. `allTasks`, `allOpenTasks`,
+  `getOpenTasksBurndown`, `allNotifications`, `allLastEvents` and
+  `allLastLoginLogs` refuse an option they do not read, a key of Zou in
+  snake_case for instance: dropped, it would widen the list.
 - **An empty selection is refused where Zou would widen it.** Zou reads an
   empty list as everything in scope, so a selection that came out empty
   would create tasks or share assets across the whole production: it rejects
@@ -24,10 +29,12 @@
   checks the keys of the body against what the role of the user may write,
   and an `id` key would fail that check.
 - **An update changes only the fields it is given.** A field given as
-  `undefined` is not given. Where Zou replaces the whole object, a metadata
-  descriptor or a budget entry for instance, the client reads the object
-  first and sends it merged with the given fields. One exception:
-  `kitsu.project.updateMetadataDescriptorOnAllProjects` updates the
+  `undefined` is not given. A function that saves some fields of the object,
+  such as `kitsu.schedule.updateScheduleItem`, refuses an object holding none
+  of them: Zou would answer the empty body as a success. Where Zou replaces
+  the whole object, a metadata descriptor or a budget entry for instance, the
+  client reads the object first and sends it merged with the given fields. One
+  exception: `kitsu.project.updateMetadataDescriptorOnAllProjects` updates the
   descriptors of several projects, which can differ, and reads none of them.
   Zou resets the `data_type`, `choices`, `departments` and `for_client` it is
   not given: give the whole descriptor.
