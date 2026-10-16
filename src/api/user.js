@@ -6,6 +6,7 @@ import {
   idsOf,
   optionalIdOf,
   orNull,
+  refuseUnknownOptions,
   requiredOf,
   sortedByName
 } from '../core/params.js'
@@ -467,9 +468,11 @@ export const userApi = http => ({
     taskStatus,
     read,
     watching,
-    signal
-  } = {}) =>
-    http.fetchAll(
+    signal,
+    ...others
+  } = {}) => {
+    refuseUnknownOptions(others)
+    return http.fetchAll(
       'user/notifications',
       {
         after: datetimeOf(after),
@@ -481,7 +484,8 @@ export const userApi = http => ({
         watching
       },
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Model} notification

@@ -197,6 +197,18 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     expect(Object.fromEntries(fake.calls[1].query)).toEqual({ read: 'true' })
   })
 
+  // The filters object of a pre-release, or the keys of Zou, would be
+  // dropped without a word: the 100 latest notifications of every type.
+  it('allNotifications refuses an unknown filter before any request', async () => {
+    await expect(
+      kitsu.user.allNotifications({ filters: { type: 'mention' } })
+    ).rejects.toThrow(/unknown option filters/)
+    await expect(
+      kitsu.user.allNotifications({ task_type_id: TASK_TYPE_ID })
+    ).rejects.toThrow(/unknown option task_type_id/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('allNotifications rejects a malformed task type before any request', async () => {
     await expect(
       kitsu.user.allNotifications({ taskType: 'Animation' })
