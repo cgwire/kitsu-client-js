@@ -143,11 +143,13 @@ export const castingApi = http => {
       updateEntityCasting(project, asset, casting, signal),
 
     /**
-     * Replace the whole casting of an episode.
+     * Replace the whole casting of an episode. Zou also removes the assets
+     * it leaves out from the casting of every shot of the episode.
      * @param {Model} project
      * @param {Model} episode
      * @param {CastingEntry[]} casting Every entry needs its asset_id and
-     *   nb_occurences: an empty list removes every asset.
+     *   nb_occurences: an empty list removes every asset, from the episode
+     *   and from its shots.
      * @param {RequestOptions} [options]
      * @returns {Promise<CastingEntry[]>} The casting, as sent: Zou answers
      *   the request body.
