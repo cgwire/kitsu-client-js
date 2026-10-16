@@ -108,6 +108,23 @@ export const withoutUndefined = data =>
   )
 
 /**
+ * A filter under a name the function does not read would be dropped without
+ * a word, and the answer would widen to everything in scope: the snake_case
+ * keys of Zou, or the filters object of 0.2.
+ * @param {Record<string, any>} others The options left once the known ones
+ *   are read. An undefined one is not given.
+ */
+export const refuseUnknownOptions = others => {
+  const names = Object.keys(others).filter(name => others[name] !== undefined)
+  if (names.length === 0) return
+  const fromZou = names.some(name => name === 'filters' || name.includes('_'))
+  const hint = fromZou ? ', the filters are named options in camelCase' : ''
+  throw new ParameterError(
+    `Wrong format: unknown option ${names.join(', ')}${hint}`
+  )
+}
+
+/**
  * Some reads write a missing id as a placeholder string ('' or 'None') that
  * Zou refuses on save: each one goes back as the null it stands for.
  * @param {Record<string, any>} fields

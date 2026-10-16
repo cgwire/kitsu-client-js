@@ -8,6 +8,7 @@ import {
   likeLiteralOf,
   optionalIdOf,
   orNull,
+  refuseUnknownOptions,
   requiredOf,
   sameNameOf,
   sortedByName,
@@ -187,25 +188,11 @@ const selectionOf = (label, models) => {
 }
 
 /**
- * The filters object of 0.2 would be dropped without a word, and the answer
- * would cover every production.
- * @param {object} options
- */
-const refuseFiltersObject = options => {
-  if ('filters' in options) {
-    throw new ParameterError(
-      'Wrong format: the filters are named options (project, taskType...)'
-    )
-  }
-}
-
-/**
  * The list of the open tasks and its burndown read the same filters.
  * @param {OpenTasksFilters} filters
  * @returns {Record<string, any>} The query.
  */
 const openTasksQuery = filters => {
-  refuseFiltersObject(filters)
   const {
     project,
     taskType,
@@ -215,8 +202,10 @@ const openTasksQuery = filters => {
     studio,
     startDate,
     dueDate,
-    priority
+    priority,
+    ...others
   } = filters
+  refuseUnknownOptions(others)
   const personIds =
     persons === undefined || persons === null || persons === 'unassigned'
       ? persons
@@ -1727,7 +1716,7 @@ export const taskApi = http => {
       signal,
       ...others
     } = {}) => {
-      refuseFiltersObject(others)
+      refuseUnknownOptions(others)
       return http.fetchAll(
         'tasks',
         {
@@ -1743,14 +1732,20 @@ export const taskApi = http => {
 
     /**
      * Burndown of the open tasks that allOpenTasks lists with the same
-     * filters, as the Kitsu task list charts it.
-     * @param {OpenTasksFilters} [options]
+     * filters, as the Kitsu task list charts it. It takes the options of
+     * allOpenTasks: their page and limit are ignored.
+     * @param {OpenTasksFilters & {page?: number, limit?: number}} [options]
      * @returns {Promise<OpenTasksBurndown>} The burndown of Zou.
      */
-    getOpenTasksBurndown: async ({ signal, ...filters } = {}) =>
-      http.get('data/tasks/open-tasks/burndown', openTasksQuery(filters), {
-        signal
-      }),
+    getOpenTasksBurndown: async ({ signal, ...options } = {}) => {
+      // An undefined option is not given: the chart has no page.
+      const filters = { ...options, page: undefined, limit: undefined }
+      return http.get(
+        'data/tasks/open-tasks/burndown',
+        openTasksQuery(filters),
+        { signal }
+      )
+    },
 
     /**
      * Delete the comment through its task: the task status and the last
