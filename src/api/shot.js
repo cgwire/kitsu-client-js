@@ -2,6 +2,7 @@ import { KitsuError } from '../core/errors.js'
 import {
   idOf,
   likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   orNull,
   placeholdersToNull,
@@ -126,7 +127,12 @@ export const shotApi = http => {
   // fail for a supervisor with departments (Zou refuses that supervisor on
   // sequences and episodes whatever the keys).
   const saveEntityData = (entity, data, signal) =>
-    http.update('entities', idOf(entity), { data: { ...data } }, { signal })
+    http.update(
+      'entities',
+      idOf(entity),
+      { data: { ...metadataOf(data) } },
+      { signal }
+    )
 
   const removeWithForce = (model, entity, force, signal) =>
     http.remove(model, idOf(entity), { force: force ? true : null }, { signal })

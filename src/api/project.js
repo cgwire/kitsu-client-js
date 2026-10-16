@@ -7,6 +7,7 @@ import {
   idOf,
   idsOf,
   likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   requiredOf,
   sameNameOf,
@@ -293,6 +294,7 @@ export const projectApi = http => ({
    * @returns {Promise<Entity>} The updated project.
    */
   updateProjectData: async (project, data = {}, { signal } = {}) => {
+    const given = withoutUndefined({ ...metadataOf(data) })
     const current = await http.get(
       `data/projects/${idOf(project)}`,
       {},
@@ -305,7 +307,7 @@ export const projectApi = http => ({
     return http.update(
       'projects',
       idOf(project),
-      { data: { ...current.data, ...withoutUndefined({ ...data }) } },
+      { data: { ...current.data, ...given } },
       { signal }
     )
   },

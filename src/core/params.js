@@ -125,6 +125,14 @@ export const refuseUnknownOptions = others => {
 }
 
 /**
+ * The metadata to merge. A string would reach Zou as one key per character.
+ * @param {Record<string, any>|null|undefined} data
+ * @returns {Record<string, any>|null|undefined}
+ */
+export const metadataOf = data =>
+  data === null || data === undefined ? data : fieldsOf(data)
+
+/**
  * The body of an update. An object holding none of the fields the function
  * saves would send an empty one, that Zou answers as a success: it is
  * refused instead.
