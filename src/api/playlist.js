@@ -48,11 +48,15 @@ const carriesEntries = playlist =>
   typeof playlist === 'object' &&
   (playlist.shots === null || Array.isArray(playlist.shots))
 
+// Zou serves its ids in lowercase, but an entry built by the caller keeps the
+// case it was given: the ids are compared and saved in lowercase.
+const lowerOf = id => (typeof id === 'string' ? id.toLowerCase() : id)
+
 // A saved entry is sent as Kitsu sends it: the entity and its preview, null
 // when it has none (Zou serves such an entry without the key).
 const entryOf = entry => ({
-  entity_id: entry.entity_id ?? entry.id,
-  preview_file_id: entry.preview_file_id ?? null
+  entity_id: lowerOf(entry.entity_id ?? entry.id),
+  preview_file_id: lowerOf(entry.preview_file_id) ?? null
 })
 
 // Zou answers a 400 to shots: null, which a playlist read before its first
@@ -386,7 +390,9 @@ export const playlistApi = http => {
       const entityId = idOf(entity)
       const current = await withEntries(playlist, signal)
       const entries = entriesOf(current)
-      const shots = entries.filter(entry => entry.entity_id !== entityId)
+      const shots = entries.filter(
+        entry => lowerOf(entry.entity_id) !== entityId
+      )
       // Saved anyway, the entries of a playlist read earlier would undo the
       // ones added since.
       if (shots.length === entries.length) return { ...current, shots }
@@ -428,12 +434,13 @@ export const playlistApi = http => {
           : optionalIdOf(previousPreviewFile)
       const current = await withEntries(playlist, signal)
       const entries = entriesOf(current)
-      const isOfEntity = entry => entry.entity_id === entityId
+      const isOfEntity = entry => lowerOf(entry.entity_id) === entityId
       // An entry is an (entity, preview) couple: the previous preview tells
       // which one of the entity changes.
       const target = entries.findIndex(
         entry =>
-          isOfEntity(entry) && (entry.preview_file_id || null) === previousId
+          isOfEntity(entry) &&
+          (lowerOf(entry.preview_file_id) || null) === previousId
       )
       const changes = (entry, index) =>
         previousId === undefined ? isOfEntity(entry) : index === target
