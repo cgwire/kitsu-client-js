@@ -160,13 +160,32 @@ describe('frames', () => {
     expect(formatToTimecode(3600, 59.94)).toBe('00:01:00:00')
   })
 
-  it('formatToTimecode never goes backwards with a fractional fps', () => {
-    const timecodes = Array.from({ length: 10000 }, (_, frame) =>
-      formatToTimecode(frame, 23.976)
-    )
-    // Fixed width: sorting the strings sorts the timecodes.
-    expect([...new Set(timecodes)].sort()).toEqual(timecodes)
+  it('formatToTimecode counts real seconds at a fractional fps out of NTSC', () => {
+    expect(formatToTimecode(25, 12.5)).toBe('00:00:02:00')
+    expect(formatToTimecode(37, 12.5)).toBe('00:00:02:12')
+    expect(formatToTimecode(38, 12.5)).toBe('00:00:03:00')
+    expect(formatToTimecode(45000, '12.5')).toBe('01:00:00:00')
+    expect(formatToTimecode(1440, 23.98)).toBe('00:01:00:00')
   })
+
+  // 16.67 and 25.1 have no exact float: 18337 / 16.67 is 1100 seconds
+  // exactly, but 1100 * 16.67 is a hair above 18337.
+  it('formatToTimecode never prints a negative frame at a decimal fps', () => {
+    expect(formatToTimecode(18337, 16.67)).toBe('00:18:20:00')
+    expect(formatToTimecode(18338, 16.67)).toBe('00:18:20:01')
+    expect(formatToTimecode(16315, 25.1)).toBe('00:10:50:00')
+  })
+
+  it.each([23.976, 12.5, 16.67])(
+    'formatToTimecode never goes backwards at %s fps',
+    fps => {
+      const timecodes = Array.from({ length: 10000 }, (_, frame) =>
+        formatToTimecode(frame, fps)
+      )
+      // Fixed width: sorting the strings sorts the timecodes.
+      expect([...new Set(timecodes)].sort()).toEqual(timecodes)
+    }
+  )
 
   it('formatToTimecode beyond one hour and with the default fps', () => {
     expect(formatToTimecode(93799, 25)).toBe('01:02:31:24')
