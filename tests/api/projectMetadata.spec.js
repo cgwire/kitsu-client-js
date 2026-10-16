@@ -254,6 +254,30 @@ describe('project namespace: metadata descriptors', () => {
     })
   })
 
+  // Saved, they would reach Zou as a body that changes nothing.
+  it('updateMetadataDescriptor refuses a descriptor holding no change', async () => {
+    await expect(
+      kitsu.project.updateMetadataDescriptor(PROJECT_ID, DESCRIPTOR_ID)
+    ).rejects.toThrow(/expected the object to save/)
+    await expect(
+      kitsu.project.updateMetadataDescriptor(PROJECT_ID, {
+        id: DESCRIPTOR_ID,
+        dataType: 'list'
+      })
+    ).rejects.toThrow(/nothing to save/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateMetadataDescriptor refuses a department name before any request', async () => {
+    await expect(
+      kitsu.project.updateMetadataDescriptor(PROJECT_ID, {
+        id: DESCRIPTOR_ID,
+        departments: ['Animation']
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateMetadataDescriptor rejects when the descriptor does not exist', async () => {
     fake.reply(404, { message: 'Metadata descriptor not found' })
     await expect(
