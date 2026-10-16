@@ -66,6 +66,15 @@ describe('project namespace: metadata descriptors', () => {
     })
   })
 
+  it('addMetadataDescriptor refuses the taskTypeId option of 0.2', async () => {
+    await expect(
+      kitsu.project.addMetadataDescriptor(PROJECT_ID, 'Level', 'Task', {
+        taskTypeId: TASK_TYPE_ID
+      })
+    ).rejects.toThrow(/taskTypeId is now taskType/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('addMetadataDescriptor sends every option on the wire', async () => {
     fake.reply(201, { id: DESCRIPTOR_ID })
     await kitsu.project.addMetadataDescriptor(PROJECT_ID, 'Retake', 'Task', {
