@@ -111,8 +111,8 @@ import * as urls from '../utils/urls.js'
  * @property {string} task_status_id
  * @property {string} text Can be empty.
  * @property {string} [person_id] Author of the comment (managers only).
- * @property {string} [created_at] Date of the comment (managers only):
- *   "YYYY-MM-DDTHH:MM:SS" in UTC.
+ * @property {Date|string} [created_at] Date of the comment (managers only):
+ *   a Date or "YYYY-MM-DDTHH:MM:SS" in UTC.
  * @property {{text: string, checked: boolean}[]} [checklist]
  * @property {string[]} [links]
  */
@@ -151,6 +151,16 @@ const commentDateOf = createdAt => {
     'Wrong format: createdAt must be a Date or a "YYYY-MM-DDTHH:MM:SS" string in UTC'
   )
 }
+
+/**
+ * The date of a batch comment follows the rule of addComment.
+ * @param {Record<string, any>} entry
+ * @returns {Record<string, any>}
+ */
+const batchEntryOf = entry =>
+  entry && entry.created_at !== undefined
+    ? { ...entry, created_at: commentDateOf(entry.created_at) }
+    : entry
 
 /**
  * FormData names a bare Blob "blob", and Zou reads the preview type from the
@@ -1557,7 +1567,7 @@ export const taskApi = http => {
       }
       return http.post(
         `actions/tasks/${taskId === null ? '' : `${taskId}/`}batch-comment`,
-        { comments },
+        { comments: comments.map(batchEntryOf) },
         { signal }
       )
     },
@@ -1587,17 +1597,16 @@ export const taskApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created comments.
      */
-    addTasksBatchComments: async (tasks, commentsData, { signal } = {}) =>
-      http.post(
+    addTasksBatchComments: async (tasks, commentsData, { signal } = {}) => {
+      const data = batchEntryOf(commentsData)
+      return http.post(
         'actions/tasks/batch-comment',
         {
-          comments: idsOf(tasks).map(taskId => ({
-            ...commentsData,
-            task_id: taskId
-          }))
+          comments: idsOf(tasks).map(taskId => ({ ...data, task_id: taskId }))
         },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Move a comment to another task of the same entity. Reserved to

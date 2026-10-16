@@ -389,6 +389,32 @@ describe('task namespace: comments, previews and time spent', () => {
     })
   })
 
+  // A Date sent as JSON carries milliseconds and a Z: Zou would date the
+  // comments of now, without an error.
+  it('batchComments and addTasksBatchComments send a Date as Zou reads it', async () => {
+    fake.reply(200, []).reply(200, [])
+    const createdAt = new Date('2026-09-19T10:00:00.250Z')
+    await kitsu.task.batchComments([{ ...ENTRY, created_at: createdAt }])
+    await kitsu.task.addTasksBatchComments([TASK_ID], {
+      task_status_id: TASK_STATUS_ID,
+      text: 'Ok',
+      created_at: createdAt
+    })
+    expect(fake.calls[0].body.comments[0].created_at).toBe(
+      '2026-09-19T10:00:00'
+    )
+    expect(fake.calls[1].body.comments[0].created_at).toBe(
+      '2026-09-19T10:00:00'
+    )
+  })
+
+  it('batchComments refuses a date Zou cannot read before any request', async () => {
+    await expect(
+      kitsu.task.batchComments([{ ...ENTRY, created_at: '19/09/2026 10:00' }])
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('moveCommentToTask moves the comment to another task', async () => {
     fake.reply(200, { id: COMMENT_ID, object_id: OTHER_ID })
     await kitsu.task.moveCommentToTask({ id: TASK_ID }, COMMENT_ID, {
