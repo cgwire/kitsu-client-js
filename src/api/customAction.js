@@ -1,5 +1,11 @@
 import { ParameterError } from '../core/errors.js'
-import { idOf, requiredOf, sortedByName, withoutNil } from '../core/params.js'
+import {
+  changesOf,
+  idOf,
+  requiredOf,
+  sortedByName,
+  withoutNil
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -61,7 +67,7 @@ export const customActionApi = http => ({
     return http.update(
       'custom-actions',
       id,
-      withoutNil({ name, url, entity_type, is_ajax }),
+      changesOf({ name, url, entity_type, is_ajax }, withoutNil),
       { signal }
     )
   },

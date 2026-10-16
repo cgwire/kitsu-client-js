@@ -1,5 +1,5 @@
 import { ParameterError } from '../core/errors.js'
-import { idOf, requiredOf, withoutNil } from '../core/params.js'
+import { changesOf, idOf, requiredOf, withoutNil } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -66,13 +66,16 @@ export const hardwareApi = http => ({
     return http.update(
       'hardware-items',
       id,
-      withoutNil({
-        name: hardwareItem.name,
-        short_name: hardwareItem.short_name,
-        monthly_cost: hardwareItem.monthly_cost,
-        inventory_amount: hardwareItem.inventory_amount,
-        archived: hardwareItem.archived
-      }),
+      changesOf(
+        {
+          name: hardwareItem.name,
+          short_name: hardwareItem.short_name,
+          monthly_cost: hardwareItem.monthly_cost,
+          inventory_amount: hardwareItem.inventory_amount,
+          archived: hardwareItem.archived
+        },
+        withoutNil
+      ),
       { signal }
     )
   },

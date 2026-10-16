@@ -1,5 +1,6 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   idOf,
   likeLiteralOf,
   optionalIdOf,
@@ -1070,7 +1071,7 @@ export const filesApi = http => {
       http.update(
         'projects',
         idOf(project),
-        { file_tree: fileTree },
+        changesOf({ file_tree: fileTree }),
         { signal }
       ),
 

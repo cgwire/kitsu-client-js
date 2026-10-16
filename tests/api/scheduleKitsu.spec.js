@@ -625,6 +625,22 @@ describe('schedule namespace: updates', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Saving nothing, Zou would still bump updated_at and send an update event.
+  it.each([
+    ['updateMilestone', MILESTONE_ID, { taskType: TASK_TYPE_ID }],
+    ['updateScheduleItem', ITEM_ID, { startDate: '2026-09-25' }],
+    ['updateScheduleVersion', VERSION_ID, { isLocked: true }],
+    ['updateScheduleVersionTaskLink', LINK_ID, { dueDate: '2026-09-25' }]
+  ])(
+    '%s refuses an object holding none of its fields',
+    async (name, id, fields) => {
+      await expect(
+        kitsu.schedule[name]({ id, project_id: PROJECT_ID, ...fields })
+      ).rejects.toThrow(/nothing to save/)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
   it.each([
     ['updateMilestone', MILESTONE_ID, { name: 'Final' }],
     ['updateScheduleItem', ITEM_ID, { man_days: 12 }],
@@ -660,7 +676,10 @@ describe('schedule namespace: updates', () => {
     const controller = new AbortController()
     controller.abort()
     fake.reply(200, { id })
-    await kitsu.schedule[name]({ id }, { signal: controller.signal })
+    await kitsu.schedule[name](
+      { id, name: 'Final', man_days: 12, estimation: 60 },
+      { signal: controller.signal }
+    )
     expect(fake.calls[0].signal.aborted).toBe(true)
   })
 })
