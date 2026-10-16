@@ -441,20 +441,21 @@ export const projectApi = http => ({
    *   otherwise.
    * @returns {Promise<Entity>} The created metadata descriptor.
    */
-  addMetadataDescriptor: async (
-    project,
-    name,
-    entityType,
-    {
+  addMetadataDescriptor: async (project, name, entityType, options = {}) => {
+    // 0.2.0 named it taskTypeId: Zou would refuse the Task descriptor for a
+    // missing task_type_id.
+    if ('taskTypeId' in options) {
+      throw new ParameterError('Wrong format: taskTypeId is now taskType')
+    }
+    const {
       dataType = 'string',
       choices = [],
       forClient = false,
       departments = [],
       taskType,
       signal
-    } = {}
-  ) =>
-    http.create(
+    } = options
+    return http.create(
       descriptorsOf(project),
       withoutNil({
         name: requiredOf('name', name),
@@ -467,7 +468,8 @@ export const projectApi = http => ({
         task_type_id: optionalIdOf(taskType)
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Model} project
