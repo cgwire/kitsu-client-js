@@ -1,5 +1,10 @@
 import { ParameterError } from '../core/errors.js'
-import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
+import {
+  datetimeOf,
+  idsOf,
+  optionalIdOf,
+  refuseUnknownOptions
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -16,6 +21,16 @@ const personIdsOf = persons => {
   throw new ParameterError(
     'Wrong format: persons must be a non-empty list of ids or entities'
   )
+}
+
+// Zou reads an empty list of names as no filter, and lists every event.
+const namesOf = (label, names) => {
+  if (Array.isArray(names) && names.length === 0) {
+    throw new ParameterError(
+      `Missing parameter: ${label} must be a non-empty list`
+    )
+  }
+  return names
 }
 
 export const eventApi = http => ({
@@ -51,9 +66,11 @@ export const eventApi = http => ({
     name,
     namePrefixes,
     nameSuffixes,
-    signal
-  } = {}) =>
-    http.get(
+    signal,
+    ...others
+  } = {}) => {
+    refuseUnknownOptions(others)
+    return http.get(
       'data/events/last',
       {
         after: datetimeOf(after),
@@ -64,11 +81,12 @@ export const eventApi = http => ({
         only_files: onlyFiles ? true : null,
         person_ids: personIdsOf(persons),
         name,
-        name_prefixes: namePrefixes,
-        name_suffixes: nameSuffixes
+        name_prefixes: namesOf('namePrefixes', namePrefixes),
+        name_suffixes: namesOf('nameSuffixes', nameSuffixes)
       },
       { signal }
-    ),
+    )
+  },
 
   /**
    * List the names of the events recorded by the API.
@@ -99,9 +117,11 @@ export const eventApi = http => ({
     limit,
     lastLoginLog,
     persons,
-    signal
-  } = {}) =>
-    http.get(
+    signal,
+    ...others
+  } = {}) => {
+    refuseUnknownOptions(others)
+    return http.get(
       'data/events/login-logs/last',
       {
         after: datetimeOf(after),
@@ -112,4 +132,5 @@ export const eventApi = http => ({
       },
       { signal }
     )
+  }
 })
