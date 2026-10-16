@@ -69,7 +69,8 @@ const boardRolesOf = roles => {
 // triggers it.
 const checkOutputOf = automation => {
   if (typeof automation !== 'object' || automation === null) return
-  const has = key => key in automation
+  // A field given as undefined is not given.
+  const has = key => automation[key] !== undefined
   const { out_field_type: type, out_task_status_id: status } = automation
   if (has('out_field_type') && !OUT_FIELD_TYPES.includes(type)) {
     throw new ParameterError(

@@ -357,6 +357,18 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls[0].body).toEqual(fields)
     })
 
+    it('updateStatusAutomation leaves out the outputs given as undefined', async () => {
+      fake.reply(200, { id: STATUS_AUTOMATION_ID })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        archived: true,
+        out_field_type: undefined,
+        out_task_status_id: undefined,
+        entity_type: undefined
+      })
+      expect(fake.calls[0].body).toEqual({ archived: true })
+    })
+
     // newStatusAutomation refuses them for the same reasons: Zou would store
     // them, then fail on later reads or on the comments that trigger them.
     it('updateStatusAutomation rejects an output newStatusAutomation refuses', async () => {
