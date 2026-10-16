@@ -357,11 +357,14 @@ export const userApi = http => ({
     orNull(http.get(`data/user/day-offs/${dayOf(date)}`, {}, { signal })),
 
   /**
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} Last notifications of the user.
+   * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
+   *   filters are the ones Zou reads: after, before, limit, task_type_id,
+   *   task_status_id, type, read, watching.
+   * @returns {Promise<Entity[]>} Last notifications of the user matching the
+   *   filters.
    */
-  allNotifications: async ({ signal } = {}) =>
-    http.fetchAll('user/notifications', {}, { signal }),
+  allNotifications: async ({ filters = {}, signal } = {}) =>
+    http.fetchAll('user/notifications', filters, { signal }),
 
   /**
    * @param {Model} notification
