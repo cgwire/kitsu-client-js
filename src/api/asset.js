@@ -3,6 +3,7 @@ import {
   idOf,
   idsOf,
   likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   orNull,
   placeholdersToNull,
@@ -396,7 +397,12 @@ export const assetApi = http => {
      */
     updateAssetData: async (asset, data = {}, { signal } = {}) =>
       // Only the given keys: Zou merges them into the stored metadata.
-      http.update('entities', idOf(asset), { data: { ...data } }, { signal }),
+      http.update(
+        'entities',
+        idOf(asset),
+        { data: { ...metadataOf(data) } },
+        { signal }
+      ),
 
     /**
      * Remove the asset. Without force, an asset that has tasks is only marked

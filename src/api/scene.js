@@ -1,5 +1,6 @@
 import {
   idOf,
+  metadataOf,
   optionalIdOf,
   orNull,
   requiredOf,
@@ -207,7 +208,7 @@ export const sceneApi = http => {
      * @returns {Promise<Entity>} The updated asset instance.
      */
     updateAssetInstanceData: async (assetInstance, data, { signal } = {}) =>
-      saveAssetInstance(assetInstance, { data }, signal),
+      saveAssetInstance(assetInstance, { data: metadataOf(data) }, signal),
 
     /**
      * @param {Model} scene

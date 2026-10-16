@@ -4,9 +4,16 @@ import { NotFoundError } from '../../src/core/errors.js'
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
+  ASSET_ID,
+  ASSET_INSTANCE_ID,
   DEPARTMENT_ID,
+  EDIT_ID,
+  EPISODE_ID,
   OTHER_ID,
   PROJECT_ID,
+  SEQUENCE_ID,
+  SHOT_ID,
+  TASK_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
@@ -323,5 +330,29 @@ describe('project namespace: metadata descriptors', () => {
       entity_type: 'Asset',
       descriptor_ids: [OTHER_ID, DESCRIPTOR_ID]
     })
+  })
+})
+
+describe('metadata updates of every namespace', () => {
+  let kitsu, fake
+  beforeEach(() => {
+    ;({ kitsu, fake } = makeClient())
+  })
+
+  // A string would reach Zou as one metadata key per character.
+  it.each([
+    ['project', 'updateProjectData', PROJECT_ID],
+    ['asset', 'updateAssetData', ASSET_ID],
+    ['task', 'updateTaskData', TASK_ID],
+    ['edit', 'updateEditData', EDIT_ID],
+    ['shot', 'updateShotData', SHOT_ID],
+    ['shot', 'updateSequenceData', SEQUENCE_ID],
+    ['shot', 'updateEpisodeData', EPISODE_ID],
+    ['scene', 'updateAssetInstanceData', ASSET_INSTANCE_ID]
+  ])('%s.%s refuses metadata that are not an object', async (ns, name, id) => {
+    await expect(kitsu[ns][name](id, 'abc')).rejects.toThrow(
+      /expected the object to save/
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 })

@@ -1,6 +1,7 @@
 import {
   idOf,
   likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   orNull,
   requiredOf,
@@ -217,6 +218,11 @@ export const editApi = http => {
      */
     updateEditData: async (edit, data = {}, { signal } = {}) =>
       // Only the given keys: Zou merges them into the stored metadata.
-      http.update('entities', idOf(edit), { data: { ...data } }, { signal })
+      http.update(
+        'entities',
+        idOf(edit),
+        { data: { ...metadataOf(data) } },
+        { signal }
+      )
   }
 }

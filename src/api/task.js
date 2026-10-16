@@ -6,6 +6,7 @@ import {
   idOf,
   idsOf,
   likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   orNull,
   refuseUnknownOptions,
@@ -1111,7 +1112,9 @@ export const taskApi = http => {
         // Only the given keys, which Zou merges into the stored metadata
         // (Zou 1.0.58 and later). An empty data would clear them instead, so
         // none is sent without a key to set (JSON drops undefined values).
-        Object.values({ ...data }).some(value => value !== undefined)
+        Object.values({ ...metadataOf(data) }).some(
+          value => value !== undefined
+        )
           ? { data }
           : {},
         { signal }
