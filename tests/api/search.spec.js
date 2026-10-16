@@ -23,7 +23,7 @@ describe('search namespace', () => {
   })
 
   it('searchEntities limits the search to a project', async () => {
-    fake.reply(200, {})
+    fake.reply(200, { persons: [], assets: [], shots: [] })
     await kitsu.search.searchEntities('hero', { project: { id: PROJECT_ID } })
     expect(fake.calls[0].body).toEqual({
       query: 'hero',
@@ -32,7 +32,7 @@ describe('search namespace', () => {
   })
 
   it('searchEntities picks the indexes and pages the results', async () => {
-    fake.reply(200, {})
+    fake.reply(200, { assets: [], shots: [] })
     const indexNames = ['assets', 'shots']
     await kitsu.search.searchEntities('hero', {
       indexNames,
@@ -49,13 +49,13 @@ describe('search namespace', () => {
   })
 
   it('searchEntities keeps an offset of zero', async () => {
-    fake.reply(200, {})
+    fake.reply(200, { persons: [], assets: [], shots: [] })
     await kitsu.search.searchEntities('hero', { limit: 5, offset: 0 })
     expect(fake.calls[0].body).toEqual({ query: 'hero', limit: 5, offset: 0 })
   })
 
   it('searchEntities does not send the entity type filter Zou ignores', async () => {
-    fake.reply(200, {})
+    fake.reply(200, { persons: [], assets: [], shots: [] })
     // @ts-expect-error entityTypes is gazu's option: Zou never read it.
     await kitsu.search.searchEntities('hero', { entityTypes: [OTHER_ID] })
     expect(fake.calls[0].body).toEqual({ query: 'hero' })
@@ -69,6 +69,23 @@ describe('search namespace', () => {
       kitsu.search.searchEntities('hero', { project: 'not-an-id' })
     ).rejects.toBeInstanceOf(ParameterError)
     expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou answers {} to them, without the index keys a caller reads.
+  it('searchEntities rejects a query under 3 characters', async () => {
+    const errors = await Promise.all(
+      ['ab', '\u{1F3AC}\u{1F3AC}'].map(query =>
+        kitsu.search.searchEntities(query).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('searchEntities sends a query of 3 characters', async () => {
+    fake.reply(200, { persons: [], assets: [], shots: [] })
+    await kitsu.search.searchEntities('\u{1F3AC}ab')
+    expect(fake.calls[0].body).toEqual({ query: '\u{1F3AC}ab' })
   })
 
   it('searchEntities forwards the abort signal', async () => {

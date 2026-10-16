@@ -8,6 +8,7 @@ import {
   EPISODE_ID,
   OTHER_ID,
   PLAYLIST_ID,
+  PREVIEW_FILE_ID,
   PROJECT_ID,
   SHOT_ID
 } from '../helpers/ids.js'
@@ -32,20 +33,15 @@ describe('playlist namespace: reads', () => {
     })
   })
 
-  it('allShotsForPlaylist returns the entries of the playlist', async () => {
-    fake.reply(200, {
-      id: PLAYLIST_ID,
-      shots: [
-        { entity_id: SHOT_ID, name: 'SH020' },
-        { entity_id: OTHER_ID, name: 'SH010' }
-      ]
-    })
+  it('allShotsForPlaylist returns the entries in the playlist order', async () => {
+    const shots = [
+      { entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID },
+      { entity_id: OTHER_ID }
+    ]
+    fake.reply(200, { id: PLAYLIST_ID, shots })
     expect(
       await kitsu.playlist.allShotsForPlaylist({ id: PLAYLIST_ID })
-    ).toEqual([
-      { entity_id: OTHER_ID, name: 'SH010' },
-      { entity_id: SHOT_ID, name: 'SH020' }
-    ])
+    ).toEqual(shots)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}`
@@ -141,16 +137,153 @@ describe('playlist namespace: reads', () => {
   })
 
   it('getPlaylistByName looks the name up in the project', async () => {
-    fake.reply(200, [{ id: PLAYLIST_ID, name: 'Dailies' }])
+    const playlist = { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    fake.reply(200, [playlist])
     expect(
       await kitsu.playlist.getPlaylistByName({ id: PROJECT_ID }, 'Dailies')
-    ).toEqual({ id: PLAYLIST_ID, name: 'Dailies' })
+    ).toEqual(playlist)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/playlists'
     })
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[0].query.get('name')).toBe('Dailies')
+    expect(fake.calls[0].query.has('episode_id')).toBe(false)
+  })
+
+  // Zou filters the name case insensitively, and lists the playlists of
+  // every episode without an episode filter.
+  it('getPlaylistByName keeps the exact name of the project itself', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'dailies', episode_id: null },
+      { id: ENTITY_ID, name: 'Dailies', episode_id: EPISODE_ID },
+      { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    ])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toMatchObject({ id: PLAYLIST_ID })
+  })
+
+  it('getPlaylistByName looks the name up in the episode', async () => {
+    fake.reply(200, [
+      { id: OTHER_ID, name: 'DAILIES', episode_id: EPISODE_ID },
+      { id: ENTITY_ID, name: 'Dailies', episode_id: EPISODE_ID }
+    ])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        episode: { id: EPISODE_ID }
+      })
+    ).toMatchObject({ id: ENTITY_ID })
+    expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
+  })
+
+  // Zou keeps "DAILIES" and "Dailies" apart, and its ILIKE filter finds
+  // both.
+  it('getPlaylistByName falls back on the name in another case', async () => {
+    const playlist = { id: OTHER_ID, name: 'DAILIES', episode_id: null }
+    fake.reply(200, [playlist])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(playlist)
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('getPlaylistByName escapes the backslash and the wildcards of LIKE', async () => {
+    const playlist = { id: PLAYLIST_ID, name: 'Comp\\Paint', episode_id: null }
+    fake.reply(200, [playlist]).reply(200, []).reply(200, [])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Comp\\Paint')
+    ).toEqual(playlist)
+    await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Review\\')
+    await kitsu.playlist.getPlaylistByName(PROJECT_ID, '100%_done')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Comp\\\\Paint',
+      'Review\\\\',
+      '100\\%\\_done'
+    ])
+  })
+
+  // Without episode Zou keeps no name unique: a Main Pack playlist and the
+  // All playlist of each entity type can share one.
+  it('getPlaylistByName without episode keeps the Main Pack or All side', async () => {
+    const side = (id, isForAll, forEntity) => ({
+      id,
+      name: 'Dailies',
+      episode_id: null,
+      is_for_all: isForAll,
+      for_entity: forEntity
+    })
+    const playlists = [
+      side(OTHER_ID, true, 'shot'),
+      side(ENTITY_ID, true, 'asset'),
+      side(PLAYLIST_ID, false, 'asset')
+    ]
+    fake.reply(200, playlists).reply(200, playlists).reply(200, playlists)
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(playlists[2])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true
+      })
+    ).toEqual(playlists[0])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(playlists[1])
+  })
+
+  // Rows written before the columns had a default: Zou lists them as Main
+  // Pack and shot playlists.
+  it('getPlaylistByName reads an unset side as Main Pack and an unset type as shot', async () => {
+    const mainPack = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      episode_id: null,
+      is_for_all: null,
+      for_entity: 'shot'
+    }
+    const allShots = { ...mainPack, id: OTHER_ID, is_for_all: true }
+    const unsetType = { ...allShots, for_entity: null }
+    fake.reply(200, [allShots, mainPack]).reply(200, [mainPack, unsetType])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies')
+    ).toEqual(mainPack)
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        isForAll: true
+      })
+    ).toEqual(unsetType)
+  })
+
+  // Inside an episode the name is unique, whatever the side.
+  it('getPlaylistByName in an episode ignores the side and the type', async () => {
+    const playlist = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      episode_id: EPISODE_ID,
+      is_for_all: false,
+      for_entity: 'shot'
+    }
+    fake.reply(200, [playlist])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Dailies', {
+        episode: EPISODE_ID,
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(playlist)
+  })
+
+  // _ is a wildcard of the name filter.
+  it('getPlaylistByName gives null when only an alike name exists', async () => {
+    fake.reply(200, [{ id: OTHER_ID, name: 'Review-1', episode_id: null }])
+    expect(
+      await kitsu.playlist.getPlaylistByName(PROJECT_ID, 'Review_1')
+    ).toBeNull()
   })
 
   it('getPlaylistByName gives null when nothing matches', async () => {

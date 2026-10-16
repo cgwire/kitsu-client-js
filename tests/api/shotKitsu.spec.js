@@ -30,10 +30,10 @@ describe('shot namespace: Kitsu web app functions', () => {
         )
     )
     expect(
-      await kitsu.shot.allShotsWithTasks({
-        project: { id: PROJECT_ID },
-        episode: EPISODE_ID
-      })
+      await kitsu.shot.allShotsWithTasks(
+        { id: PROJECT_ID },
+        { episode: EPISODE_ID }
+      )
     ).toEqual([{ id: SHOT_ID, tasks: [] }])
     expect(fake.calls).toHaveLength(1)
     expect(fake.calls[0]).toMatchObject({
@@ -48,12 +48,12 @@ describe('shot namespace: Kitsu web app functions', () => {
 
   it('allShotsWithTasks asks again when the answer is not a stream', async () => {
     fake.reply(200, []).reply(200, [{ id: SHOT_ID, tasks: [] }])
-    expect(await kitsu.shot.allShotsWithTasks()).toEqual([
+    expect(await kitsu.shot.allShotsWithTasks(PROJECT_ID)).toEqual([
       { id: SHOT_ID, tasks: [] }
     ])
     expect(fake.calls[1].path).toBe('/data/shots/with-tasks')
     expect(fake.calls[1].query.has('stream')).toBe(false)
-    expect(fake.calls[1].query.has('project_id')).toBe(false)
+    expect(fake.calls[1].query.get('project_id')).toBe(PROJECT_ID)
     expect(fake.calls[1].query.has('episode_id')).toBe(false)
   })
 
@@ -88,6 +88,8 @@ describe('shot namespace: Kitsu web app functions', () => {
     expect(fake.calls[0].query.get('project_id')).toBe(PROJECT_ID)
   })
 
+  // Without a project, Zou lists every production to an admin and refuses
+  // anyone else.
   it('the with-tasks lists of a project reject without a project', async () => {
     await expect(kitsu.shot.allSequencesWithTasks()).rejects.toThrow(
       ParameterError
@@ -95,11 +97,21 @@ describe('shot namespace: Kitsu web app functions', () => {
     await expect(kitsu.shot.allEpisodesWithTasks(null)).rejects.toThrow(
       ParameterError
     )
+    await expect(kitsu.shot.allShotsWithTasks()).rejects.toThrow(ParameterError)
+    // The options of the former call shape are not a project.
+    await expect(
+      kitsu.shot.allShotsWithTasks({ project: PROJECT_ID })
+    ).rejects.toThrow(ParameterError)
     expect(fake.calls).toHaveLength(0)
   })
 
   it('getEpisodeStats reads the task status counts per episode', async () => {
-    const stats = { [EPISODE_ID]: { all: {} } }
+    const counts = { name: 'wip', color: '#3273dc', count: 2, frames: 48 }
+    const stats = {
+      [EPISODE_ID]: {
+        [TASK_TYPE_ID]: { [OTHER_ID]: { ...counts, drawings: 0 } }
+      }
+    }
     fake.reply(200, stats)
     expect(await kitsu.shot.getEpisodeStats({ id: PROJECT_ID })).toEqual(stats)
     expect(fake.calls[0]).toMatchObject({
@@ -109,7 +121,18 @@ describe('shot namespace: Kitsu web app functions', () => {
   })
 
   it('getEpisodeRetakeStats reads the retake counts per episode', async () => {
-    const stats = { [EPISODE_ID]: { all: {} } }
+    const counts = { count: 0, frames: 0, drawings: 0 }
+    const stats = {
+      all: {
+        all: {
+          max_retake_count: 0,
+          evolution: {},
+          done: counts,
+          retake: counts,
+          other: counts
+        }
+      }
+    }
     fake.reply(200, stats)
     expect(await kitsu.shot.getEpisodeRetakeStats(PROJECT_ID)).toEqual(stats)
     expect(fake.calls[0]).toMatchObject({
@@ -119,10 +142,19 @@ describe('shot namespace: Kitsu web app functions', () => {
   })
 
   it('allVersionsForShot lists the data history of a shot', async () => {
-    fake.reply(200, [{ id: OTHER_ID, shot_id: SHOT_ID }])
-    expect(await kitsu.shot.allVersionsForShot({ id: SHOT_ID })).toEqual([
-      { id: OTHER_ID, shot_id: SHOT_ID }
-    ])
+    const versions = [
+      {
+        id: OTHER_ID,
+        entity_id: SHOT_ID,
+        name: 'SH010',
+        data: { frame_in: 1, frame_out: 24 },
+        type: 'ShotVersion'
+      }
+    ]
+    fake.reply(200, versions)
+    expect(await kitsu.shot.allVersionsForShot({ id: SHOT_ID })).toEqual(
+      versions
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/shots/${SHOT_ID}/versions`
@@ -133,8 +165,8 @@ describe('shot namespace: Kitsu web app functions', () => {
     fake.reply(200, [{ id: SHOT_ID, nb_frames: 24 }])
     expect(
       await kitsu.shot.setNbFramesFromTaskTypePreviews(
-        { id: TASK_TYPE_ID },
-        { id: PROJECT_ID }
+        { id: PROJECT_ID },
+        { id: TASK_TYPE_ID }
       )
     ).toEqual([{ id: SHOT_ID, nb_frames: 24 }])
     expect(fake.calls[0]).toMatchObject({
@@ -149,7 +181,7 @@ describe('shot namespace: Kitsu web app functions', () => {
 
   it('setNbFramesFromTaskTypePreviews can be scoped to an episode', async () => {
     fake.reply(200, [])
-    await kitsu.shot.setNbFramesFromTaskTypePreviews(TASK_TYPE_ID, PROJECT_ID, {
+    await kitsu.shot.setNbFramesFromTaskTypePreviews(PROJECT_ID, TASK_TYPE_ID, {
       episode: { id: EPISODE_ID }
     })
     expect(fake.calls[0].method).toBe('POST')

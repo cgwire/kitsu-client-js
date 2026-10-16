@@ -205,4 +205,11 @@ describe('files namespace: working files', () => {
       body: { file_tree: { working: { mountpoint: '/prod' } } }
     })
   })
+
+  it('updateProjectFileTree refuses a missing file tree', async () => {
+    await expect(kitsu.files.updateProjectFileTree(PROJECT_ID)).rejects.toThrow(
+      /nothing to save/
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
 })

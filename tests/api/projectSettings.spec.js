@@ -1,17 +1,34 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { NotFoundError } from '../../src/core/errors.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   PERSON_ID,
   PROJECT_ID,
+  STUDIO_ID,
   TASK_STATUS_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const AUTOMATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const BACKGROUND_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+// A quota entry of Zou: one 48 frame shot of 2 seconds at 24 fps, done on
+// Monday 2 March 2026.
+const counters = key => ({
+  frames: { [key]: 48 },
+  seconds: { [key]: 2 },
+  count: { [key]: 1 },
+  drawings: { [key]: 0 }
+})
+const QUOTA = {
+  day: { ...counters('2026-03-02'), entries: { '2026-03': 1 } },
+  week: { ...counters('2026-10'), entries: { 2026: 1 } },
+  month: { ...counters('2026-03'), entries: { 2026: 1 } },
+  year: counters('2026')
+}
 
 describe('project namespace: settings', () => {
   let kitsu, fake
@@ -53,7 +70,7 @@ describe('project namespace: settings', () => {
       ldBitrateCompression: 6
     })
     await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
-      ldBitrateCompression: 0
+      ldBitrateCompression: 4
     })
     expect(fake.calls[0].body).toEqual({
       task_type_id: TASK_TYPE_ID,
@@ -64,7 +81,22 @@ describe('project namespace: settings', () => {
     expect(fake.calls[1].body).toEqual({
       task_type_id: TASK_TYPE_ID,
       priority: 1,
-      ld_bitrate_compression: 0
+      ld_bitrate_compression: 4
+    })
+  })
+
+  // A null bitrate goes back to the one of the project.
+  it('addTaskType sends a null bitrate to reset it', async () => {
+    fake.reply(201, {})
+    await kitsu.project.addTaskType(PROJECT_ID, TASK_TYPE_ID, 1, {
+      hdBitrateCompression: null,
+      ldBitrateCompression: null
+    })
+    expect(fake.calls[0].body).toEqual({
+      task_type_id: TASK_TYPE_ID,
+      priority: 1,
+      hd_bitrate_compression: null,
+      ld_bitrate_compression: null
     })
   })
 
@@ -138,17 +170,36 @@ describe('project namespace: settings', () => {
     })
   })
 
-  it('addStatusAutomation posts the automation payload as given', async () => {
-    fake.reply(201, { id: PROJECT_ID })
-    const automation = { status_automation_id: AUTOMATION_ID }
-    await kitsu.project.addStatusAutomation({ id: PROJECT_ID }, automation)
-    expect(fake.calls[0]).toMatchObject({
-      method: 'POST',
-      path: `/data/projects/${PROJECT_ID}/settings/status-automations`
+  it('addStatusAutomation links the automation or its id', async () => {
+    fake.reply(201, { id: PROJECT_ID }).reply(201, { id: PROJECT_ID })
+    expect(
+      await kitsu.project.addStatusAutomation(
+        { id: PROJECT_ID },
+        { id: AUTOMATION_ID, out_field_type: 'ready_for' }
+      )
+    ).toEqual({ id: PROJECT_ID })
+    await kitsu.project.addStatusAutomation(PROJECT_ID, AUTOMATION_ID)
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({
+        method: 'POST',
+        path: `/data/projects/${PROJECT_ID}/settings/status-automations`
+      })
+      expect(call.body).toEqual({ status_automation_id: AUTOMATION_ID })
     })
-    expect(fake.calls[0].body).toEqual({
-      status_automation_id: AUTOMATION_ID
-    })
+  })
+
+  it('addStatusAutomation and addPreviewBackgroundFile reject the payload of 0.2.0', async () => {
+    await expect(
+      kitsu.project.addStatusAutomation(PROJECT_ID, {
+        status_automation_id: AUTOMATION_ID
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.project.addPreviewBackgroundFile(PROJECT_ID, {
+        preview_background_file_id: BACKGROUND_ID
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeStatusAutomation unlinks the automation', async () => {
@@ -173,9 +224,9 @@ describe('project namespace: settings', () => {
     })
   })
 
-  it('addPreviewBackgroundFile posts the background payload as JSON', async () => {
+  it('addPreviewBackgroundFile links the background as JSON', async () => {
     fake.reply(201, { id: PROJECT_ID })
-    const backgroundFile = { preview_background_file_id: BACKGROUND_ID }
+    const backgroundFile = { id: BACKGROUND_ID, name: 'Studio' }
     expect(
       await kitsu.project.addPreviewBackgroundFile(
         { id: PROJECT_ID },
@@ -189,22 +240,21 @@ describe('project namespace: settings', () => {
     expect(fake.calls[0].body).toEqual({
       preview_background_file_id: BACKGROUND_ID
     })
-    expect(backgroundFile).toEqual({
-      preview_background_file_id: BACKGROUND_ID
-    })
+    expect(backgroundFile).toEqual({ id: BACKGROUND_ID, name: 'Studio' })
   })
 
-  it('addPreviewBackgroundFile accepts a project id and an abort signal', async () => {
+  it('addPreviewBackgroundFile accepts ids and an abort signal', async () => {
     fake.reply(201, { id: PROJECT_ID })
     const controller = new AbortController()
-    await kitsu.project.addPreviewBackgroundFile(
-      PROJECT_ID,
-      { preview_background_file_id: BACKGROUND_ID },
-      { signal: controller.signal }
-    )
+    await kitsu.project.addPreviewBackgroundFile(PROJECT_ID, BACKGROUND_ID, {
+      signal: controller.signal
+    })
     expect(fake.calls[0].path).toBe(
       `/data/projects/${PROJECT_ID}/settings/preview-background-files`
     )
+    expect(fake.calls[0].body).toEqual({
+      preview_background_file_id: BACKGROUND_ID
+    })
   })
 
   it('removePreviewBackgroundFile unlinks the background', async () => {
@@ -272,6 +322,14 @@ describe('project namespace: team, milestones and quotas', () => {
     expect(fake.calls[1].body).toEqual({ role: null })
   })
 
+  // Sent without a role, the call would restore the global role.
+  it('updateTeamMemberRole rejects a missing role', async () => {
+    await expect(
+      kitsu.project.updateTeamMemberRole(PROJECT_ID, PERSON_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('removePersonFromTeam removes the person from the team', async () => {
     fake.reply(204)
     await kitsu.project.removePersonFromTeam(PROJECT_ID, { id: PERSON_ID })
@@ -293,21 +351,40 @@ describe('project namespace: team, milestones and quotas', () => {
   })
 
   it('getProjectQuotas reads the quotas of a task type', async () => {
-    fake.reply(200, { [PERSON_ID]: {} })
+    const quotas = { [PERSON_ID]: QUOTA, total: QUOTA }
+    fake.reply(200, quotas)
     expect(
       await kitsu.project.getProjectQuotas(PROJECT_ID, { id: TASK_TYPE_ID })
-    ).toEqual({ [PERSON_ID]: {} })
+    ).toEqual(quotas)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/quotas/${TASK_TYPE_ID}`
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('quota reads send the count mode and the studio', async () => {
+    fake.reply(200, {}).reply(200, {})
+    await kitsu.project.getProjectQuotas(PROJECT_ID, TASK_TYPE_ID, {
+      countMode: 'done',
+      studio: { id: STUDIO_ID }
+    })
+    await kitsu.project.getProjectPersonQuotas(PROJECT_ID, PERSON_ID, {
+      countMode: 'weighteddone',
+      studio: STUDIO_ID
+    })
+    expect(fake.calls[0].query.get('count_mode')).toBe('done')
+    expect(fake.calls[0].query.get('studio_id')).toBe(STUDIO_ID)
+    expect(fake.calls[1].query.get('count_mode')).toBe('weighteddone')
+    expect(fake.calls[1].query.get('studio_id')).toBe(STUDIO_ID)
   })
 
   it('getProjectPersonQuotas reads the quotas of a person', async () => {
-    fake.reply(200, { [TASK_TYPE_ID]: {} })
+    const quotas = { [TASK_TYPE_ID]: QUOTA, total: QUOTA }
+    fake.reply(200, quotas)
     expect(
       await kitsu.project.getProjectPersonQuotas({ id: PROJECT_ID }, PERSON_ID)
-    ).toEqual({ [TASK_TYPE_ID]: {} })
+    ).toEqual(quotas)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/projects/${PROJECT_ID}/quotas/persons/${PERSON_ID}`

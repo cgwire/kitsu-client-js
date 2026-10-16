@@ -1,12 +1,19 @@
 import { KitsuError, ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
+  dayOf,
+  fieldsOf,
   idOf,
   idsOf,
+  likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   requiredOf,
+  sameNameOf,
   sortedByName,
-  withoutNil
+  withoutNil,
+  withoutUndefined
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
@@ -16,10 +23,87 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
 
+/**
+ * @typedef {object} QuotaOptions
+ * @property {string} [countMode] weighted (the default), weighteddone,
+ *   feedback or done. The weighted modes spread the frames of a shot over
+ *   the days spent on it, the others count them on one day. The done modes
+ *   date a shot by its approval, the others by its first feedback request.
+ * @property {Model} [studio] Keeps the shots assigned to members of that
+ *   studio.
+ * @property {AbortSignal} [signal]
+ */
+
 const LINK_FIELDS = ['team', 'asset_types', 'task_statuses', 'task_types']
 
 // The choices of the out_field_type column of a status automation.
 const OUT_FIELD_TYPES = ['status', 'ready_for']
+
+// The choices of the position and seniority columns of a budget entry.
+const POSITIONS = ['supervisor', 'lead', 'artist']
+const SENIORITIES = ['senior', 'mid', 'junior']
+
+// The columns of a budget entry that cannot be null, start_date aside.
+const BUDGET_REQUIRED_FIELDS = [
+  'department_id',
+  'months_duration',
+  'daily_salary'
+]
+
+// The choices of the board roles of a task status link.
+const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
+
+// Zou stores any string in a choice column, then fails on every later read
+// of the row: an unknown code is refused before the request.
+const choiceOf = (label, choices, value) => {
+  if (value === null || value === undefined || choices.includes(value)) {
+    return value
+  }
+  throw new ParameterError(
+    `Wrong format: ${label} must be one of ${choices.join(', ')}`
+  )
+}
+
+const boardRolesOf = roles => {
+  if (Array.isArray(roles) && roles.every(role => ROLES.includes(role))) {
+    return roles
+  }
+  throw new ParameterError(
+    `Wrong format: rolesForBoard must be a list of ${ROLES.join(', ')}`
+  )
+}
+
+// The checks of newStatusAutomation, on the output fields an update gives.
+// Zou stores them as they are: an unknown type breaks every later read of
+// the automations, a status output without its status every comment that
+// triggers it.
+const checkOutputOf = automation => {
+  if (typeof automation !== 'object' || automation === null) return
+  // A field given as undefined is not given.
+  const has = key => automation[key] !== undefined
+  const { out_field_type: type, out_task_status_id: status } = automation
+  if (has('out_field_type') && !OUT_FIELD_TYPES.includes(type)) {
+    throw new ParameterError(
+      `Wrong format: out_field_type must be one of ${OUT_FIELD_TYPES.join(', ')}`
+    )
+  }
+  // The stored type is unknown here: a status cleared without a ready_for
+  // type next to it could leave a status output without its status.
+  const needsStatus =
+    type === 'status' || (!has('out_field_type') && has('out_task_status_id'))
+  if (needsStatus && (status === null || status === undefined)) {
+    throw new ParameterError(
+      'Missing parameter: out_task_status_id is required with status'
+    )
+  }
+  if (
+    type === 'ready_for' &&
+    has('entity_type') &&
+    automation.entity_type !== 'asset'
+  ) {
+    throw new ParameterError('Wrong format: ready_for only works on assets')
+  }
+}
 
 // Zou expects model links as lists of ids, while a project read with its
 // relations can carry them as dicts.
@@ -28,6 +112,23 @@ const withLinkIds = project =>
     (result, field) => ({ ...result, [field]: idsOf(project[field]) }),
     project
   )
+
+/**
+ * Zou reads the type of a background from the name of its file, and only
+ * takes hdr: for any other name, "blob" for a bare Blob, it deletes the
+ * background and its stored files before refusing the upload. A file that is
+ * not a Blob is left to the upload, which refuses it.
+ * @param {Blob & {name?: string}} file
+ * @param {string} [fileName]
+ */
+const checkHdrName = (file, fileName) => {
+  if (!(file instanceof Blob) || /\.hdr$/i.test(fileName || file.name || '')) {
+    return
+  }
+  throw new ParameterError(
+    'Wrong format: the file name must end in .hdr (fileName names a bare Blob)'
+  )
+}
 
 const settingsOf = (project, section) =>
   `projects/${idOf(project)}/settings/${section}`
@@ -48,6 +149,11 @@ const fieldSegmentOf = fieldName =>
 const saveProject = (http, project, options) =>
   http.update('projects', idOf(project), withLinkIds(project), options)
 
+const fetchByName = (http, path, name, signal) =>
+  http
+    .fetchAll(path, { name: likeLiteralOf(name) }, { signal })
+    .then(entries => sameNameOf(entries, name))
+
 export const projectApi = http => ({
   /**
    * @param {RequestOptions} [options]
@@ -59,14 +165,11 @@ export const projectApi = http => ({
   /**
    * @param {string} projectStatusName
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First project status matching the name.
+   * @returns {Promise<Entity|null>} The project status of that name, the case
+   *   ignored but an exact match first, null when none.
    */
   getProjectStatusByName: async (projectStatusName, { signal } = {}) =>
-    http.fetchFirst(
-      'project-status',
-      { name: requiredOf('name', projectStatusName) },
-      { signal }
-    ),
+    fetchByName(http, 'project-status', projectStatusName, signal),
 
   /**
    * @param {RequestOptions} [options]
@@ -93,17 +196,14 @@ export const projectApi = http => ({
   /**
    * @param {string} projectName
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First project matching the name.
+   * @returns {Promise<Entity|null>} The project of that name, the case
+   *   ignored but an exact match first, null when none.
    */
   getProjectByName: async (projectName, { signal } = {}) =>
-    http.fetchFirst(
-      'projects',
-      { name: requiredOf('name', projectName) },
-      { signal }
-    ),
+    fetchByName(http, 'projects', projectName, signal),
 
   /**
-   * Create a project, unless a project with the same name already exists.
+   * Create a project, unless getProjectByName finds one with that name.
    * @param {string} name
    * @param {{
    *   productionType?: string,
@@ -114,41 +214,48 @@ export const projectApi = http => ({
    *   productionStyle?: string,
    *   projectTemplate?: Model,
    *   signal?: AbortSignal
-   * }} [options] productionType is short, featurefilm or tvshow.
-   *   projectTemplate is applied after the creation.
+   * }} [options] productionType is short (the default), featurefilm or
+   *   tvshow, and productionStyle is 2d3d by default. projectTemplate is
+   *   applied after the creation: its production type and style apply unless
+   *   productionType or productionStyle is given.
    * @returns {Promise<Entity>} The created project, or the existing one.
    */
   newProject: async (
     name,
     {
-      productionType = 'short',
+      productionType,
       team = [],
       assetTypes = [],
       taskStatuses = [],
       taskTypes = [],
-      productionStyle = '2d3d',
+      productionStyle,
       projectTemplate,
       signal
     } = {}
   ) => {
-    const existing = await http.fetchFirst(
-      'projects',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
-    if (existing) return existing
+    // Checked before the lookup: a wrong option is reported even when the
+    // project already exists.
+    const links = {
+      team: idsOf(team),
+      asset_types: idsOf(assetTypes),
+      task_statuses: idsOf(taskStatuses),
+      task_types: idsOf(taskTypes)
+    }
     const templateId = optionalIdOf(projectTemplate)
+    const existing = await fetchByName(http, 'projects', name, signal)
+    if (existing) return existing
     return http.create(
       'projects',
       {
         name,
-        production_type: productionType,
-        team: idsOf(team),
-        asset_types: idsOf(assetTypes),
-        task_statuses: idsOf(taskStatuses),
-        task_types: idsOf(taskTypes),
-        production_style: productionStyle,
-        ...(templateId ? { project_template_id: templateId } : {})
+        ...links,
+        // Zou defaults to short and 2d3d. Any value sent overrides the one
+        // of the template.
+        ...withoutNil({
+          production_type: productionType,
+          production_style: productionStyle,
+          project_template_id: templateId
+        })
       },
       { signal }
     )
@@ -179,14 +286,15 @@ export const projectApi = http => ({
     saveProject(http, project, { signal }),
 
   /**
-   * Merge data into the metadata of the project. Keys that are not given
-   * are left unchanged.
+   * Merge data into the metadata of the project. Keys that are not given,
+   * or given as undefined, are left unchanged.
    * @param {Model} project
    * @param {object} [data]
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated project.
    */
   updateProjectData: async (project, data = {}, { signal } = {}) => {
+    const given = withoutUndefined({ ...metadataOf(data) })
     const current = await http.get(
       `data/projects/${idOf(project)}`,
       {},
@@ -194,30 +302,36 @@ export const projectApi = http => ({
     )
     // Zou replaces the metadata of a project instead of merging them: the
     // merge is done here, and only the metadata go back, so the other fields
-    // and links keep any change made since the read.
+    // and links keep any change made since the read. A key given as
+    // undefined is not given: JSON would drop the stored one.
     return http.update(
       'projects',
       idOf(project),
-      { data: { ...current.data, ...data } },
+      { data: { ...current.data, ...given } },
       { signal }
     )
   },
 
   /**
+   * Give the project the closed status. Only the status is sent: the other
+   * fields and links of a project object are not written back.
    * @param {Model} project
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated project.
    */
   closeProject: async (project, { signal } = {}) => {
+    const id = idOf(project)
     const statuses = await http.fetchAll('project-status', {}, { signal })
     const closed = statuses.find(
       status => (status.name || '').toLowerCase() === 'closed'
     )
     if (!closed) throw new KitsuError('No closed project status found')
-    const base = typeof project === 'string' ? { id: project } : project
-    return saveProject(
-      http,
-      { ...base, project_status_id: closed.id },
+    // Zou replaces the links it is given: a project read earlier would drop
+    // the ones added since, with their priorities and board roles.
+    return http.update(
+      'projects',
+      id,
+      { project_status_id: closed.id },
       { signal }
     )
   },
@@ -237,16 +351,19 @@ export const projectApi = http => ({
 
   /**
    * Link a task type to the project. Calling it again on an existing link
-   * updates its priority and bitrates.
+   * keeps its priority (updateTaskTypeLink or reorderTaskTypeLinks change
+   * it) and only writes the bitrates, when one is given.
    * @param {Model} project
    * @param {Model} taskType
    * @param {number} priority
    * @param {{
-   *   hdBitrateCompression?: number,
-   *   ldBitrateCompression?: number,
+   *   hdBitrateCompression?: number|null,
+   *   ldBitrateCompression?: number|null,
    *   signal?: AbortSignal
    * }} [options] Bitrates in Mbit/s of the movies encoded for that task
-   *   type in the project.
+   *   type in the project. Zou writes both as soon as one is given: a
+   *   missing one goes back to null, which inherits the bitrate of the
+   *   project. null resets one.
    * @returns {Promise<Entity>} The project.
    */
   addTaskType: async (
@@ -257,12 +374,12 @@ export const projectApi = http => ({
   ) =>
     http.create(
       settingsOf(project, 'task-types'),
-      withoutNil({
-        task_type_id: idOf(taskType),
-        priority,
+      {
+        ...withoutNil({ task_type_id: idOf(taskType), priority }),
+        // JSON leaves an undefined bitrate out, and sends a null one.
         hd_bitrate_compression: hdBitrateCompression,
         ld_bitrate_compression: ldBitrateCompression
-      }),
+      },
       { signal }
     ),
 
@@ -317,39 +434,42 @@ export const projectApi = http => ({
    *   choices?: string[],
    *   forClient?: boolean,
    *   departments?: Model[],
-   *   taskTypeId?: Model,
+   *   taskType?: Model,
    *   signal?: AbortSignal
-   * }} [options] choices stays empty for free values. taskTypeId scopes the
+   * }} [options] choices stays empty for free values. taskType scopes the
    *   descriptor to a task type: required when entityType is Task, forbidden
    *   otherwise.
    * @returns {Promise<Entity>} The created metadata descriptor.
    */
-  addMetadataDescriptor: async (
-    project,
-    name,
-    entityType,
-    {
+  addMetadataDescriptor: async (project, name, entityType, options = {}) => {
+    // 0.2.0 named it taskTypeId: Zou would refuse the Task descriptor for a
+    // missing task_type_id.
+    if ('taskTypeId' in options) {
+      throw new ParameterError('Wrong format: taskTypeId is now taskType')
+    }
+    const {
       dataType = 'string',
       choices = [],
       forClient = false,
       departments = [],
-      taskTypeId,
+      taskType,
       signal
-    } = {}
-  ) =>
-    http.create(
+    } = options
+    return http.create(
       descriptorsOf(project),
       withoutNil({
-        name,
+        name: requiredOf('name', name),
         data_type: dataType,
         choices,
         for_client: forClient,
-        entity_type: entityType,
+        // Zou would create an Asset descriptor without it.
+        entity_type: requiredOf('entityType', entityType),
         departments: idsOf(departments),
-        task_type_id: optionalIdOf(taskTypeId)
+        task_type_id: optionalIdOf(taskType)
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Model} project
@@ -366,20 +486,30 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {string} fieldName
-   * @param {RequestOptions} [options]
+   * @param {{
+   *   entityType?: string,
+   *   taskType?: Model,
+   *   signal?: AbortSignal
+   * }} [options] A field name is unique per entity type only, and per task
+   *   type for Task: without entityType (and taskType for Task), the match is
+   *   any of the descriptors sharing it. The casing of entityType matters.
    * @returns {Promise<Entity|null>} First metadata descriptor of the project
-   *   matching the field name.
+   *   matching the field name, with its departments.
    */
   getMetadataDescriptorByFieldName: async (
     project,
     fieldName,
-    { signal } = {}
+    { entityType, taskType, signal } = {}
   ) =>
     http.fetchFirst(
       'metadata-descriptors',
       {
         project_id: idOf(project),
-        field_name: requiredOf('fieldName', fieldName)
+        field_name: requiredOf('fieldName', fieldName),
+        entity_type: entityType,
+        task_type_id: optionalIdOf(taskType),
+        // A filtered list leaves the departments out without it.
+        relations: true
       },
       { signal }
     ),
@@ -403,8 +533,14 @@ export const projectApi = http => ({
       ),
 
   /**
+   * Change fields of the descriptor. The others keep their value, as do
+   * the fields given as undefined: the descriptor is read first and saved
+   * with the given fields merged in. A new name also renames the field, and
+   * its values move with it.
    * @param {Model} project
-   * @param {{id: string, [field: string]: any}} metadataDescriptor
+   * @param {{id: string, [field: string]: any}} metadataDescriptor The id
+   *   and the fields to change: name, data_type, choices, for_client and
+   *   departments (entities or ids).
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated metadata descriptor.
    */
@@ -412,18 +548,43 @@ export const projectApi = http => ({
     project,
     metadataDescriptor,
     { signal } = {}
-  ) =>
-    http.update(
-      descriptorsOf(project),
-      idOf(metadataDescriptor),
-      Array.isArray(metadataDescriptor.departments)
-        ? {
-            ...metadataDescriptor,
-            departments: idsOf(metadataDescriptor.departments)
-          }
-        : metadataDescriptor,
+  ) => {
+    const id = idOf(metadataDescriptor)
+    const { name, data_type, choices, for_client, departments } =
+      fieldsOf(metadataDescriptor)
+    const changes = changesOf({
+      name,
+      data_type,
+      choices,
+      for_client,
+      departments
+    })
+    // Before any request: a department given by its name is refused.
+    if (changes.departments) idsOf(changes.departments)
+    const current = await http.get(
+      `data/${descriptorsOf(project)}/${id}`,
+      {},
       { signal }
-    ),
+    )
+    // Zou writes every field of the descriptor, its default for a missing
+    // one: a partial body would reset the type, the choices, the departments
+    // and the client visibility. The name is the exception: kept when it is
+    // missing, and any name sent sets the field name from it. A field given
+    // as undefined keeps its value too.
+    const merged = { ...current, ...changes }
+    return http.update(
+      descriptorsOf(project),
+      id,
+      withoutNil({
+        name: changes.name,
+        data_type: merged.data_type,
+        choices: merged.choices,
+        for_client: merged.for_client,
+        departments: idsOf(merged.departments || [])
+      }),
+      { signal }
+    )
+  },
 
   /**
    * Remove the descriptor. Zou also erases the values of its field from
@@ -502,13 +663,20 @@ export const projectApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The team link: project_id, person_id, role.
    */
-  updateTeamMemberRole: async (project, person, role, { signal } = {}) =>
-    http.update(
+  updateTeamMemberRole: async (project, person, role, { signal } = {}) => {
+    // A forgotten role would go out as none, which restores the global one.
+    if (role === undefined) {
+      throw new ParameterError(
+        'Missing parameter: role is required, null restores the global role'
+      )
+    }
+    return http.update(
       `projects/${idOf(project)}/team`,
       idOf(person),
       { role },
       { signal }
-    ),
+    )
+  },
 
   /**
    * @param {Model} project
@@ -546,16 +714,18 @@ export const projectApi = http => ({
     http.fetchAll(settingsOf(project, 'status-automations'), {}, { signal }),
 
   /**
+   * Link a status automation to the project, where it then runs.
    * @param {Model} project
-   * @param {{status_automation_id: string}} automation The payload Zou
-   *   expects, sent as given.
+   * @param {Model} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
   addStatusAutomation: async (project, automation, { signal } = {}) =>
-    http.create(settingsOf(project, 'status-automations'), automation, {
-      signal
-    }),
+    http.create(
+      settingsOf(project, 'status-automations'),
+      { status_automation_id: idOf(automation) },
+      { signal }
+    ),
 
   /**
    * @param {Model} project
@@ -585,19 +755,18 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Links an existing preview background file to the project. This is a JSON
-   * call, not an upload: the file itself is sent when the background is
-   * created.
+   * Link an existing preview background file to the project. This is a JSON
+   * call, not an upload: the file itself is sent with
+   * uploadPreviewBackgroundFile.
    * @param {Model} project
-   * @param {{preview_background_file_id: string}} backgroundFile The payload
-   *   Zou expects, sent as given.
+   * @param {Model} backgroundFile
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The project.
    */
   addPreviewBackgroundFile: async (project, backgroundFile, { signal } = {}) =>
     http.create(
       settingsOf(project, 'preview-background-files'),
-      backgroundFile,
+      { preview_background_file_id: idOf(backgroundFile) },
       { signal }
     ),
 
@@ -630,26 +799,37 @@ export const projectApi = http => ({
   /**
    * @param {Model} project
    * @param {Model} taskType
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The quotas of the task type, by person.
+   * @param {QuotaOptions} [options]
+   * @returns {Promise<Record<string, any>>} The quotas of the task type by
+   *   person id, plus a "total" key: frames, seconds, drawings and shot
+   *   counts by day, week, month and year.
    */
-  getProjectQuotas: async (project, taskType, { signal } = {}) =>
+  getProjectQuotas: async (
+    project,
+    taskType,
+    { countMode, studio, signal } = {}
+  ) =>
     http.fetchAll(
       `projects/${idOf(project)}/quotas/${idOf(taskType)}`,
-      {},
+      { count_mode: countMode, studio_id: optionalIdOf(studio) },
       { signal }
     ),
 
   /**
    * @param {Model} project
    * @param {Model} person
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The quotas of the person, by task type.
+   * @param {QuotaOptions} [options]
+   * @returns {Promise<Record<string, any>>} The quotas of the person by task
+   *   type id, plus a "total" key, in the shape of getProjectQuotas.
    */
-  getProjectPersonQuotas: async (project, person, { signal } = {}) =>
+  getProjectPersonQuotas: async (
+    project,
+    person,
+    { countMode, studio, signal } = {}
+  ) =>
     http.fetchAll(
       `projects/${idOf(project)}/quotas/persons/${idOf(person)}`,
-      {},
+      { count_mode: countMode, studio_id: optionalIdOf(studio) },
       { signal }
     ),
 
@@ -711,44 +891,44 @@ export const projectApi = http => ({
     http.fetchAll(entriesOf(project, budget), {}, { signal }),
 
   /**
+   * Add a line to the budget: a person or a position of a department, paid
+   * a daily salary over some months. gazu takes a name, a date and an
+   * amount instead, which Zou does not read.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} department
+   * @param {Date|string} startDate A Date object or a YYYY-MM-DD string.
+   * @param {number} monthsDuration
+   * @param {number} dailySalary
    * @param {{
    *   person?: Model,
    *   position?: string,
    *   seniority?: string,
-   *   startDate?: Date|string,
-   *   monthsDuration?: number,
-   *   dailySalary?: number,
    *   signal?: AbortSignal
-   * }} [options] startDate is a Date object or a YYYY-MM-DD string.
+   * }} [options] position is supervisor, lead or artist (the default),
+   *   seniority is senior, mid (the default) or junior.
    * @returns {Promise<Entity>} The created budget entry.
    */
   createBudgetEntry: async (
     project,
     budget,
     department,
-    {
-      person,
-      position,
-      seniority,
-      startDate,
-      monthsDuration,
-      dailySalary,
-      signal
-    } = {}
+    startDate,
+    monthsDuration,
+    dailySalary,
+    { person, position, seniority, signal } = {}
   ) =>
     http.create(
       entriesOf(project, budget),
       withoutNil({
         department_id: idOf(department),
         person_id: optionalIdOf(person),
-        position,
-        seniority,
-        start_date: dateOf(startDate),
-        months_duration: monthsDuration,
-        daily_salary: dailySalary
+        position: choiceOf('position', POSITIONS, position),
+        seniority: choiceOf('seniority', SENIORITIES, seniority),
+        // Zou cannot store an entry without them: it answers 500.
+        start_date: dayOf(requiredOf('startDate', startDate)),
+        months_duration: requiredOf('monthsDuration', monthsDuration),
+        daily_salary: requiredOf('dailySalary', dailySalary)
       }),
       { signal }
     ),
@@ -765,15 +945,76 @@ export const projectApi = http => ({
     http.fetchOne(entriesOf(project, budget), idOf(entry), { signal }),
 
   /**
+   * Change fields of the budget entry. The others keep their value, as do
+   * the fields given as undefined, while null clears person_id, position,
+   * seniority or exceptions: the entry is read first and saved whole with
+   * the given fields merged in. The other fields cannot be cleared.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} entry
-   * @param {object} data The fields to change.
+   * @param {Record<string, any>} data The fields to change: department_id,
+   *   person_id, start_date (a Date object or a YYYY-MM-DD string),
+   *   months_duration, daily_salary, position, seniority and exceptions (the
+   *   whole map). position and seniority take the codes of
+   *   createBudgetEntry.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated budget entry.
    */
-  updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) =>
-    http.update(entriesOf(project, budget), idOf(entry), data, { signal }),
+  updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) => {
+    const entries = entriesOf(project, budget)
+    const id = idOf(entry)
+    const {
+      department_id,
+      person_id,
+      start_date,
+      months_duration,
+      daily_salary,
+      position,
+      seniority,
+      exceptions
+    } = fieldsOf(data)
+    const changes = changesOf({
+      department_id,
+      person_id,
+      // A day, as createBudgetEntry takes it.
+      start_date: start_date === undefined ? undefined : dayOf(start_date),
+      months_duration,
+      daily_salary,
+      position: choiceOf('position', POSITIONS, position),
+      seniority: choiceOf('seniority', SENIORITIES, seniority),
+      exceptions
+    })
+    // Zou cannot store an entry without them: it answers 500.
+    const cleared = BUDGET_REQUIRED_FIELDS.filter(
+      field => changes[field] === null
+    )
+    if (cleared.length > 0) {
+      throw new ParameterError(
+        `Missing parameter: ${cleared.join(', ')} cannot be cleared`
+      )
+    }
+    const current = await http.get(`data/${entries}/${id}`, {}, { signal })
+    // Zou writes every field of the entry, null for a missing one: a partial
+    // body would fail on the required ones and clear the person, the
+    // position, the seniority and the exceptions. A field given as undefined
+    // keeps its value too.
+    const merged = { ...current, ...changes }
+    return http.update(
+      entries,
+      id,
+      {
+        department_id: merged.department_id,
+        person_id: merged.person_id,
+        start_date: merged.start_date,
+        months_duration: merged.months_duration,
+        daily_salary: merged.daily_salary,
+        position: merged.position,
+        seniority: merged.seniority,
+        exceptions: merged.exceptions
+      },
+      { signal }
+    )
+  },
 
   /**
    * @param {Model} project
@@ -852,7 +1093,8 @@ export const projectApi = http => ({
    * @param {Model} project
    * @param {Model} taskStatus
    * @param {number} priority
-   * @param {string[]} rolesForBoard Roles seeing the status as a board column.
+   * @param {string[]} rolesForBoard Roles seeing the status as a board
+   *   column, among user, admin, supervisor, manager, client and vendor.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The task status link.
    */
@@ -869,7 +1111,9 @@ export const projectApi = http => ({
         project_id: idOf(project),
         task_status_id: idOf(taskStatus),
         priority: requiredOf('priority', priority),
-        roles_for_board: requiredOf('rolesForBoard', rolesForBoard)
+        roles_for_board: boardRolesOf(
+          requiredOf('rolesForBoard', rolesForBoard)
+        )
       },
       { signal }
     ),
@@ -925,9 +1169,11 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Create the descriptor on every open project.
+   * Create the descriptor on every open project the user manages (all of
+   * them for an admin) that does not have the field yet.
    * @param {string} name
-   * @param {string} entityType Asset, Shot, Edit, Episode or Sequence.
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {{
    *   dataType?: string,
    *   choices?: string[],
@@ -962,7 +1208,8 @@ export const projectApi = http => ({
     ),
 
   /**
-   * Update the descriptors sharing a field name on every open project.
+   * Update the descriptors sharing a field name on every open project the
+   * user manages (all of them for an admin).
    * @param {string} fieldName
    * @param {{entity_type: string, [field: string]: any}} data The full
    *   descriptor, not a partial change: entity_type selects the descriptors
@@ -976,26 +1223,33 @@ export const projectApi = http => ({
     fieldName,
     data,
     { signal } = {}
-  ) =>
-    http.update(
+  ) => {
+    // A forgotten descriptor is reported as its missing entity_type.
+    const descriptor = { ...data }
+    return http.update(
       'metadata-descriptors/all-projects',
       fieldSegmentOf(fieldName),
       {
-        ...data,
-        entity_type: requiredOf('entity_type', data.entity_type),
-        ...(Array.isArray(data.departments)
-          ? { departments: idsOf(data.departments) }
+        ...descriptor,
+        entity_type: requiredOf('entity_type', descriptor.entity_type),
+        ...(Array.isArray(descriptor.departments)
+          ? { departments: idsOf(descriptor.departments) }
           : {})
       },
       { signal }
-    ),
+    )
+  },
 
   /**
-   * Remove the descriptors sharing a field name from every open project.
+   * Remove the descriptors sharing a field name from every open project the
+   * user manages (all of them for an admin). Zou also erases the values of
+   * the field from every entity of that type in those projects (from the
+   * projects themselves for Project).
    * @param {string} fieldName
-   * @param {string} entityType
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {RequestOptions} [options]
-   * @returns {Promise<null>}
+   * @returns {Promise<string[]>} The ids of the removed descriptors.
    */
   removeMetadataDescriptorOnAllProjects: async (
     fieldName,
@@ -1011,8 +1265,10 @@ export const projectApi = http => ({
 
   /**
    * Set the position of the descriptors of an entity type on every open
-   * project from the order of the given field names.
-   * @param {string} entityType
+   * project the user manages (all of them for an admin) from the order of
+   * the given field names.
+   * @param {string} entityType Asset, Shot, Edit, Episode, Sequence or
+   *   Project.
    * @param {string[]} fieldNames
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>} The reordered metadata descriptors.
@@ -1121,18 +1377,24 @@ export const projectApi = http => ({
   },
 
   /**
+   * Save the automation. The output fields it carries are checked like
+   * newStatusAutomation checks them: out_field_type is status or ready_for,
+   * a status output comes with its out_task_status_id, and ready_for only
+   * works on assets.
    * @param {Entity} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated status automation.
    */
-  updateStatusAutomation: async (automation, { signal } = {}) =>
-    http.update('status-automations', idOf(automation), automation, {
-      signal
-    }),
+  updateStatusAutomation: async (automation, { signal } = {}) => {
+    const id = idOf(automation)
+    checkOutputOf(automation)
+    return http.update('status-automations', id, automation, { signal })
+  },
 
   /**
    * Delete the automation itself. removeStatusAutomation only unlinks it
-   * from a project.
+   * from a project. Zou refuses it (ParameterError) while a project or a
+   * project template links the automation: unlink it first.
    * @param {Model} automation
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
@@ -1195,7 +1457,9 @@ export const projectApi = http => ({
 
   /**
    * Delete the background itself. removePreviewBackgroundFile only unlinks it
-   * from a project.
+   * from a project. Zou refuses it (ParameterError) while a project or a
+   * project template links the background or has it as its default: unlink
+   * it first.
    * @param {Model} backgroundFile
    * @param {RequestOptions} [options]
    * @returns {Promise<null>}
@@ -1209,29 +1473,34 @@ export const projectApi = http => ({
     ),
 
   /**
+   * Send the HDR file of the background. Its name must end in .hdr: Zou
+   * deletes the background, record and stored files, when it gets any other
+   * name, so it is refused here.
    * @param {Model} backgroundFile
-   * @param {Blob} file The HDR file, a Blob or a File.
+   * @param {Blob} file The HDR file, a Blob or a File. A bare Blob needs
+   *   fileName.
    * @param {{
    *   fileName?: string,
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal
-   * }} [options] fileName names a Blob that has no name. onProgress needs
-   *   XMLHttpRequest (browsers, webviews): fetch cannot report it. A client
-   *   given its own fetch (Tauri) uploads through it and never calls
-   *   onProgress.
+   * }} [options] fileName names the file in place of its own name.
+   *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
+   *   report it. A client given its own fetch (Tauri) calls it only with
+   *   xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<Entity>} The preview background file.
    */
   uploadPreviewBackgroundFile: async (
     backgroundFile,
     file,
     { fileName, onProgress, signal } = {}
-  ) =>
-    http.upload(`pictures/preview-background-files/${idOf(backgroundFile)}`, {
-      file,
-      fileName,
-      onProgress,
-      signal
-    }),
+  ) => {
+    checkHdrName(file, fileName)
+    return http.upload(
+      `pictures/preview-background-files/${idOf(backgroundFile)}`,
+      { file, fileName, onProgress, signal }
+    )
+  },
 
   /**
    * @param {Model} project

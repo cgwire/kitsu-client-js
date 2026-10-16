@@ -4,17 +4,21 @@ import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   BUILD_JOB_ID,
+  DEPARTMENT_ID,
   ENTITY_ID,
   EPISODE_ID,
   OTHER_ID,
+  PERSON_ID,
   PLAYLIST_ID,
   PREVIEW_FILE_ID,
   PROJECT_ID,
   SHOT_ID,
+  STUDIO_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
 const NEWER_PREVIEW_ID = 'c4c4c4c4-c4c4-4c4c-8c4c-c4c4c4c4c4c4'
+const MODELING_PREVIEW_ID = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0'
 const TOKEN = 'c5c5c5c5-c5c5-4c5c-8c5c-c5c5c5c5c5c5'
 
 // A row of allPlaylistsForProject or allPlaylistsForEpisode: the list routes
@@ -32,10 +36,23 @@ const STORED_ENTRIES = [
 ]
 const STORED = { id: PLAYLIST_ID, name: 'Dailies', shots: STORED_ENTRIES }
 
-// Bodies are compared without their id: an update sends it in its path, and
-// whether the body repeats it is up to http.update.
-const withoutId = body =>
-  Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
+// What getPlaylist answers: the CRUD read, its build jobs included.
+const READ = {
+  type: 'Playlist',
+  id: PLAYLIST_ID,
+  name: 'Dailies',
+  shots: STORED_ENTRIES,
+  project_id: PROJECT_ID,
+  episode_id: null,
+  task_type_id: null,
+  for_client: false,
+  for_entity: 'shot',
+  is_for_all: false,
+  created_by: PERSON_ID,
+  build_jobs: [BUILD_JOB_ID],
+  created_at: '2026-10-01T10:00:00',
+  updated_at: '2026-10-02T10:00:00'
+}
 
 describe('playlist namespace: writes', () => {
   let kitsu, fake
@@ -73,24 +90,90 @@ describe('playlist namespace: writes', () => {
       episode: { id: EPISODE_ID },
       forEntity: 'asset',
       forClient: true,
-      isForAll: true
+      isForAll: true,
+      taskType: { id: TASK_TYPE_ID }
     })
+    expect(fake.calls[0].query.get('episode_id')).toBe(EPISODE_ID)
     expect(fake.calls[1].body).toEqual({
       name: 'Dailies',
       project_id: PROJECT_ID,
       for_entity: 'asset',
       for_client: true,
       is_for_all: true,
-      episode_id: EPISODE_ID
+      episode_id: EPISODE_ID,
+      task_type_id: TASK_TYPE_ID
     })
   })
 
   it('newPlaylist returns the existing playlist instead of creating', async () => {
-    fake.reply(200, [{ id: PLAYLIST_ID, name: 'Dailies' }])
+    const playlist = { id: PLAYLIST_ID, name: 'Dailies', episode_id: null }
+    fake.reply(200, [playlist])
+    expect(await kitsu.playlist.newPlaylist(PROJECT_ID, 'Dailies')).toEqual(
+      playlist
+    )
+    expect(fake.calls).toHaveLength(1)
+  })
+
+  // What Zou answers to the name filter without episode filter: the
+  // playlists of every episode.
+  it('newPlaylist creates the playlist next to the one of an episode', async () => {
+    const row = { id: OTHER_ID, name: 'Dailies', episode_id: EPISODE_ID }
+    fake.reply(200, [row]).reply(201, { id: PLAYLIST_ID, name: 'Dailies' })
     expect(await kitsu.playlist.newPlaylist(PROJECT_ID, 'Dailies')).toEqual({
       id: PLAYLIST_ID,
       name: 'Dailies'
     })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/playlists'
+    })
+  })
+
+  // Both without episode, where Zou keeps no name unique: the All playlist
+  // of the shots is not the Main Pack one of the assets.
+  it('newPlaylist creates an All playlist next to a Main Pack one of that name', async () => {
+    const mainPack = {
+      id: OTHER_ID,
+      name: 'Client review',
+      episode_id: null,
+      is_for_all: false,
+      for_entity: 'asset'
+    }
+    fake.reply(200, [mainPack]).reply(201, { id: PLAYLIST_ID })
+    expect(
+      await kitsu.playlist.newPlaylist(PROJECT_ID, 'Client review', {
+        isForAll: true,
+        forEntity: 'shot'
+      })
+    ).toEqual({ id: PLAYLIST_ID })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/playlists',
+      body: {
+        name: 'Client review',
+        project_id: PROJECT_ID,
+        for_entity: 'shot',
+        for_client: false,
+        is_for_all: true
+      }
+    })
+  })
+
+  it('newPlaylist returns the All playlist of the same entity type', async () => {
+    const allAssets = {
+      id: OTHER_ID,
+      name: 'Client review',
+      episode_id: null,
+      is_for_all: true,
+      for_entity: 'asset'
+    }
+    fake.reply(200, [allAssets])
+    expect(
+      await kitsu.playlist.newPlaylist(PROJECT_ID, 'Client review', {
+        isForAll: true,
+        forEntity: 'asset'
+      })
+    ).toEqual(allAssets)
     expect(fake.calls).toHaveLength(1)
   })
 
@@ -103,6 +186,74 @@ describe('playlist namespace: writes', () => {
       path: `/data/playlists/${PLAYLIST_ID}`
     })
     expect(fake.calls[0].body).toEqual({ name: 'Renamed', shots: [] })
+  })
+
+  // Zou serves an entry without preview without the key, and the enriched
+  // reads (getPlaylistForProject) add id and the preview details.
+  it('updatePlaylist sends each entry as its entity and its preview', async () => {
+    const playlist = {
+      id: PLAYLIST_ID,
+      name: 'Dailies',
+      shots: [
+        { entity_id: SHOT_ID },
+        {
+          entity_id: OTHER_ID,
+          id: OTHER_ID,
+          preview_file_id: PREVIEW_FILE_ID,
+          preview_file_extension: 'mp4',
+          preview_files: {}
+        },
+        { entity_id: ENTITY_ID, id: ENTITY_ID, preview_files: {} },
+        { id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    }
+    const copy = structuredClone(playlist)
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist(playlist)
+    expect(fake.calls[0].body).toEqual({
+      name: 'Dailies',
+      shots: [
+        { entity_id: SHOT_ID, preview_file_id: null },
+        { entity_id: OTHER_ID, preview_file_id: PREVIEW_FILE_ID },
+        { entity_id: ENTITY_ID, preview_file_id: null },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    })
+    expect(playlist).toEqual(copy)
+  })
+
+  // Its build_jobs would drop a build job started since the read, which Zou
+  // refuses with a 400.
+  it('updatePlaylist leaves out the build jobs and the read-only keys', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist({
+      ...READ,
+      name: 'Renamed',
+      first_preview_file_id: PREVIEW_FILE_ID
+    })
+    expect(fake.calls[0].body).toEqual({
+      name: 'Renamed',
+      shots: STORED_ENTRIES,
+      project_id: PROJECT_ID,
+      episode_id: null,
+      task_type_id: null,
+      for_client: false,
+      for_entity: 'shot',
+      is_for_all: false,
+      created_by: PERSON_ID
+    })
+  })
+
+  // A playlist read before its first entry carries shots: null, which Zou
+  // answers with a 400.
+  it('updatePlaylist leaves out shots: null', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updatePlaylist({
+      id: PLAYLIST_ID,
+      name: 'Renamed',
+      shots: null
+    })
+    expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
   })
 
   it('updatePlaylist rejects a playlist without id', async () => {
@@ -212,7 +363,37 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(fake.calls[0].body).toEqual({ shots: [{ entity_id: OTHER_ID }] })
+    expect(fake.calls[0].body).toEqual({
+      shots: [{ entity_id: OTHER_ID, preview_file_id: null }]
+    })
+  })
+
+  // A playlist created then filled holds its old shots: null, and saving it
+  // would empty the playlist.
+  it('removeEntityFromPlaylist sends nothing when the entity is not in it', async () => {
+    const playlists = [
+      { id: PLAYLIST_ID, shots: [{ entity_id: OTHER_ID }] },
+      { id: PLAYLIST_ID, shots: null }
+    ]
+    for (const playlist of playlists) {
+      expect(
+        await kitsu.playlist.removeEntityFromPlaylist(playlist, SHOT_ID)
+      ).toEqual({ id: PLAYLIST_ID, shots: playlist.shots || [] })
+    }
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('removeEntityFromPlaylist matches and saves the ids in lowercase', async () => {
+    const removed = 'ABCDEF12-3456-4789-8ABC-DEF123456789'
+    const kept = 'FEDCBA98-7654-4321-8FED-CBA987654321'
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.removeEntityFromPlaylist(
+      { id: PLAYLIST_ID, shots: [{ entity_id: removed }, { entity_id: kept }] },
+      removed
+    )
+    expect(fake.calls[0].body).toEqual({
+      shots: [{ entity_id: kept.toLowerCase(), preview_file_id: null }]
+    })
   })
 
   it('removeEntityFromPlaylist without persist sends nothing', async () => {
@@ -272,6 +453,92 @@ describe('playlist namespace: writes', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // An entity reviewed under two task types: one entry per preview.
+  const REVIEWED_TWICE = {
+    id: PLAYLIST_ID,
+    shots: [
+      { entity_id: SHOT_ID, preview_file_id: MODELING_PREVIEW_ID },
+      { entity_id: OTHER_ID, preview_file_id: MODELING_PREVIEW_ID },
+      { entity_id: SHOT_ID, preview_file_id: PREVIEW_FILE_ID },
+      { entity_id: SHOT_ID }
+    ]
+  }
+
+  it('updateEntityPreview gives the new preview to every entry of the entity', async () => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.updateEntityPreview(
+      REVIEWED_TWICE,
+      SHOT_ID,
+      NEWER_PREVIEW_ID
+    )
+    expect(fake.calls[0].body).toEqual({
+      shots: [
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID },
+        { entity_id: OTHER_ID, preview_file_id: MODELING_PREVIEW_ID },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID },
+        { entity_id: SHOT_ID, preview_file_id: NEWER_PREVIEW_ID }
+      ]
+    })
+  })
+
+  it.each([
+    [{ id: PREVIEW_FILE_ID }, 2],
+    [MODELING_PREVIEW_ID, 0],
+    [null, 3]
+  ])(
+    'updateEntityPreview changes the entry of the previous preview %j only',
+    async (previousPreviewFile, index) => {
+      fake.reply(200, { id: PLAYLIST_ID })
+      const updated = await kitsu.playlist.updateEntityPreview(
+        REVIEWED_TWICE,
+        { id: SHOT_ID },
+        NEWER_PREVIEW_ID,
+        { previousPreviewFile }
+      )
+      const shots = REVIEWED_TWICE.shots.map((entry, position) =>
+        position === index
+          ? { ...entry, preview_file_id: NEWER_PREVIEW_ID }
+          : entry
+      )
+      expect(updated).toEqual({ ...REVIEWED_TWICE, shots })
+      expect(fake.calls[0].body.shots[index]).toEqual({
+        entity_id: SHOT_ID,
+        preview_file_id: NEWER_PREVIEW_ID
+      })
+    }
+  )
+
+  // Saved anyway, a playlist read earlier would undo the entries added since.
+  it('updateEntityPreview sends nothing when no entry has the previous preview', async () => {
+    const updated = await kitsu.playlist.updateEntityPreview(
+      REVIEWED_TWICE,
+      OTHER_ID,
+      NEWER_PREVIEW_ID,
+      { previousPreviewFile: PREVIEW_FILE_ID }
+    )
+    expect(updated).toEqual(REVIEWED_TWICE)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateEntityPreview sends nothing for an entity out of the playlist', async () => {
+    fake.reply(200, STORED)
+    expect(
+      await kitsu.playlist.updateEntityPreview(
+        REVIEWED_TWICE,
+        ENTITY_ID,
+        NEWER_PREVIEW_ID
+      )
+    ).toEqual(REVIEWED_TWICE)
+    expect(
+      await kitsu.playlist.updateEntityPreview(
+        LIST_ROW,
+        ENTITY_ID,
+        NEWER_PREVIEW_ID
+      )
+    ).toEqual({ ...LIST_ROW, shots: STORED_ENTRIES })
+    expect(fake.calls.map(call => call.method)).toEqual(['GET'])
+  })
+
   it('removeEntityFromPlaylist keeps the stored entries of a list row', async () => {
     const row = { ...LIST_ROW }
     const updated = {
@@ -290,8 +557,25 @@ describe('playlist namespace: writes', () => {
       method: 'PUT',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    expect(fake.calls[1].body).toEqual({ shots: updated.shots })
     expect(row).toEqual(LIST_ROW)
+  })
+
+  // Its build_jobs would drop a build job started since the read (Zou then
+  // answers a 400), its other fields would revert the changes made since.
+  it.each([
+    ['removeEntityFromPlaylist', [SHOT_ID]],
+    ['updateEntityPreview', [SHOT_ID, NEWER_PREVIEW_ID]]
+  ])('%s saves only the entries of a read playlist', async (name, args) => {
+    fake.reply(200, { id: PLAYLIST_ID })
+    const updated = await kitsu.playlist[name](READ, ...args)
+    expect(updated).toMatchObject({ ...READ, shots: expect.any(Array) })
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: `/data/playlists/${PLAYLIST_ID}`
+    })
+    expect(fake.calls[0].body).toEqual({ shots: updated.shots })
   })
 
   it('updateEntityPreview keeps the stored entries of a list row', async () => {
@@ -314,7 +598,7 @@ describe('playlist namespace: writes', () => {
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}`
     })
-    expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+    expect(fake.calls[1].body).toEqual({ shots: updated.shots })
   })
 
   it.each([[PLAYLIST_ID], [{ id: PLAYLIST_ID }]])(
@@ -333,7 +617,7 @@ describe('playlist namespace: writes', () => {
         method: 'PUT',
         path: `/data/playlists/${PLAYLIST_ID}`
       })
-      expect(withoutId(fake.calls[1].body)).toEqual(withoutId(updated))
+      expect(fake.calls[1].body).toEqual({ shots: updated.shots })
     }
   )
 
@@ -360,11 +644,13 @@ describe('playlist namespace: writes', () => {
   })
 
   it('updateEntityPreview takes stored shots: null as an empty list', async () => {
-    fake.reply(200, { id: PLAYLIST_ID, shots: null }).reply(200, {})
-    await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
-      id: NEWER_PREVIEW_ID
-    })
-    expect(withoutId(fake.calls[1].body)).toEqual({ shots: [] })
+    fake.reply(200, { id: PLAYLIST_ID, shots: null })
+    expect(
+      await kitsu.playlist.updateEntityPreview(PLAYLIST_ID, SHOT_ID, {
+        id: NEWER_PREVIEW_ID
+      })
+    ).toEqual({ id: PLAYLIST_ID, shots: [] })
+    expect(fake.calls.map(call => call.method)).toEqual(['GET'])
   })
 
   it('addEntityToPlaylist without persist adds to the stored entries', async () => {
@@ -445,6 +731,13 @@ describe('playlist namespace: writes', () => {
       method: 'GET',
       path: `/data/playlists/${PLAYLIST_ID}/build/mp4`
     })
+    expect(fake.calls[0].query.has('full')).toBe(false)
+  })
+
+  it('buildPlaylistMovie asks for a full re-encoding', async () => {
+    fake.reply(200, { id: BUILD_JOB_ID })
+    await kitsu.playlist.buildPlaylistMovie(PLAYLIST_ID, { full: true })
+    expect(fake.calls[0].query.get('full')).toBe('true')
   })
 
   it('generateTempPlaylist posts the generation data', async () => {
@@ -458,6 +751,18 @@ describe('playlist namespace: writes', () => {
       path: `/data/projects/${PROJECT_ID}/playlists/temp`
     })
     expect(fake.calls[0].body).toEqual(data)
+    expect(fake.calls[0].query.has('sort')).toBe(false)
+  })
+
+  it('generateTempPlaylist asks for sorted entries', async () => {
+    fake.reply(200, [])
+    await kitsu.playlist.generateTempPlaylist(
+      PROJECT_ID,
+      { entity_ids: [SHOT_ID] },
+      { sort: true }
+    )
+    expect(fake.calls[0].query.get('sort')).toBe('true')
+    expect(fake.calls[0].body).toEqual({ entity_ids: [SHOT_ID] })
   })
 
   it('notifyClientsPlaylistReady posts an empty body', async () => {
@@ -470,6 +775,18 @@ describe('playlist namespace: writes', () => {
       path: `/data/playlists/${PLAYLIST_ID}/notify-clients`
     })
     expect(fake.calls[0].body).toEqual({})
+  })
+
+  it('notifyClientsPlaylistReady tells the clients of a studio and a department', async () => {
+    fake.reply(200, { status: 'success' })
+    await kitsu.playlist.notifyClientsPlaylistReady(PLAYLIST_ID, {
+      studio: { id: STUDIO_ID },
+      department: DEPARTMENT_ID
+    })
+    expect(fake.calls[0].body).toEqual({
+      studio_id: STUDIO_ID,
+      department_id: DEPARTMENT_ID
+    })
   })
 
   it('newShareLink creates a link open to comments by default', async () => {
@@ -498,6 +815,27 @@ describe('playlist namespace: writes', () => {
     })
   })
 
+  // Zou keeps a link given a day open to the end of that day.
+  it('newShareLink sends the local day of a Date', async () => {
+    fake.reply(201, { token: TOKEN })
+    await kitsu.playlist.newShareLink(PLAYLIST_ID, {
+      expirationDate: new Date(2026, 9, 13, 18, 30)
+    })
+    expect(fake.calls[0].body).toEqual({
+      can_comment: true,
+      expiration_date: '2026-10-13'
+    })
+  })
+
+  it('newShareLink rejects an invalid Date without any request', async () => {
+    await expect(
+      kitsu.playlist.newShareLink(PLAYLIST_ID, {
+        expirationDate: new Date('not a date')
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('newShareLink leaves out a blank date and a blank password', async () => {
     fake.reply(201, { token: TOKEN })
     await kitsu.playlist.newShareLink(PLAYLIST_ID, {
@@ -507,9 +845,13 @@ describe('playlist namespace: writes', () => {
     expect(fake.calls[0].body).toEqual({ can_comment: true })
   })
 
+  // Zou keeps the link, inactive, and answers it.
   it('removeShareLink revokes the link', async () => {
-    fake.reply(204)
-    await kitsu.playlist.removeShareLink({ id: PLAYLIST_ID }, TOKEN)
+    const link = { id: ENTITY_ID, token: TOKEN, is_active: false }
+    fake.reply(200, link)
+    expect(
+      await kitsu.playlist.removeShareLink({ id: PLAYLIST_ID }, TOKEN)
+    ).toEqual(link)
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/playlists/${PLAYLIST_ID}/share/${TOKEN}`
@@ -532,10 +874,17 @@ describe('playlist namespace: writes', () => {
     ['newPlaylist', [PROJECT_ID, 'Dailies']],
     ['updatePlaylist', [{ id: PLAYLIST_ID }]],
     ['addEntityToPlaylist', [PLAYLIST_ID, SHOT_ID]],
-    ['removeEntityFromPlaylist', [{ id: PLAYLIST_ID, shots: [] }, SHOT_ID]],
+    [
+      'removeEntityFromPlaylist',
+      [{ id: PLAYLIST_ID, shots: [{ entity_id: SHOT_ID }] }, SHOT_ID]
+    ],
     [
       'updateEntityPreview',
-      [{ id: PLAYLIST_ID, shots: [] }, SHOT_ID, PREVIEW_FILE_ID]
+      [
+        { id: PLAYLIST_ID, shots: [{ entity_id: SHOT_ID }] },
+        SHOT_ID,
+        PREVIEW_FILE_ID
+      ]
     ],
     ['deletePlaylist', [PLAYLIST_ID]],
     ['removeBuildJob', [PLAYLIST_ID, BUILD_JOB_ID]],

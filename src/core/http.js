@@ -3,6 +3,7 @@ import {
   KitsuError,
   NetworkError,
   NotAuthenticatedError,
+  ParameterError,
   TimeoutError,
   errorFromResponse
 } from './errors.js'
@@ -26,11 +27,18 @@ const encodeBody = body => {
 // The id of an update is in its path. Zou drops it from the body too, but
 // only after comparing the body keys with what the role of the user may
 // write (a supervisor on a task or an entity, anyone but its author on a
-// comment): an id there turns an allowed write into a 403.
-const withoutId = body =>
-  body && typeof body === 'object' && 'id' in body
-    ? Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'id'))
-    : body
+// comment): an id there turns an allowed write into a 403. Anything else
+// than an object (an id given for the entity) would be a meaningless body.
+const fieldsOf = data => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new ParameterError(
+      'Wrong format: expected an object of the fields to update'
+    )
+  }
+  return 'id' in data
+    ? Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'id'))
+    : data
+}
 
 // A JSON body can be a string too, hence the explicit flag.
 const readBody = async response =>
@@ -38,6 +46,100 @@ const readBody = async response =>
     response.status === 204 ? '' : await response.text(),
     response.headers.get('Content-Type') || ''
   )
+
+// An answer of the API that is not the data asked for. The cause option of
+// Error is ES2022: the parse failure is set by hand for the floor.
+const notData = (info, status, detail, body, cause) =>
+  Object.assign(
+    new KitsuError(`${info.method} ${info.path} answered ${status} ${detail}`, {
+      ...info,
+      status,
+      body
+    }),
+    cause && { cause }
+  )
+
+// undici rejects with "fetch failed" and keeps the reason (DNS, TLS, a
+// refused connection) in its cause; the Tauri http plugin rejects with a
+// string.
+const reasonOf = err => {
+  if (typeof err?.message !== 'string') return String(err)
+  const cause = err.cause?.message
+  return typeof cause === 'string' ? `${err.message}: ${cause}` : err.message
+}
+
+// Seconds to wait before asking again, when the answer tells it: Zou sends
+// a number of seconds, HTTP also allows a date.
+const retryAfterOf = response => {
+  const value = (response.headers.get('Retry-After') || '').trim()
+  if (/^\d+$/.test(value)) return Number(value)
+  const date = Date.parse(value)
+  return Number.isNaN(date)
+    ? null
+    : Math.max(0, Math.ceil((date - Date.now()) / 1000))
+}
+
+// The answer with a body that calls release once it ends, fails or is
+// canceled. A stream source of its own: browsers ignore the cancel hook of
+// a transformer. The body of the answer is locked on the first read only:
+// undici cancels an unlocked body once its response is garbage collected.
+// The Response constructor keeps the status and the headers only: the url,
+// redirected and type are copied over.
+const releasing = (response, release) => {
+  let reader = null
+  const body = new ReadableStream(
+    {
+      pull: stream => {
+        reader = reader || response.body.getReader()
+        return reader.read().then(
+          ({ done, value }) => {
+            if (!done) return stream.enqueue(value)
+            release()
+            return stream.close()
+          },
+          err => {
+            release()
+            throw err
+          }
+        )
+      },
+      cancel: reason => {
+        release()
+        return (reader || response.body).cancel(reason)
+      }
+    },
+    { highWaterMark: 0 }
+  )
+  return Object.defineProperties(new Response(body, response), {
+    url: { value: response.url },
+    redirected: { value: response.redirected },
+    type: { value: response.type }
+  })
+}
+
+const abortError = () =>
+  new DOMException('The operation was aborted', 'AbortError')
+
+/**
+ * Settles like the promise, or rejects with an AbortError as soon as the
+ * signal aborts: what the promise stands for goes on for the others, a
+ * shared token refresh for instance.
+ * @template T
+ * @param {Promise<T>} promise
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<T>}
+ */
+export const unlessAborted = (promise, signal) =>
+  signal
+    ? new Promise((resolve, reject) => {
+        const abort = () => reject(abortError())
+        if (signal.aborted) abort()
+        else signal.addEventListener('abort', abort, { once: true })
+        promise
+          .then(resolve, reject)
+          .finally(() => signal.removeEventListener('abort', abort))
+      })
+    : promise
 
 const NOT_STREAMED = Symbol('not streamed')
 
@@ -49,9 +151,10 @@ export const createHttp = (config, session) => {
   const { host, fetch: fetchImpl, timeout, credentials, xhrUploads } = config
   const inflight = new Set()
 
-  // One network attempt. options.raw returns the Response untouched;
-  // options.read(response) reads a successful body that is not JSON (NDJSON,
-  // CSV) inside the attempt, so the deadline and the abort wiring cover it.
+  // One network attempt. options.raw returns the Response, its body left to
+  // the caller; options.read(response) reads a successful body that is not
+  // JSON (NDJSON, CSV) inside the attempt, so the deadline and the abort
+  // wiring cover it.
   // Not AbortSignal.timeout/any: both are above the browser floor.
   const send = async (method, path, options = {}) => {
     const { query, body, headers = {}, signal, raw = false, read } = options
@@ -83,6 +186,7 @@ export const createHttp = (config, session) => {
     const responseTimer = isFormData(body) ? null : arm(timeout.response)
     const deadlineTimer = bounded ? arm(timeout.deadline) : null
     let streaming = false
+    let status = null
 
     try {
       const response = await fetchImpl(url, {
@@ -93,34 +197,54 @@ export const createHttp = (config, session) => {
         credentials
       })
       clearTimeout(responseTimer)
+      status = response.status
       if (!response.ok) {
         const { data } = await readBody(response).catch(() => ({ data: '' }))
-        throw errorFromResponse(response.status, { ...info, body: data || '' })
+        throw errorFromResponse(response.status, {
+          ...info,
+          body: data || '',
+          retryAfter: retryAfterOf(response)
+        })
+      }
+      // Asked for JSON, Zou answers 202 and when to come back for a preview
+      // whose files it still builds: no file yet. Any other client gets a
+      // 404, as for a missing file.
+      if (raw && response.status === 202) {
+        const { data } = await readBody(response).catch(() => ({ data: '' }))
+        throw new KitsuError(
+          `${method} ${path} answered 202: the file is not ready yet`,
+          {
+            ...info,
+            status: 202,
+            body: data || '',
+            retryAfter: retryAfterOf(response)
+          }
+        )
       }
       if (raw && response.body) {
         // The body is still to be read by the caller: the abort wiring
-        // stays until the body is read to its end or an abort (caller
-        // signal, abortAll) releases it.
+        // stays until the body ends, fails or is canceled, or an abort
+        // (caller signal, abortAll) releases it.
         streaming = true
         controller.signal.addEventListener('abort', release, { once: true })
-        // cancel (the caller drops the body) is newer than the DOM typings.
-        const transformer = /** @type {Transformer} */ ({
-          flush: release,
-          cancel: release
-        })
-        const body = response.body.pipeThrough(new TransformStream(transformer))
-        return new Response(body, response)
+        return releasing(response, release)
       }
       if (raw) return response
-      if (read) return await read(response)
-      const { data, isJson } = await readBody(response)
-      // A page served with a 2xx (host without "/api", SSO portal) must not
-      // reach the caller as if it were data.
+      // A page served with a 2xx (host without "/api", SSO portal), or JSON
+      // cut short, must not reach the caller as if it were data. Zou never
+      // answers HTML to the reads of another type (CSV, NDJSON) either.
+      if (read) {
+        const type = response.headers.get('Content-Type') || ''
+        if (type.includes('text/html')) {
+          const page = await response.text()
+          throw notData(info, response.status, 'with an HTML page', page)
+        }
+        return await read(response)
+      }
+      const { data, isJson, error } = await readBody(response)
       if (!isJson) {
-        throw new KitsuError(
-          `${method} ${path} answered ${response.status} without JSON`,
-          { ...info, status: response.status, body: data }
-        )
+        const detail = error ? 'with malformed JSON' : 'without JSON'
+        throw notData(info, response.status, detail, data, error)
       }
       return data
     } catch (err) {
@@ -128,12 +252,18 @@ export const createHttp = (config, session) => {
       // Decided from the controller, not from the shape of the rejection:
       // injected fetches (Tauri) do not all reject with an AbortError.
       if (controller.signal.aborted) {
-        throw err.name === 'AbortError'
-          ? err
-          : new DOMException('The operation was aborted', 'AbortError')
+        throw err?.name === 'AbortError' ? err : abortError()
       }
-      if (err instanceof KitsuError || err instanceof SyntaxError) throw err
-      throw new NetworkError(`${method} ${path} failed: ${err.message}`, info)
+      if (err instanceof KitsuError) throw err
+      // A body read by options.read that does not parse (NDJSON): the API
+      // answered, so this is no transport failure.
+      if (err instanceof SyntaxError) {
+        throw notData(info, status, 'with a malformed body', '', err)
+      }
+      throw Object.assign(
+        new NetworkError(`${method} ${path} failed: ${reasonOf(err)}`, info),
+        { cause: err }
+      )
     } finally {
       clearTimeout(responseTimer)
       clearTimeout(deadlineTimer)
@@ -141,7 +271,9 @@ export const createHttp = (config, session) => {
     }
   }
 
-  const withAuthReplay = async attempt => {
+  // signal is the one of the caller: giving up while a refresh is pending
+  // rejects at once.
+  const withAuthReplay = async (attempt, signal) => {
     const generation = session.generation()
     const used = session.headers()
     // logIn, logOut or setToken happened since the request left: its 401
@@ -158,11 +290,13 @@ export const createHttp = (config, session) => {
         session.headers().Authorization !== used.Authorization
       if (!renewedMeanwhile) {
         const refreshError = session.canRefresh()
-          ? await session.refresh(send).then(
+          ? await unlessAborted(session.refresh(send), signal).then(
               () => null,
               failure => failure
             )
           : err
+        // An abort of the caller wins over the outcome of the refresh.
+        if (signal?.aborted) throw abortError()
         if (replaced()) throw err
         // Only an answer of the API tells the session is lost: a network
         // failure, a timeout or close() says nothing about the refresh token.
@@ -186,11 +320,13 @@ export const createHttp = (config, session) => {
   const request = (method, path, options = {}) =>
     options.skipAuth
       ? send(method, path, options)
-      : withAuthReplay(headers =>
-          send(method, path, {
-            ...options,
-            headers: { ...headers, ...options.headers }
-          })
+      : withAuthReplay(
+          headers =>
+            send(method, path, {
+              ...options,
+              headers: { ...headers, ...options.headers }
+            }),
+          options.signal
         )
 
   const get = (path, query, options) =>
@@ -225,10 +361,9 @@ export const createHttp = (config, session) => {
       if (entities !== NOT_STREAMED) return entities
     } catch (err) {
       const answered =
-        err instanceof SyntaxError ||
-        (err instanceof KitsuError &&
-          err.status &&
-          !(err instanceof NotAuthenticatedError))
+        err instanceof KitsuError &&
+        err.status &&
+        !(err instanceof NotAuthenticatedError)
       if (!answered) throw err
     }
     return get(path, query, options)
@@ -263,10 +398,14 @@ export const createHttp = (config, session) => {
   })
 
   /**
+   * A file Zou still builds (the pictures and movies of a new preview)
+   * rejects with a KitsuError of status 202, whose retryAfter tells when
+   * to ask again.
    * @param {string} path
    * @param {{query?: object, signal?: AbortSignal}} [options]
    * @returns {Promise<Response>} The raw response: the caller reads
-   *   .blob() or .body. The client never writes to disk.
+   *   .blob() or .body, or cancels the body it does not want, which holds
+   *   its connection until then. The client never writes to disk.
    */
   const download = (path, { query, signal } = {}) =>
     request('GET', path, { query, signal, raw: true })
@@ -291,8 +430,8 @@ export const createHttp = (config, session) => {
     fetchOne: (model, id, options) =>
       orNull(get(`data/${model}/${id}`, {}, options)),
     create: (model, data, options) => post(`data/${model}`, data, options),
-    update: (model, id, data, options) =>
-      put(`data/${model}/${id}`, withoutId(data), options),
+    update: async (model, id, data, options) =>
+      put(`data/${model}/${id}`, fieldsOf(data), options),
     remove: (model, id, query, options) =>
       request('DELETE', `data/${model}/${id}`, { ...options, query }),
     abortAll: () => inflight.forEach(controller => controller.abort())

@@ -1,10 +1,37 @@
-import { datetimeOf, idsOf, optionalIdOf } from '../core/params.js'
+import { ParameterError } from '../core/errors.js'
+import {
+  datetimeOf,
+  idsOf,
+  optionalIdOf,
+  refuseUnknownOptions
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// null is no filter, as for the other options. Anything but a list, a single
+// person included, is refused before any request, and so is an empty list:
+// Zou would read it as no filter and list every person.
+const personIdsOf = persons => {
+  if (persons === null || persons === undefined) return []
+  if (Array.isArray(persons) && persons.length > 0) return idsOf(persons)
+  throw new ParameterError(
+    'Wrong format: persons must be a non-empty list of ids or entities'
+  )
+}
+
+// Zou reads an empty list of names as no filter, and lists every event.
+const namesOf = (label, names) => {
+  if (Array.isArray(names) && names.length === 0) {
+    throw new ParameterError(
+      `Missing parameter: ${label} must be a non-empty list`
+    )
+  }
+  return names
+}
 
 export const eventApi = http => ({
   /**
@@ -23,10 +50,10 @@ export const eventApi = http => ({
    *   nameSuffixes?: string[],
    *   signal?: AbortSignal
    * }} [options] name keeps one event name ("task:update"). A Date for
-   *   after or before is sent to the second, in UTC. lastEvent is the last
-   *   event of the previous page (cursor pagination). The API caps limit at
-   *   1000.
-   * @returns {Promise<Entity[]>}
+   *   after or before is sent to the second, in UTC. The API answers one
+   *   page of limit events, 100 by default and 1000 at most: lastEvent is
+   *   the last event of the previous page (cursor pagination).
+   * @returns {Promise<Entity[]>} One page of events.
    */
   allLastEvents: async ({
     after,
@@ -39,9 +66,11 @@ export const eventApi = http => ({
     name,
     namePrefixes,
     nameSuffixes,
-    signal
-  } = {}) =>
-    http.get(
+    signal,
+    ...others
+  } = {}) => {
+    refuseUnknownOptions(others)
+    return http.get(
       'data/events/last',
       {
         after: datetimeOf(after),
@@ -50,13 +79,14 @@ export const eventApi = http => ({
         cursor_event_id: optionalIdOf(lastEvent),
         project_id: optionalIdOf(project),
         only_files: onlyFiles ? true : null,
-        person_ids: idsOf(persons),
+        person_ids: personIdsOf(persons),
         name,
-        name_prefixes: namePrefixes,
-        name_suffixes: nameSuffixes
+        name_prefixes: namesOf('namePrefixes', namePrefixes),
+        name_suffixes: namesOf('nameSuffixes', nameSuffixes)
       },
       { signal }
-    ),
+    )
+  },
 
   /**
    * List the names of the events recorded by the API.
@@ -76,9 +106,10 @@ export const eventApi = http => ({
    *   persons?: Model[],
    *   signal?: AbortSignal
    * }} [options] A Date for after or before is sent to the second, in UTC.
-   *   lastLoginLog is the last log of the previous page (cursor pagination).
-   *   The API caps limit at 1000.
-   * @returns {Promise<Entity[]>}
+   *   The API answers one page of limit logs, 100 by default and 1000 at
+   *   most: lastLoginLog is the last log of the previous page (cursor
+   *   pagination).
+   * @returns {Promise<Entity[]>} One page of login logs.
    */
   allLastLoginLogs: async ({
     after,
@@ -86,17 +117,20 @@ export const eventApi = http => ({
     limit,
     lastLoginLog,
     persons,
-    signal
-  } = {}) =>
-    http.get(
+    signal,
+    ...others
+  } = {}) => {
+    refuseUnknownOptions(others)
+    return http.get(
       'data/events/login-logs/last',
       {
         after: datetimeOf(after),
         before: datetimeOf(before),
         limit,
         cursor_login_log_id: optionalIdOf(lastLoginLog),
-        person_ids: idsOf(persons)
+        person_ids: personIdsOf(persons)
       },
       { signal }
     )
+  }
 })

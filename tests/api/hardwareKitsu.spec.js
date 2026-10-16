@@ -56,10 +56,28 @@ describe('hardware namespace: Kitsu parity', () => {
     })
   })
 
-  it('newHardwareItem leaves the unset options out of the body', async () => {
+  // short_name is NOT NULL in Zou: without it, the item is refused (400).
+  it('newHardwareItem sends an empty short name when none is given', async () => {
+    fake
+      .reply(201, { id: HARDWARE_ITEM_ID })
+      .reply(201, { id: HARDWARE_ITEM_ID })
+    await kitsu.hardware.newHardwareItem('Workstation')
+    await kitsu.hardware.newHardwareItem('Tablet', { shortName: null })
+    expect(fake.calls[0].body).toEqual({ name: 'Workstation', short_name: '' })
+    expect(fake.calls[1].body).toEqual({ name: 'Tablet', short_name: '' })
+  })
+
+  it('newHardwareItem leaves the other unset options out of the body', async () => {
     fake.reply(201, { id: HARDWARE_ITEM_ID })
-    await kitsu.hardware.newHardwareItem('Workstation', { monthlyCost: 0 })
-    expect(fake.calls[0].body).toEqual({ name: 'Workstation', monthly_cost: 0 })
+    await kitsu.hardware.newHardwareItem('Workstation', {
+      shortName: 'WS',
+      monthlyCost: 0
+    })
+    expect(fake.calls[0].body).toEqual({
+      name: 'Workstation',
+      short_name: 'WS',
+      monthly_cost: 0
+    })
   })
 
   it('newHardwareItem rejects a blank name', async () => {
@@ -103,9 +121,28 @@ describe('hardware namespace: Kitsu parity', () => {
     expect(fake.calls[0].body).toEqual({ archived: false })
   })
 
-  it('removeHardwareItem deletes the item', async () => {
+  it('updateHardwareItem refuses an item holding none of its fields', async () => {
+    await expect(
+      kitsu.hardware.updateHardwareItem({
+        id: HARDWARE_ITEM_ID,
+        shortName: 'WS'
+      })
+    ).rejects.toThrow(/nothing to save/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateHardwareItem rejects an id given in place of the item', async () => {
+    await expect(
+      kitsu.hardware.updateHardwareItem(HARDWARE_ITEM_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('removeHardwareItem deletes the item and resolves null', async () => {
     fake.reply(204)
-    await kitsu.hardware.removeHardwareItem({ id: HARDWARE_ITEM_ID })
+    expect(
+      await kitsu.hardware.removeHardwareItem({ id: HARDWARE_ITEM_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/hardware-items/${HARDWARE_ITEM_ID}`
@@ -138,12 +175,14 @@ describe('hardware namespace: Kitsu parity', () => {
     expect(fake.calls[0].body).toEqual({ hardware_item_id: HARDWARE_ITEM_ID })
   })
 
-  it('removeHardwareItemFromDepartment unlinks the item', async () => {
+  it('removeHardwareItemFromDepartment unlinks the item and resolves null', async () => {
     fake.reply(204)
-    await kitsu.hardware.removeHardwareItemFromDepartment(
-      DEPARTMENT_ID,
-      HARDWARE_ITEM_ID
-    )
+    expect(
+      await kitsu.hardware.removeHardwareItemFromDepartment(
+        DEPARTMENT_ID,
+        HARDWARE_ITEM_ID
+      )
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/departments/${DEPARTMENT_ID}/hardware-items/${HARDWARE_ITEM_ID}`

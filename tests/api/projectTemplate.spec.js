@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { PROJECT_ID } from '../helpers/ids.js'
+import { OTHER_ID, PROJECT_ID } from '../helpers/ids.js'
 
 const TEMPLATE_ID = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1'
 
@@ -55,6 +55,40 @@ describe('projectTemplate namespace: templates', () => {
     expect(fake.calls[0].query.get('name')).toBe('Feature')
   })
 
+  // Zou matches with ILIKE: "_" and "%" are wildcards and the case is
+  // ignored, in no set order.
+  it('getProjectTemplateByName keeps the template of that name, its exact case first', async () => {
+    fake
+      .reply(200, [
+        { id: OTHER_ID, name: 'feature' },
+        { id: TEMPLATE_ID, name: 'Feature' }
+      ])
+      .reply(200, [{ id: OTHER_ID, name: 'TV-show' }])
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('Feature')
+    ).toMatchObject({ id: TEMPLATE_ID })
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('TV_show')
+    ).toBeNull()
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('getProjectTemplateByName escapes the backslash and the wildcards of LIKE', async () => {
+    const template = { id: TEMPLATE_ID, name: 'TV\\Show_100%' }
+    fake.reply(200, [template]).reply(200, [])
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('TV\\Show_100%')
+    ).toEqual(template)
+    expect(
+      await kitsu.projectTemplate.getProjectTemplateByName('Feature\\')
+    ).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'TV\\\\Show\\_100\\%',
+      'Feature\\\\'
+    ])
+  })
+
   it('getProjectTemplateByName rejects a blank name', async () => {
     await expect(
       kitsu.projectTemplate.getProjectTemplateByName('')
@@ -95,6 +129,20 @@ describe('projectTemplate namespace: templates', () => {
     })
   })
 
+  // Zou answers 500 to a creation without a name.
+  it('newProjectTemplate and newProjectTemplateFromProject reject a missing name', async () => {
+    await expect(
+      kitsu.projectTemplate.newProjectTemplate()
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.newProjectTemplate('')
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.newProjectTemplateFromProject(PROJECT_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateProjectTemplate saves the template', async () => {
     const template = { id: TEMPLATE_ID, name: 'Renamed' }
     fake.reply(200, template)
@@ -107,6 +155,40 @@ describe('projectTemplate namespace: templates', () => {
     })
     expect(fake.calls[0].body).toEqual({ name: 'Renamed' })
     expect(template).toEqual({ id: TEMPLATE_ID, name: 'Renamed' })
+  })
+
+  // Zou sets the background links from preview_background_files: a template
+  // read earlier would undo the links made since.
+  it('updateProjectTemplate leaves the link lists out', async () => {
+    const template = {
+      id: TEMPLATE_ID,
+      name: 'Feature',
+      description: 'v2',
+      fps: '24',
+      task_types: [OTHER_ID],
+      task_statuses: [OTHER_ID],
+      asset_types: [OTHER_ID],
+      status_automations: [OTHER_ID],
+      preview_background_files: [OTHER_ID],
+      default_preview_background_file_id: null
+    }
+    fake.reply(200, { id: TEMPLATE_ID, name: 'Feature', description: 'v2' })
+    await kitsu.projectTemplate.updateProjectTemplate(template)
+    expect(fake.calls[0].body).toEqual({
+      name: 'Feature',
+      description: 'v2',
+      fps: '24',
+      default_preview_background_file_id: null
+    })
+    expect(template.preview_background_files).toEqual([OTHER_ID])
+  })
+
+  // An id would reach the body as one key per character.
+  it('updateProjectTemplate refuses a template given as its id', async () => {
+    await expect(
+      kitsu.projectTemplate.updateProjectTemplate(TEMPLATE_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeProjectTemplate deletes the template', async () => {
@@ -173,5 +255,18 @@ describe('projectTemplate namespace: templates', () => {
       path: `/data/project-templates/${TEMPLATE_ID}/metadata-descriptors`
     })
     expect(fake.calls[0].body).toEqual({ metadata_descriptors: descriptors })
+  })
+
+  // Zou takes a missing list for an empty one, which erases the snapshot.
+  it('setProjectTemplateMetadataDescriptors rejects a missing list', async () => {
+    await expect(
+      kitsu.projectTemplate.setProjectTemplateMetadataDescriptors(TEMPLATE_ID)
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.projectTemplate.setProjectTemplateMetadataDescriptors(TEMPLATE_ID, {
+        name: 'Difficulty'
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 })

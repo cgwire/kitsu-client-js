@@ -93,9 +93,28 @@ describe('customAction namespace', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Publish' })
   })
 
-  it('removeCustomAction deletes the action', async () => {
+  it('updateCustomAction refuses an action holding none of its fields', async () => {
+    await expect(
+      kitsu.customAction.updateCustomAction({
+        id: CUSTOM_ACTION_ID,
+        entityType: 'shot'
+      })
+    ).rejects.toThrow(/nothing to save/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateCustomAction rejects an id given in place of the action', async () => {
+    await expect(
+      kitsu.customAction.updateCustomAction(CUSTOM_ACTION_ID)
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('removeCustomAction deletes the action and resolves null', async () => {
     fake.reply(204).reply(204)
-    await kitsu.customAction.removeCustomAction(CUSTOM_ACTION_ID)
+    expect(
+      await kitsu.customAction.removeCustomAction(CUSTOM_ACTION_ID)
+    ).toBeNull()
     await kitsu.customAction.removeCustomAction({ id: CUSTOM_ACTION_ID })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',

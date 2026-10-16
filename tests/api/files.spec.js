@@ -6,7 +6,8 @@ import {
   ASSET_INSTANCE_ID,
   ENTITY_ID,
   OTHER_ID,
-  SHOT_ID
+  SHOT_ID,
+  SOFTWARE_ID
 } from '../helpers/ids.js'
 
 describe('files namespace: output types, softwares and file status', () => {
@@ -144,6 +145,23 @@ describe('files namespace: output types, softwares and file status', () => {
     expect(fake.calls[3].body.secondary_extensions).toEqual(['mb'])
   })
 
+  it('newSoftware sends the license fields of the Kitsu form', async () => {
+    fake.reply(200, []).reply(201, { id: OTHER_ID })
+    await kitsu.files.newSoftware('Maya', 'maya', 'ma', {
+      version: '2026',
+      monthlyCost: 0,
+      inventoryAmount: 12
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Maya',
+      short_name: 'maya',
+      file_extension: 'ma',
+      version: '2026',
+      monthly_cost: 0,
+      inventory_amount: 12
+    })
+  })
+
   it('newSoftware returns the existing software without creating', async () => {
     fake.reply(200, [{ id: OTHER_ID, name: 'Maya' }])
     expect(await kitsu.files.newSoftware('Maya', 'maya', 'ma')).toEqual({
@@ -204,6 +222,59 @@ describe('files namespace: output types, softwares and file status', () => {
       name: 'Approved'
     })
     expect(fake.calls).toHaveLength(1)
+  })
+
+  // Zou filters a name with ILIKE, whose escape character is the backslash:
+  // left as is, "Rig_Cache" would also find "Rig Cache".
+  it('name lookups escape the LIKE wildcards', async () => {
+    fake.reply(200, []).reply(200, []).reply(200, [])
+    await kitsu.files.getOutputTypeByName('Rig_Cache')
+    await kitsu.files.getSoftwareByName('100%\\maya')
+    await kitsu.files.getFileStatusByName('WIP_%')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Rig\\_Cache',
+      '100\\%\\\\maya',
+      'WIP\\_\\%'
+    ])
+  })
+
+  // Zou keeps "Maya" and "maya" apart, and its ILIKE filter finds both.
+  it('name lookups prefer the exact spelling over another case', async () => {
+    const both = [
+      { id: OTHER_ID, name: 'Maya' },
+      { id: SOFTWARE_ID, name: 'maya' }
+    ]
+    fake.reply(200, both).reply(200, [both[0]]).reply(200, both)
+    expect(await kitsu.files.getSoftwareByName('maya')).toEqual(both[1])
+    expect(await kitsu.files.getSoftwareByName('maya')).toEqual(both[0])
+    expect(await kitsu.files.newSoftware('Maya', 'maya', 'ma')).toEqual(both[0])
+    expect(fake.calls).toHaveLength(3)
+  })
+
+  it('new* functions create the record under its raw name', async () => {
+    fake
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+      .reply(200, [])
+      .reply(201, { id: OTHER_ID })
+    await kitsu.files.newOutputType('Rig_Cache', 'rc')
+    await kitsu.files.newSoftware('Maya_2026', 'maya', 'ma')
+    await kitsu.files.newFileStatus('WIP_internal', '#ff0000')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Rig\\_Cache',
+      null,
+      'Maya\\_2026',
+      null,
+      'WIP\\_internal',
+      null
+    ])
+    expect([1, 3, 5].map(index => fake.calls[index].body.name)).toEqual([
+      'Rig_Cache',
+      'Maya_2026',
+      'WIP_internal'
+    ])
   })
 
   it('first-match lookups reject a blank filter before any request', async () => {

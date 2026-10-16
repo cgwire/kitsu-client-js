@@ -28,6 +28,8 @@ describe('errorFromResponse', () => {
     [403, NotAllowedError, 'NotAllowedError'],
     [404, NotFoundError, 'NotFoundError'],
     [413, TooBigFileError, 'TooBigFileError'],
+    // A token Zou cannot decode, signed with a former secret key for one.
+    [422, NotAuthenticatedError, 'NotAuthenticatedError'],
     [500, ServerError, 'ServerError'],
     [503, ServerError, 'ServerError'],
     [418, KitsuError, 'KitsuError']
@@ -37,6 +39,15 @@ describe('errorFromResponse', () => {
     expect(err).toBeInstanceOf(KitsuError)
     expect(err.name).toBe(name)
     expect(err).toMatchObject({ status, ...info })
+  })
+})
+
+describe('retryAfter', () => {
+  it('carries the delay an answer asks to wait, null by default', () => {
+    const busy = errorFromResponse(503, { ...info, retryAfter: 5 })
+    expect(busy.retryAfter).toBe(5)
+    expect(errorFromResponse(500, info).retryAfter).toBeNull()
+    expect(new KitsuError('boom').retryAfter).toBeNull()
   })
 })
 

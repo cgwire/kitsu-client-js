@@ -6,7 +6,7 @@
     "route": "/data/assets | /data/assets/with-tasks",
     "client": "asset.allAssets | asset.allAssetsWithTasks",
     "status": "added",
-    "note": "Plain route (withTasks false): asset.allAssets, the filtered CRUD list shared with getSharedAssets (query project_id, episode_id). asset.allAssetsForEpisode hits the same route but forces a source_id filter. With-tasks route: asset.allAssetsWithTasks, which needs an NDJSON variant built on http.getNdjson (Kitsu uses pgetNdjson there). Query: project_id, episode_id."
+    "note": "Plain route (withTasks false): asset.allAssets, the filtered CRUD list shared with getSharedAssets (query project_id, episode_id). asset.allAssetsForEpisode hits the same route but forces a source_id filter. With-tasks route: asset.allAssetsWithTasks, which needs an NDJSON variant built on http.getNdjson (Kitsu uses pgetNdjson there). Query: project_id, episode_id. allAssetsWithTasks requires the project, positional like in Kitsu: without it, Zou lists every production to an admin."
   },
   {
     "module": "assets",
@@ -78,7 +78,7 @@
     "route": "/actions/assets/share | /actions/projects/<id>/assets/share | /actions/projects/<id>/asset-types/<id>/assets/share",
     "client": "asset.shareAssets",
     "status": "added",
-    "note": "Route depends on the optional project and asset type. Body: asset_ids, is_shared. Kitsu writes a trailing slash on the path."
+    "note": "Route depends on the optional project and asset type. Body: asset_ids, is_shared. Kitsu writes a trailing slash on the path. The client refuses an empty assets list, which Zou reads as every asset of the project: all: true asks for the whole project, like the import from a production in Kitsu."
   },
   {
     "module": "assets",
@@ -114,7 +114,7 @@
     "route": "/data/entity-types",
     "client": "asset.newAssetType",
     "status": "existing",
-    "note": "The client takes only a name and first looks the type up by name (extra GET): short_name, description and task_types need an options argument."
+    "note": "The client first looks the type up by name among the asset types (extra GET) and returns it when it exists. short_name, description and task_types are the shortName, description and taskTypes options."
   },
   {
     "module": "assettypes",
@@ -123,7 +123,7 @@
     "route": "/data/entity-types/<id>",
     "client": "asset.updateAssetType",
     "status": "existing",
-    "note": "The client only sends the name: short_name, description, task_types and archived must be added to the body."
+    "note": "The client sends the editable fields of the object it is given: name, short_name, description, task_types (as ids) and archived. Kitsu sends all of them."
   },
   {
     "module": "assettypes",
@@ -186,7 +186,7 @@
     "route": "/pictures/preview-background-files/<id>",
     "client": "project.uploadPreviewBackgroundFile",
     "status": "added",
-    "note": "FormData upload (field file): build on http.upload like task preview uploads."
+    "note": "FormData upload (field file): build on http.upload like task preview uploads. The client refuses a file name that does not end in .hdr, a bare Blob without fileName included: Zou deletes the background and its stored files for any other name."
   },
   {
     "module": "breakdown",
@@ -222,7 +222,7 @@
     "route": "/data/projects/<id>/entities/casting",
     "client": "casting.updateCastings",
     "status": "added",
-    "note": "Bulk update of several entities in one PUT. The client only has the per-entity PUT (updateShotCasting, updateAssetCasting, updateEpisodeCasting on entities/<id>/casting)."
+    "note": "Bulk update of several entities in one PUT, next to the per-entity PUT of updateShotCasting, updateAssetCasting and updateEpisodeCasting (entities/<id>/casting). The client refuses an entry without asset_id or a whole nb_occurences: Zou empties the casting first and drops such an entry without an error."
   },
   {
     "module": "breakdown",
@@ -258,7 +258,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getEpisodeCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it (Kitsu also accepts asset.production_id)."
   },
   {
     "module": "breakdown",
@@ -267,7 +267,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getShotCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id)."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it (Kitsu also accepts asset.production_id)."
   },
   {
     "module": "breakdown",
@@ -276,7 +276,7 @@
     "route": "/data/projects/<id>/entities/<id>/casting",
     "client": "casting.getAssetCasting",
     "status": "existing",
-    "note": "Same route for shot, asset and episode: the client reads project_id on the entity (Kitsu also accepts asset.production_id). The client rejects an asset carrying only production_id."
+    "note": "Same route for shot, asset and episode: the client reads project_id on the entity, or reads the entity first when given an id or an object without it, an asset carrying only production_id included (Kitsu accepts asset.production_id)."
   },
   {
     "module": "budget",
@@ -348,7 +348,7 @@
     "route": "/data/projects/<id>/budgets/<id>/entries",
     "client": "project.createBudgetEntry",
     "status": "existing",
-    "note": "The client takes the department positionally and the other fields as options (person, position, seniority, startDate, monthsDuration, dailySalary)."
+    "note": "The client takes the department, the start date, the duration in months and the daily salary positionally, since Zou cannot store an entry without them, and person, position and seniority as options. gazu takes a name, a date and an amount instead, which Zou does not read."
   },
   {
     "module": "budget",
@@ -357,7 +357,7 @@
     "route": "/data/projects/<id>/budgets/<id>/entries/<id>",
     "client": "project.updateBudgetEntry",
     "status": "existing",
-    "note": "Kitsu also sends exceptions: the client passes data through."
+    "note": "Kitsu sends the whole entry, exceptions included. Zou writes every field, null for a missing one: the client reads the entry first and sends it whole with the given fields merged in."
   },
   {
     "module": "budget",
@@ -429,7 +429,7 @@
     "route": "/data/search",
     "client": "search.searchEntities",
     "status": "existing",
-    "note": "Same body as Kitsu: query, project_id, limit, offset and index_names (options project, limit, offset, indexNames)."
+    "note": "Same body as Kitsu: query, project_id, limit, offset and index_names (options project, limit, offset, indexNames). Like Kitsu, which only searches from 3 characters, the client refuses a shorter query (ParameterError): Zou answers it with {}."
   },
   {
     "module": "concepts",
@@ -456,7 +456,7 @@
     "route": "/data/projects/<id>/concepts",
     "client": "concept.newConcept",
     "status": "existing",
-    "note": "The client first looks the concept up by name (extra GET) and also sends data and entity_concept_links."
+    "note": "The client first looks the concept up by name (extra GET) and also sends data and entity_concept_links, as {id} dicts: Zou refuses a list of ids."
   },
   {
     "module": "concepts",
@@ -484,6 +484,51 @@
     "client": "entity.allEntitiesWithTasksLinkedToEntity",
     "status": "existing",
     "note": ""
+  },
+  {
+    "module": "concepts",
+    "kitsu": "getConceptFolders",
+    "method": "GET",
+    "route": "/data/projects/<id>/concept-folders",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "newConceptFolder",
+    "method": "POST",
+    "route": "/data/projects/<id>/concept-folders",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: name."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "updateConceptFolder",
+    "method": "PUT",
+    "route": "/data/concept-folders/<id>",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: name."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "deleteConceptFolder",
+    "method": "DELETE",
+    "route": "/data/concept-folders/<id>",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping."
+  },
+  {
+    "module": "concepts",
+    "kitsu": "moveConcepts",
+    "method": "POST",
+    "route": "/actions/projects/<id>/move-concepts",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: concept folders came with Kitsu 1.0.69 and Zou 1.0.94, after this mapping. Body: concept_ids and concept_folder_id."
   },
   {
     "module": "customactions",
@@ -555,7 +600,7 @@
     "route": "/data/departments",
     "client": "person.newDepartment",
     "status": "existing",
-    "note": "Client signature is (name, { color, archived }) and first looks the department up by name (extra GET /data/departments?name=) before the POST."
+    "note": "Client signature is (name, { color, archived }) and first looks the department up by name, whatever the case (extra GET /data/departments?name=, its LIKE wildcards escaped), before the POST."
   },
   {
     "module": "departments",
@@ -672,7 +717,7 @@
     "route": "/data/projects/<id>/edits",
     "client": "edit.newEdit",
     "status": "existing",
-    "note": "The client first looks the edit up by name (extra GET). Body differs slightly: the client sends the episode as parent_id, Kitsu sends episode_id."
+    "note": "The client first looks the edit up by its name in the episode, or outside any episode (extra GET), and returns it when it exists. Same body as Kitsu: name, description, data and episode_id."
   },
   {
     "module": "edits",
@@ -735,7 +780,7 @@
     "route": "/data/edits/<id>/versions",
     "client": "edit.allVersionsForEdit",
     "status": "added",
-    "note": ""
+    "note": "Zou records versions for the shots only: the list of an edit stays empty."
   },
   {
     "module": "entities",
@@ -888,7 +933,7 @@
     "route": "/data/attachment-files/<id>/file/<file_name>",
     "client": "files.downloadAttachmentFile",
     "status": "existing",
-    "note": "The client first reads data/attachment-files/<id> to get the name, encodes it, and returns a raw Response: call .blob() on it."
+    "note": "Zou never reads the file name segment: the client puts the id there, so a stored name holding a \"/\" cannot break the route, and returns a raw Response in one request: call .blob() on it."
   },
   {
     "module": "hardware",
@@ -960,7 +1005,7 @@
     "route": "/data/user/notifications",
     "client": "user.allNotifications",
     "status": "existing",
-    "note": "Option filters: the filter and paging params of Kitsu (after, before, limit, read, watching, type, task_type_id, task_status_id)."
+    "note": "Kitsu passes filter and paging params (after, before, limit, read, watching, type, task_type_id, task_status_id): allNotifications takes them as options, except limit, which Zou does not read (it answers 100 notifications at most)."
   },
   {
     "module": "notifications",
@@ -1032,7 +1077,7 @@
     "route": "/data/persons",
     "client": "person.allPersons",
     "status": "existing",
-    "note": "Kitsu sends relations=true and is_guest=false, the client sends no query: allPersons needs relations and isGuest options."
+    "note": "Kitsu sends relations=true and is_guest=false: call allPersons({ relations: true, isGuest: false }). The client sorts the persons by full name."
   },
   {
     "module": "people",
@@ -1041,7 +1086,7 @@
     "route": "/data/persons",
     "client": "person.allPersons",
     "status": "existing",
-    "note": "Same route as getPeople with is_guest=true and relations=true: allPersons needs relations and isGuest options."
+    "note": "Same route as getPeople with is_guest=true and relations=true: call allPersons({ relations: true, isGuest: true })."
   },
   {
     "module": "people",
@@ -1050,7 +1095,7 @@
     "route": "/data/persons/<id>",
     "client": "person.getPerson",
     "status": "existing",
-    "note": "Reads the same person through GET /data/persons?id=<id>, with an optional relations flag, and returns null when the person does not exist."
+    "note": "Reads the person through GET /data/persons?id=<id> like gazu, with an optional relations flag, and returns null when the person does not exist. There a manager gets the minimal fields of the person, where the route of Kitsu gives them all."
   },
   {
     "module": "people",
@@ -1347,7 +1392,7 @@
     "route": "/data/user/filter-groups",
     "client": "user.newFilterGroup",
     "status": "existing",
-    "note": "Kitsu also sends list_type, color, is_shared and department_id; the client only sends name and project_id: newFilterGroup needs these options."
+    "note": "Same body (name, list_type, color, is_shared, project_id, department_id), plus the entity_type Zou also reads. The client takes the list type as a required argument after the name: Zou would file the group under todo, and cannot change it afterwards."
   },
   {
     "module": "people",
@@ -1443,10 +1488,10 @@
     "module": "people",
     "kitsu": "getDaysOff",
     "method": "GET",
-    "route": "/data/day-offs | /data/persons/day-offs/<id>/<id>",
+    "route": "/data/day-offs | /data/persons/day-offs/<id> | /data/persons/day-offs/<id>/<id>",
     "client": "person.allDayOffs",
     "status": "added",
-    "note": "All the day offs of the studio, narrowed by optional year and month path segments. Zou only serves /data/persons/day-offs/<year>/<month>: the year only variant built by Kitsu does not exist, so person.allDayOffs rejects a year without a month."
+    "note": "All the day offs of the studio, narrowed by optional year and month path segments, a month needing its year. The whole history is for admins only; a year or a month holds the day offs the user may read."
   },
   {
     "module": "people",
@@ -1464,7 +1509,7 @@
     "route": "/data/persons/<id>/day-offs/<id>",
     "client": "person.getDayOffByDate",
     "status": "added",
-    "note": "The second path parameter is a date. person.getDayOff reads /data/day-offs/<id> and user.getDayOff reads /data/user/day-offs/<date>: neither matches."
+    "note": "The second path parameter is a date. person.getDayOff reads /data/day-offs/<id> and user.getDayOff reads /data/user/day-offs/<date>: neither matches. Zou answers an empty object when no day off covers the date, which the client resolves to null."
   },
   {
     "module": "people",
@@ -1482,7 +1527,7 @@
     "route": "/data/day-offs/<id>",
     "client": "person.updateDayOff",
     "status": "existing",
-    "note": "Kitsu rebuilds the body (person_id, date, end_date, description), the client sends the day off object."
+    "note": "Kitsu rebuilds the body (person_id, date, end_date, description), the client sends the day off object, its Date values as local days (YYYY-MM-DD)."
   },
   {
     "module": "people",
@@ -1554,7 +1599,7 @@
     "route": "/data/persons/<id>/quota-shots/month/<id>/<id> | /data/persons/<id>/quota-shots/week/<id>/<id> | /data/persons/<id>/quota-shots/day/<id>/<id>/<id> | /data/persons/<id>/quota-shots/year/<id>",
     "client": "person.getMonthQuotaShots | person.getWeekQuotaShots | person.getDayQuotaShots",
     "status": "added",
-    "note": "Dispatcher on detailLevel, one client function per route: add person.getMonthQuotaShots, person.getWeekQuotaShots and person.getDayQuotaShots. Query: project_id, task_type_id, count_mode. The last route (year) has no client function: Zou declares no quota-shots/year route, skip that branch. Kitsu builds a malformed query string (double ampersand) here: go through the query argument."
+    "note": "Dispatcher on detailLevel, one client function per route: add person.getMonthQuotaShots, person.getWeekQuotaShots and person.getDayQuotaShots. Query: project_id, task_type_id, count_mode. Zou answers nothing without the project and the task type, which the client takes as required arguments after the person. The last route (year) has no client function: Zou declares no quota-shots/year route, skip that branch. Kitsu builds a malformed query string (double ampersand) here: go through the query argument."
   },
   {
     "module": "people",
@@ -1617,7 +1662,7 @@
     "route": "/data/projects/<id>/playlists/<id>",
     "client": "playlist.getPlaylistForProject",
     "status": "added",
-    "note": "playlist.getPlaylist reads /data/playlists/<id> (plain CRUD); the project route returns the playlist with its build jobs and enriched entries."
+    "note": "playlist.getPlaylist reads /data/playlists/<id> (plain CRUD), its build jobs as ids and its entries as stored; the project route returns the build jobs as summaries and the entries enriched with the previews of their entity."
   },
   {
     "module": "playlists",
@@ -1653,7 +1698,7 @@
     "route": "/data/playlists/preview-files/running",
     "client": "files.getRunningPreviewFiles",
     "status": "existing",
-    "note": "Query differs: Kitsu sends limit and cursor_preview_file_id, the client sends none (add limit and cursor options)."
+    "note": "Same query as Kitsu: limit and cursor_preview_file_id (options limit and lastPreviewFile)."
   },
   {
     "module": "playlists",
@@ -1680,7 +1725,7 @@
     "route": "/data/playlists",
     "client": "playlist.newPlaylist",
     "status": "existing",
-    "note": "Kitsu posts to /data/playlists/ with a trailing slash. Client first looks the playlist up by name (extra GET /data/playlists) and returns it when found, like gazu. Body differs: the client does not send task_type_id (add a taskType option)."
+    "note": "Kitsu posts to /data/playlists/ with a trailing slash. Client first looks the playlist up by its name in the episode, or without episode on the same side (Main Pack, or All for the same entity type), with an extra GET /data/playlists, and returns it when found, where gazu takes the first playlist of the project with an alike name. Body: the taskType option of the client gives task_type_id."
   },
   {
     "module": "playlists",
@@ -1689,7 +1734,7 @@
     "route": "/data/playlists/<id>",
     "client": "playlist.updatePlaylist",
     "status": "existing",
-    "note": "Client sends the whole playlist object as body; Kitsu sends a whitelist (name, for_client, shots as entity_id and preview_file_id pairs, for_entity, task_type_id)."
+    "note": "Client sends the given playlist without the keys of a read that are not fields to save (build_jobs, type, created_at, updated_at, first_preview_file_id); Kitsu sends a whitelist (name, for_client, shots, for_entity, task_type_id). Both send each entry as an entity_id and a preview_file_id, null when unset, and leave out shots: null (Zou answers a 400 to it)."
   },
   {
     "module": "playlists",
@@ -1716,7 +1761,7 @@
     "route": "/data/playlists/<id>/build/mp4",
     "client": "playlist.buildPlaylistMovie",
     "status": "existing",
-    "note": "Query differs: Kitsu sends full=true optionally, the client has no such option (add a full flag)."
+    "note": "Kitsu sends full=true optionally: the full option of the client."
   },
   {
     "module": "playlists",
@@ -1725,7 +1770,7 @@
     "route": "/data/projects/<id>/playlists/temp",
     "client": "playlist.generateTempPlaylist",
     "status": "existing",
-    "note": "Call with data { task_ids }. Query differs: Kitsu sends sort=true optionally, the client has no query (add a sort flag, through http.request)."
+    "note": "Call with data { task_ids }. Kitsu sends sort=true optionally: the sort option of the client."
   },
   {
     "module": "playlists",
@@ -1734,7 +1779,7 @@
     "route": "/data/projects/<id>/playlists/temp",
     "client": "playlist.generateTempPlaylist",
     "status": "existing",
-    "note": "Call with data { entity_ids }. Same route as loadTempPlaylist, same missing sort flag."
+    "note": "Call with data { entity_ids }. Same route and sort option as loadTempPlaylist."
   },
   {
     "module": "playlists",
@@ -1743,7 +1788,7 @@
     "route": "/data/playlists/<id>/notify-clients",
     "client": "playlist.notifyClientsPlaylistReady",
     "status": "existing",
-    "note": "Body differs: Kitsu sends studio_id and department_id, the client sends an empty body (add studio and department options)."
+    "note": "Kitsu sends studio_id and department_id: the studio and department options of the client."
   },
   {
     "module": "playlists",
@@ -1872,6 +1917,15 @@
     "note": "Guest route. Query: guest_id, on a DELETE (use http.request)."
   },
   {
+    "module": "previews",
+    "kitsu": "getPreviewFileStatuses",
+    "method": "GET",
+    "route": "/data/preview-files",
+    "client": "",
+    "status": "excluded",
+    "note": "Not covered yet: came with Kitsu 1.0.70, after this mapping. Reads the processing status of several preview files in one request (query id as a JSON list, fields=id,status). files.getPreviewFile reads one preview file at a time."
+  },
+  {
     "module": "productions",
     "kitsu": "getProductions",
     "method": "GET",
@@ -1914,7 +1968,7 @@
     "route": "/data/tasks/open-tasks/stats",
     "client": "task.getOpenTasksStats",
     "status": "existing",
-    "note": "The client returns null on a 404"
+    "note": "Statistics of each open production, by project id."
   },
   {
     "module": "productions",
@@ -1923,7 +1977,7 @@
     "route": "/data/projects",
     "client": "project.newProject",
     "status": "existing",
-    "note": "Kitsu posts a free-form production object to /data/projects/ (trailing slash); the client first looks the name up with GET /data/projects?name= and returns the existing project, and only sends name, production_type, production_style, team, asset_types, task_statuses, task_types and project_template_id: other fields (dates, fps, ratio, resolution) need a following updateProject"
+    "note": "Kitsu posts a free-form production object to /data/projects/ (trailing slash); the client first looks the name up with GET /data/projects?name= and returns the existing project, and only sends name, team, asset_types, task_statuses and task_types, plus production_type, production_style and project_template_id when they are given (a template keeps its own type and style): other fields (dates, fps, ratio, resolution) need a following updateProject"
   },
   {
     "module": "productions",
@@ -2013,7 +2067,7 @@
     "route": "/data/projects/<id>/settings/preview-background-files",
     "client": "project.addPreviewBackgroundFile",
     "status": "existing",
-    "note": ""
+    "note": "Same body: the client takes the background or its id and sends { preview_background_file_id }"
   },
   {
     "module": "productions",
@@ -2085,7 +2139,7 @@
     "route": "/data/projects/<id>/settings/status-automations",
     "client": "project.addStatusAutomation",
     "status": "existing",
-    "note": "Same body: the client takes the { status_automation_id } payload and sends it as given"
+    "note": "Same body: the client takes the automation or its id and sends { status_automation_id }"
   },
   {
     "module": "productions",
@@ -2103,7 +2157,7 @@
     "route": "/data/projects/<id>/metadata-descriptors",
     "client": "project.addMetadataDescriptor",
     "status": "existing",
-    "note": "Same body: Kitsu maps descriptor.values to choices; the client takes name, entityType and options (dataType, choices, forClient, departments, taskTypeId)"
+    "note": "Same body: Kitsu maps descriptor.values to choices; the client takes name, entityType and options (dataType, choices, forClient, departments, taskType)"
   },
   {
     "module": "productions",
@@ -2121,7 +2175,7 @@
     "route": "/data/projects/<id>/metadata-descriptors/<id>",
     "client": "project.updateMetadataDescriptor",
     "status": "existing",
-    "note": "Kitsu maps descriptor.values to choices; the client sends the descriptor with departments as ids"
+    "note": "Kitsu maps descriptor.values to choices and sends the whole descriptor. Zou resets any field left out to its default but the name: the client reads the descriptor first and sends it with the given fields merged in, departments as ids, and the name only when it is given (any name sent sets the field name from it)"
   },
   {
     "module": "productions",
@@ -2211,7 +2265,7 @@
     "route": "/data/project-templates/<id>",
     "client": "projectTemplate.updateProjectTemplate",
     "status": "existing",
-    "note": "Client sends the whole template object as body, Kitsu sends a whitelist of fields."
+    "note": "Client sends the template object as body without its link lists (Zou would replace the background links with a stale list), Kitsu sends a whitelist of fields."
   },
   {
     "module": "projecttemplates",
@@ -2670,7 +2724,7 @@
     "route": "/data/shots/with-tasks",
     "client": "shot.allShotsWithTasks",
     "status": "added",
-    "note": "pgetNdjson: build on http.getNdjson. Query: project_id, episode_id (both optional)."
+    "note": "pgetNdjson: build on http.getNdjson. Query: project_id, episode_id. Zou takes both as optional, but lists every production to an admin and refuses anyone else without a project: the client requires it, positional like in Kitsu."
   },
   {
     "module": "shots",
@@ -2742,7 +2796,7 @@
     "route": "/data/projects/<id>/sequences",
     "client": "shot.newSequence",
     "status": "existing",
-    "note": "Same route. The client first looks the sequence up by name and only sends name and episode_id: Kitsu also sends description and data, to accept as options in Task 26."
+    "note": "Same route. The client first looks the sequence up by its name in the episode, or outside any episode, and returns it when it exists. Body: name, episode_id, description and data, like Kitsu."
   },
   {
     "module": "shots",
@@ -2751,7 +2805,7 @@
     "route": "/data/projects/<id>/episodes",
     "client": "shot.newEpisode",
     "status": "existing",
-    "note": "Same route. The client first looks the episode up by name and only sends name: Kitsu also sends description, status and data, to accept as options in Task 26."
+    "note": "Same route. The client first looks the episode up by name and returns it when it exists. Body: name, description, status and data, like Kitsu."
   },
   {
     "module": "shots",
@@ -2832,7 +2886,7 @@
     "route": "/import/otio/projects/<id> | /import/otio/projects/<id>/episodes/<id>",
     "client": "shot.importOtio",
     "status": "existing",
-    "note": "Same multipart fields (file, naming_convention, match_case); the episode route is used when an episode is given, as in Kitsu."
+    "note": "Same multipart fields (file, naming_convention, match_case); the episode route is used when an episode is given, as in Kitsu. On a TV show, Zou needs the episode."
   },
   {
     "module": "shots",
@@ -2868,7 +2922,7 @@
     "route": "/data/projects/<id>/quotas/persons/<id> | /data/projects/<id>/quotas/<id>",
     "client": "project.getProjectPersonQuotas | project.getProjectQuotas",
     "status": "existing",
-    "note": "Person route (used when a person is given): project.getProjectPersonQuotas. Task type route: project.getProjectQuotas. Kitsu sends the detail and count_mode query parameters, which neither client function accepts yet: to add as options in Task 26."
+    "note": "Person route (used when a person is given): project.getProjectPersonQuotas. Task type route: project.getProjectQuotas. Kitsu sends count_mode, the countMode option of both functions, and detail, which Zou does not read. Their studio option sends the studio_id filter of Zou."
   },
   {
     "module": "shots",
@@ -2886,7 +2940,7 @@
     "route": "/actions/projects/<id>/task-types/<id>/set-shot-nb-frames",
     "client": "shot.setNbFramesFromTaskTypePreviews",
     "status": "added",
-    "note": "POST without body, optional episode_id query: use http.request (http.post takes no query)."
+    "note": "POST without body, optional episode_id query: use http.request (http.post takes no query). The client takes the project first, like its other project and task type pairs: the Kitsu store takes the task type first."
   },
   {
     "module": "software",
@@ -2913,7 +2967,7 @@
     "route": "/data/softwares",
     "client": "files.newSoftware",
     "status": "existing",
-    "note": "Body differs: the client looks the name up first (GET data/softwares?name=) and only sends name, short_name, file_extension, secondary_extensions. Kitsu also sends version, monthly_cost and inventory_amount: the function needs these options."
+    "note": "The client looks the name up first (GET data/softwares?name=) and returns the software found. Body: name, short_name, file_extension, then secondary_extensions, version, monthly_cost and inventory_amount from the options secondaryExtensions, version, monthlyCost and inventoryAmount."
   },
   {
     "module": "software",
@@ -2967,7 +3021,7 @@
     "route": "/data/status-automations/<id>",
     "client": "project.updateStatusAutomation",
     "status": "added",
-    "note": "The client only has the project-scoped links (project.allStatusAutomations on data/projects/<id>/settings/status-automations): the global CRUD route is not covered."
+    "note": "The client sends the automation it is given and refuses the output fields newStatusAutomation refuses: an unknown out_field_type, a status output without out_task_status_id, a ready_for output outside the assets. Zou would store them, then fail on later reads or on the comments that trigger the automation."
   },
   {
     "module": "statusautomation",
@@ -3030,7 +3084,7 @@
     "route": "/data/tasks",
     "client": "task.allTasks",
     "status": "added",
-    "note": "Generic filtered list (free filters object passed as query). Existing functions on GET /data/tasks (allTasksForTaskStatus, allTasksForTaskType, getTaskByEntity) only send fixed filters."
+    "note": "Filtered CRUD list. Kitsu sends project_id, task_type_id, episode_id and relations (production schedule): the client takes them as named options (project, taskType, episode, relations), with taskStatus. Existing functions on GET /data/tasks (allTasksForTaskStatus, allTasksForTaskType, getTaskByEntity) only send fixed filters."
   },
   {
     "module": "tasks",
@@ -3048,7 +3102,7 @@
     "route": "/data/tasks/open-tasks/burndown",
     "client": "task.getOpenTasksBurndown",
     "status": "added",
-    "note": "Takes the same filters object as the open tasks list."
+    "note": "Kitsu sends the filters object of the open tasks list; the client takes the same named options as task.allOpenTasks, through one shared query builder."
   },
   {
     "module": "tasks",
@@ -3210,7 +3264,7 @@
     "route": "/actions/projects/<id>/task-types/<id>/create-tasks/<id> | /actions/projects/<id>/task-types/<id>/<id>/create-tasks",
     "client": "task.createTasks",
     "status": "added",
-    "note": "Path parameter of the first route is the entity type (episode, sequence), the second route holds the plural collection (assets, shots, edits, concepts). Body: the list of entity ids. Give the function an optional entity sent as the id query parameter to cover createTask."
+    "note": "Path parameter of the first route is the entity type (episode, sequence), the second route holds the plural collection (assets, shots, edits, concepts). Body: the list of entity ids (entities option). Zou reads an empty list as every entity of the collection, what Kitsu sends without a selection: the client sends it only for all: true and refuses an empty entities list. The entity option, sent as the id query parameter, covers createTask."
   },
   {
     "module": "tasks",
@@ -3228,7 +3282,7 @@
     "route": "/data/entities/<id>/tasks",
     "client": "task.createEntityTasks",
     "status": "existing",
-    "note": ""
+    "note": "Zou reads an empty task_type_ids as every task type of the entity: Kitsu skips the call then, the client refuses an empty list."
   },
   {
     "module": "tasks",
@@ -3390,7 +3444,7 @@
     "route": "/data/tasks/<id>/comments/<id>/reply",
     "client": "task.replyToComment",
     "status": "existing",
-    "note": "Body differs: Kitsu switches to multipart with file-N fields when the reply has attachments, the client only sends JSON ({ text, person_id }). Attachments on a reply need an extension of the client function."
+    "note": "JSON, or multipart when attachments are given, like Kitsu: Zou reads the files whatever their field names (Kitsu sends file-N, the client file, file-1...)."
   },
   {
     "module": "tasks",
@@ -3417,7 +3471,7 @@
     "route": "/data/persons/task-dates",
     "client": "task.getPersonsTasksDates",
     "status": "existing",
-    "note": "Client returns null on a 404."
+    "note": "A list, one entry per person."
   },
   {
     "module": "taskstatus",
@@ -3471,7 +3525,7 @@
     "route": "/data/task-status-links",
     "client": "project.updateTaskStatusLink",
     "status": "added",
-    "note": "Generic CRUD POST on task-status-links with { project_id, task_status_id, priority, roles_for_board }. project.addTaskStatus uses another route (/data/projects/<id>/settings/task-status) and cannot set priority or roles_for_board."
+    "note": "Generic CRUD POST on task-status-links with { project_id, task_status_id, priority, roles_for_board }. project.addTaskStatus uses another route (/data/projects/<id>/settings/task-status) and cannot set priority or roles_for_board. The client refuses a board role that is not a role code: Zou would store it, then fail on every read of the project."
   },
   {
     "module": "taskstatus",
@@ -3489,7 +3543,7 @@
     "route": "/data/task-status/<id>",
     "client": "task.removeTaskStatus",
     "status": "existing",
-    "note": "Client always sends force=true; Kitsu sends no query."
+    "note": "Neither sends a query: Zou reads no force on this route."
   },
   {
     "module": "tasktypes",

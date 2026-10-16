@@ -5,11 +5,13 @@ import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   COMMENT_ID,
+  DEPARTMENT_ID,
   EPISODE_ID,
   OTHER_ID,
   PERSON_ID,
   PROJECT_ID,
   SHOT_ID,
+  STUDIO_ID,
   TASK_ID,
   TASK_STATUS_ID,
   TASK_TYPE_ID
@@ -17,6 +19,15 @@ import {
 
 const CSV = 'Parent;Entity;Estimation\nSQ01;SH01;2\n'
 const CREATE_TASKS = `/actions/projects/${PROJECT_ID}/task-types/${TASK_TYPE_ID}`
+
+// The answer of Zou 1.0.94: an object, not a list of days.
+const BURNDOWN = {
+  total: 3,
+  total_estimation: 1440,
+  start_date: '2026-09-01',
+  end_date: '2026-09-30',
+  done_by_day: [{ date: '2026-09-19', done: 1, done_estimation: 480 }]
+}
 
 describe('task namespace: Kitsu store API coverage', () => {
   let kitsu, fake
@@ -46,44 +57,126 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('allTasks sends the filters as the query', async () => {
+  it('allTasks sends the named filters as the query', async () => {
     fake.reply(200, [{ id: TASK_ID }]).reply(200, [])
     expect(
       await kitsu.task.allTasks({
-        filters: {
-          project_id: PROJECT_ID,
-          task_status_id: TASK_STATUS_ID,
-          assigner_id: null
-        }
+        project: { id: PROJECT_ID },
+        taskType: TASK_TYPE_ID,
+        taskStatus: { id: TASK_STATUS_ID },
+        episode: EPISODE_ID,
+        relations: true
       })
     ).toEqual([{ id: TASK_ID }])
     expect(await kitsu.task.allTasks()).toEqual([])
     expect(fake.calls[0]).toMatchObject({ method: 'GET', path: '/data/tasks' })
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({
       project_id: PROJECT_ID,
-      task_status_id: TASK_STATUS_ID
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      episode_id: EPISODE_ID,
+      relations: 'true'
     })
     expect([...fake.calls[1].query.keys()]).toEqual([])
   })
 
-  it('getOpenTasksBurndown sends the open tasks filters as the query', async () => {
-    fake.reply(200, [{ date: '2026-09-19', open: 3 }]).reply(200, [])
-    expect(
-      await kitsu.task.getOpenTasksBurndown({
-        filters: { project_id: PROJECT_ID, person_id: 'unassigned' }
-      })
-    ).toEqual([{ date: '2026-09-19', open: 3 }])
-    await kitsu.task.getOpenTasksBurndown()
+  it('allTasks refuses the filters of 0.2 without any request', async () => {
+    // Dropped without a word, they would list the tasks of every production.
+    const wrongFilters = [
+      { filters: { project_id: PROJECT_ID } },
+      { project_id: PROJECT_ID },
+      { page: 2, limit: 50 }
+    ]
+    for (const filters of wrongFilters) {
+      await expect(kitsu.task.allTasks(filters)).rejects.toThrow(
+        /unknown option/
+      )
+    }
+    await expect(
+      kitsu.task.allTasks({ project: 'Agent 327' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('getOpenTasksBurndown takes the filters of allOpenTasks', async () => {
+    fake.reply(200, BURNDOWN).reply(200, BURNDOWN).reply(200, BURNDOWN)
+    expect(await kitsu.task.getOpenTasksBurndown()).toEqual(BURNDOWN)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/tasks/open-tasks/burndown'
     })
-    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+    await kitsu.task.getOpenTasksBurndown({
+      project: PROJECT_ID,
+      taskType: { id: TASK_TYPE_ID },
+      taskStatus: TASK_STATUS_ID,
+      persons: [PERSON_ID, { id: OTHER_ID }],
+      department: DEPARTMENT_ID,
+      studio: { id: STUDIO_ID },
+      startDate: new Date(2026, 8, 1),
+      dueDate: '2026-09-30',
+      priority: 2
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
       project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      person_id: `${PERSON_ID},${OTHER_ID}`,
+      department_id: DEPARTMENT_ID,
+      studio_id: STUDIO_ID,
+      start_date: '2026-09-01',
+      due_date: '2026-09-30',
+      priority: '2'
+    })
+    await kitsu.task.getOpenTasksBurndown({ persons: 'unassigned' })
+    expect(Object.fromEntries(fake.calls[2].query)).toEqual({
       person_id: 'unassigned'
     })
-    expect([...fake.calls[1].query.keys()]).toEqual([])
   })
+
+  it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
+    '%s refuses an empty persons list without any request',
+    async name => {
+      // No person id to send: the query would list the tasks of everybody.
+      await expect(kitsu.task[name]({ persons: [] })).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
+  // One options object serves the list and its chart.
+  it('getOpenTasksBurndown takes the options of allOpenTasks', async () => {
+    fake.reply(200, {})
+    await kitsu.task.getOpenTasksBurndown({
+      project: PROJECT_ID,
+      page: 2,
+      limit: 50
+    })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      project_id: PROJECT_ID
+    })
+    await expect(
+      kitsu.task.getOpenTasksBurndown({ projectId: PROJECT_ID })
+    ).rejects.toThrow(/^Wrong format: unknown option projectId$/)
+  })
+
+  it.each(['allOpenTasks', 'getOpenTasksBurndown'])(
+    '%s refuses the filters of 0.2 without any request',
+    async name => {
+      // Dropped without a word, they would cover every production.
+      await expect(
+        kitsu.task[name]({ filters: { project_id: PROJECT_ID } })
+      ).rejects.toThrow(/unknown option filters/)
+      await expect(
+        kitsu.task[name]({ project_id: PROJECT_ID, task_type_id: undefined })
+      ).rejects.toThrow(/unknown option project_id, the/)
+      await expect(
+        kitsu.task[name]({ project: 'Agent 327' })
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
 
   it('removeTaskComment deletes the comment through its task', async () => {
     fake.reply(204)
@@ -153,17 +246,42 @@ describe('task namespace: Kitsu store API coverage', () => {
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({ id: SHOT_ID })
   })
 
-  it('createTasks targets every entity when none is given', async () => {
-    fake.reply(201, [])
-    await kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, 'assets')
-    expect(fake.calls[0].body).toEqual([])
+  it.each([
+    ['assets', `${CREATE_TASKS}/assets/create-tasks`],
+    ['sequences', `${CREATE_TASKS}/create-tasks/sequence`]
+  ])(
+    'createTasks targets every entity of the %s with all: true',
+    async (type, path) => {
+      fake.reply(201, [{ id: TASK_ID }])
+      expect(
+        await kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type, {
+          all: true
+        })
+      ).toEqual([{ id: TASK_ID }])
+      expect(fake.calls[0]).toMatchObject({ method: 'POST', path, body: [] })
+      expect([...fake.calls[0].query.keys()]).toEqual([])
+    }
+  )
+
+  // Zou reads an empty list, or no list, as every entity of the collection.
+  it.each([
+    ['no target', undefined],
+    ['an empty list', { entities: [] }],
+    ['all: false', { all: false }],
+    ['entities and all', { entities: [SHOT_ID], all: true }],
+    ['entities and entity', { entities: [SHOT_ID], entity: ASSET_ID }]
+  ])('createTasks creates nothing for %s', async (_, options) => {
+    await expect(
+      kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, 'shots', options)
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it.each([undefined, 'shot', 'persons', '../shots'])(
     'createTasks rejects the unknown type %s',
     async type => {
       await expect(
-        kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type)
+        kitsu.task.createTasks(PROJECT_ID, TASK_TYPE_ID, type, { all: true })
       ).rejects.toBeInstanceOf(ParameterError)
       expect(fake.calls).toHaveLength(0)
     }
@@ -228,7 +346,8 @@ describe('task namespace: Kitsu store API coverage', () => {
   })
 
   it('importTaskTypeEstimationsWithCsv uploads the CSV in the file field', async () => {
-    fake.reply(201, [{ id: TASK_ID }])
+    // Zou answers one null per imported row.
+    fake.reply(201, [null])
     expect(
       await kitsu.task.importTaskTypeEstimationsWithCsv(
         { id: PROJECT_ID },
@@ -236,7 +355,7 @@ describe('task namespace: Kitsu store API coverage', () => {
         new Blob([CSV], { type: 'text/csv' }),
         { fileName: 'estimations.csv' }
       )
-    ).toEqual([{ id: TASK_ID }])
+    ).toEqual([null])
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/import/csv/projects/${PROJECT_ID}/task-types/${TASK_TYPE_ID}/estimations`
@@ -249,7 +368,7 @@ describe('task namespace: Kitsu store API coverage', () => {
   })
 
   it('importTaskTypeEstimationsWithCsv goes through the episode when given', async () => {
-    fake.reply(201, [])
+    fake.reply(201, [null])
     const controller = new AbortController()
     controller.abort()
     await kitsu.task.importTaskTypeEstimationsWithCsv(

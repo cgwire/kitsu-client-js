@@ -2,6 +2,8 @@
 // types" builds, through the "exports" map: what a TypeScript consumer gets.
 import {
   createClient,
+  KitsuError,
+  MissingOtpError,
   NotFoundError,
   type ClientOptions,
   type Entity,
@@ -11,7 +13,18 @@ import {
   type Tokens
 } from '@cgwire/kitsu-client'
 import { createCore } from '@cgwire/kitsu-client/core'
-import { sortByName } from '@cgwire/kitsu-client/utils'
+import {
+  formatRevision,
+  formatToTimecode,
+  frameToSeconds,
+  getEntityFrameStart,
+  sortByName,
+  sortByPersonName,
+  sortTaskNames,
+  sortTasks,
+  sortTaskStatuses,
+  sortTaskTypes
+} from '@cgwire/kitsu-client/utils'
 import { assetApi } from '@cgwire/kitsu-client/asset'
 import { castingApi } from '@cgwire/kitsu-client/casting'
 import { conceptApi } from '@cgwire/kitsu-client/concept'
@@ -33,6 +46,8 @@ import { shotApi } from '@cgwire/kitsu-client/shot'
 import { studioApi } from '@cgwire/kitsu-client/studio'
 import { taskApi } from '@cgwire/kitsu-client/task'
 import { userApi } from '@cgwire/kitsu-client/user'
+// @ts-expect-error a subpath in another casing is not exported
+import { projectTemplateApi as miscased } from '@cgwire/kitsu-client/projecttemplate'
 
 // any would let every mistake through: the public types must not be any.
 type IsAny<T> = 0 extends 1 & T ? true : false
@@ -55,6 +70,64 @@ createClient({})
 const wrongModel: Model = 42
 // @ts-expect-error the client has no such namespace
 kitsu.missing
+
+// The utilities take the dicts that the client returns, without a cast.
+const useUtilities = async () => {
+  const project = await kitsu.project.getProject(model)
+  const shot = await kitsu.shot.getShot(model)
+  const previewFile = await kitsu.files.getPreviewFile(model)
+  const tasks = await kitsu.task.allTasksForShot(entity)
+  const taskTypes = await kitsu.task.allTaskTypes()
+  const taskTypeMap = new Map(taskTypes.map(type => [type.id, type]))
+  const persons = await kitsu.person.allPersons()
+  const personMap = new Map(persons.map(person => [person.id, person]))
+  const duration: number = frameToSeconds(shot?.nb_frames, project, shot)
+  const frameStart: number | undefined = getEntityFrameStart(shot)
+  const revision: string = formatRevision(previewFile?.revision, project)
+  const sortedTasks: Entity[] = sortTasks(tasks, taskTypeMap)
+  const sortedNames: Entity[] = sortTaskNames(tasks, taskTypeMap)
+  const assignees: string[] = sortByPersonName(tasks[0].assignees, personMap)
+  const sortedTypes: Entity[] = sortTaskTypes(taskTypes, project)
+  const statuses = await kitsu.task.allTaskStatuses()
+  const sortedStatuses: Entity[] = sortTaskStatuses(statuses, project)
+  const timecode: string = formatToTimecode(shot?.data?.frame_in, project?.fps)
+  // @ts-expect-error sortByPersonName sorts ids, not the person dicts
+  sortByPersonName(persons, personMap)
+  // @ts-expect-error a timecode is a string
+  const wrongTimecode: number = formatToTimecode(0)
+}
+
+// The quick start of the README and the upload of docs/files.md.
+const quickStart = async () => {
+  kitsu.setToken('token')
+  const projects: Entity[] = await kitsu.project.allOpenProjects()
+  const shots: Entity[] = await kitsu.shot.allShotsForProject(projects[0])
+  const tasks: Entity[] = await kitsu.task.allTasksForShot(shots[0])
+  await kitsu.task.publishPreview(tasks[0], model, new Blob([]), {
+    comment: 'First pass',
+    onProgress: ({ loaded, total }) => {
+      const ratio: number = loaded / total
+    }
+  })
+}
+
+// Errors narrow with instanceof, as docs/authentication.md shows.
+const handleErrors = async () => {
+  try {
+    await kitsu.task.getTask(model)
+  } catch (err) {
+    // @ts-expect-error a caught value is unknown until narrowed
+    err.status
+    if (err instanceof NotFoundError) {
+      const status: number | null = err.status
+      const path: string = err.path
+    }
+    if (err instanceof MissingOtpError) {
+      const methods: string[] = err.enabledMethods
+      const kitsuError: KitsuError = err
+    }
+  }
+}
 
 // Every subpath builds its namespace from the http of a core.
 const { http } = createCore(options)

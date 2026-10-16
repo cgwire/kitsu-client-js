@@ -7,6 +7,7 @@ import {
   PERSON_ID,
   PREVIEW_FILE_ID,
   PROJECT_ID,
+  SHOT_ID,
   TASK_ID,
   TASK_STATUS_ID
 } from '../helpers/ids.js'
@@ -16,6 +17,23 @@ const TIME_SPENT_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
 const ATTACHMENT_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 const COMMENT_PATH = `/tasks/${TASK_ID}/comments/${COMMENT_ID}`
+
+// An entry of batchComments, as Zou reads it.
+const ENTRY = { task_id: TASK_ID, task_status_id: TASK_STATUS_ID, text: 'Ok' }
+
+// The entries of each person id, and the total of their durations.
+const TIME_SPENTS = {
+  total: 60,
+  [PERSON_ID]: [
+    {
+      id: TIME_SPENT_ID,
+      task_id: TASK_ID,
+      person_id: PERSON_ID,
+      date: '2026-09-19',
+      duration: 60
+    }
+  ]
+}
 
 describe('task namespace: comments, previews and time spent', () => {
   let kitsu, fake
@@ -56,6 +74,17 @@ describe('task namespace: comments, previews and time spent', () => {
     })
   })
 
+  it('startTask checks the task and the person before any request', async () => {
+    fake.reply(200, [{ id: TASK_STATUS_ID }])
+    await expect(kitsu.task.startTask('not-an-id')).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    await expect(
+      kitsu.task.startTask(TASK_ID, { person: 'jane' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('startTask fails when the wip status does not exist', async () => {
     fake.reply(200, [])
     await expect(kitsu.task.startTask(TASK_ID)).rejects.toBeInstanceOf(
@@ -65,10 +94,8 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('getTimeSpent returns the time spent on a task, for a date on demand', async () => {
-    fake.reply(200, { total: 60 }).reply(200, { total: 30 }).reply(404, {})
-    expect(await kitsu.task.getTimeSpent({ id: TASK_ID })).toEqual({
-      total: 60
-    })
+    fake.reply(200, TIME_SPENTS).reply(200, TIME_SPENTS).reply(404, {})
+    expect(await kitsu.task.getTimeSpent({ id: TASK_ID })).toEqual(TIME_SPENTS)
     await kitsu.task.getTimeSpent(TASK_ID, { date: '2026-09-19' })
     expect(await kitsu.task.getTimeSpent(TASK_ID)).toBeNull()
     expect(fake.calls[0]).toMatchObject({
@@ -81,13 +108,13 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('getTaskTimeSpentForDate returns the time spent at a date, null on 404', async () => {
-    fake.reply(200, { total: 60 }).reply(404, {})
+    fake.reply(200, TIME_SPENTS).reply(404, {})
     expect(
       await kitsu.task.getTaskTimeSpentForDate(
         { id: TASK_ID },
         new Date(2026, 8, 19, 10)
       )
-    ).toEqual({ total: 60 })
+    ).toEqual(TIME_SPENTS)
     expect(
       await kitsu.task.getTaskTimeSpentForDate(TASK_ID, '2026-09-20')
     ).toBeNull()
@@ -279,8 +306,16 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('setMainPreview sets the entity thumbnail, from a frame on demand', async () => {
-    fake.reply(200, {}).reply(200, {})
-    await kitsu.task.setMainPreview({ id: PREVIEW_FILE_ID })
+    // Zou answers the entity, not the preview file.
+    const shot = {
+      id: SHOT_ID,
+      preview_file_id: PREVIEW_FILE_ID,
+      preview_file_status: 'ready'
+    }
+    fake.reply(200, shot).reply(200, shot)
+    expect(await kitsu.task.setMainPreview({ id: PREVIEW_FILE_ID })).toEqual(
+      shot
+    )
     await kitsu.task.setMainPreview(PREVIEW_FILE_ID, { frameNumber: 0 })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
@@ -291,7 +326,9 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('batchComments posts comments carrying their own task', async () => {
-    const comments = [{ task_id: TASK_ID, text: 'Good' }]
+    const comments = [
+      { task_id: TASK_ID, task_status_id: TASK_STATUS_ID, text: 'Good' }
+    ]
     fake.reply(201, [{ id: COMMENT_ID }])
     expect(await kitsu.task.batchComments(comments)).toEqual([
       { id: COMMENT_ID }
@@ -304,17 +341,29 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('batchComments posts comments for one task', async () => {
-    fake.reply(201, []).reply(201, [])
-    await kitsu.task.batchComments([{ text: 'Good' }], {
-      task: { id: TASK_ID }
-    })
+    const comments = [{ task_status_id: TASK_STATUS_ID, text: 'Good' }]
+    fake.reply(201, [{ id: COMMENT_ID }]).reply(201, [])
+    await kitsu.task.batchComments(comments, { task: { id: TASK_ID } })
     await kitsu.task.batchComments()
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/tasks/${TASK_ID}/batch-comment`,
-      body: { comments: [{ text: 'Good' }] }
+      body: { comments }
     })
     expect(fake.calls[1].body).toEqual({ comments: [] })
+  })
+
+  it.each([
+    ['comment instead of text', [{ ...ENTRY, text: undefined, comment: 'Ok' }]],
+    ['no task status', [{ ...ENTRY, task_status_id: undefined }]],
+    ['no task', [{ ...ENTRY, task_id: undefined }]],
+    ['no list', ENTRY]
+  ])('batchComments refuses %s without any request', async (_, comments) => {
+    // Zou would answer 500.
+    await expect(kitsu.task.batchComments(comments)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('addTasksBatchComments posts the same comment on several tasks', async () => {
@@ -338,6 +387,32 @@ describe('task namespace: comments, previews and time spent', () => {
       text: 'Good',
       task_status_id: TASK_STATUS_ID
     })
+  })
+
+  // A Date sent as JSON carries milliseconds and a Z: Zou would date the
+  // comments of now, without an error.
+  it('batchComments and addTasksBatchComments send a Date as Zou reads it', async () => {
+    fake.reply(200, []).reply(200, [])
+    const createdAt = new Date('2026-09-19T10:00:00.250Z')
+    await kitsu.task.batchComments([{ ...ENTRY, created_at: createdAt }])
+    await kitsu.task.addTasksBatchComments([TASK_ID], {
+      task_status_id: TASK_STATUS_ID,
+      text: 'Ok',
+      created_at: createdAt
+    })
+    expect(fake.calls[0].body.comments[0].created_at).toBe(
+      '2026-09-19T10:00:00'
+    )
+    expect(fake.calls[1].body.comments[0].created_at).toBe(
+      '2026-09-19T10:00:00'
+    )
+  })
+
+  it('batchComments refuses a date Zou cannot read before any request', async () => {
+    await expect(
+      kitsu.task.batchComments([{ ...ENTRY, created_at: '19/09/2026 10:00' }])
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('moveCommentToTask moves the comment to another task', async () => {
@@ -374,6 +449,39 @@ describe('task namespace: comments, previews and time spent', () => {
     expect(fake.calls[0].body).toEqual({ text: 'Thanks' })
   })
 
+  it('replyToComment sends the attachments in a multipart form', async () => {
+    const reply = {
+      id: OTHER_ID,
+      text: 'See the notes',
+      attachment_files: [{ id: ATTACHMENT_ID }]
+    }
+    fake.reply(201, reply)
+    const notes = new File(['notes'], 'notes.txt', { type: 'text/plain' })
+    expect(
+      await kitsu.task.replyToComment(TASK_ID, COMMENT_ID, 'See the notes', {
+        attachments: [notes]
+      })
+    ).toEqual(reply)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'POST',
+      path: `/data${COMMENT_PATH}/reply`
+    })
+    const form = fake.calls[0].body
+    expect(form).toBeInstanceOf(FormData)
+    expect([...form.keys()].sort()).toEqual(['file', 'text'])
+    expect(form.get('text')).toBe('See the notes')
+    expect(form.get('file').name).toBe('notes.txt')
+  })
+
+  it('replyToComment creates nothing for an attachment that is not a file', async () => {
+    await expect(
+      kitsu.task.replyToComment(TASK_ID, COMMENT_ID, 'See', {
+        attachments: ['/tmp/notes.txt']
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('deleteCommentAttachment deletes an attachment of a comment', async () => {
     fake.reply(204)
     await kitsu.task.deleteCommentAttachment(TASK_ID, COMMENT_ID, {
@@ -386,8 +494,11 @@ describe('task namespace: comments, previews and time spent', () => {
   })
 
   it('deleteCommentReply deletes a reply of a comment', async () => {
-    fake.reply(204)
-    await kitsu.task.deleteCommentReply({ id: TASK_ID }, COMMENT_ID, OTHER_ID)
+    const updated = { id: COMMENT_ID, replies: [] }
+    fake.reply(200, updated)
+    expect(
+      await kitsu.task.deleteCommentReply({ id: TASK_ID }, COMMENT_ID, OTHER_ID)
+    ).toEqual(updated)
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data${COMMENT_PATH}/reply/${OTHER_ID}`

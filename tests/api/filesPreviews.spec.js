@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   OTHER_ID,
@@ -112,12 +113,39 @@ describe('files namespace: preview and attachment files', () => {
   })
 
   it('getRunningPreviewFiles lists the previews being processed', async () => {
-    fake.reply(200, [{ id: PREVIEW_FILE_ID, status: 'processing' }])
-    expect(await kitsu.files.getRunningPreviewFiles()).toHaveLength(1)
+    const running = {
+      id: PREVIEW_FILE_ID,
+      status: 'processing',
+      project_id: PROJECT_ID,
+      task_type_id: OTHER_ID,
+      full_entity_name: 'SE01 / SH010'
+    }
+    fake.reply(200, [running])
+    expect(await kitsu.files.getRunningPreviewFiles()).toEqual([running])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/playlists/preview-files/running'
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('getRunningPreviewFiles pages with a limit and a cursor', async () => {
+    fake.reply(200, [])
+    await kitsu.files.getRunningPreviewFiles({
+      limit: 20,
+      lastPreviewFile: { id: PREVIEW_FILE_ID }
+    })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      limit: '20',
+      cursor_preview_file_id: PREVIEW_FILE_ID
+    })
+  })
+
+  it('getRunningPreviewFiles rejects a malformed cursor', async () => {
+    await expect(
+      kitsu.files.getRunningPreviewFiles({ lastPreviewFile: 'nope' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('extractFrameFromPreview returns the raw response of the frame', async () => {
@@ -133,6 +161,19 @@ describe('files namespace: preview and attachment files', () => {
     expect(fake.calls[0].query.get('frame_number')).toBe('12')
   })
 
+  // Zou seeks to (frame - 1) / fps and reads a missing frame number as 0.
+  it('extractFrameFromPreview rejects a frame number below 1', async () => {
+    const errors = await Promise.all(
+      [0, -1, 1.5, undefined, '12'].map(frameNumber =>
+        kitsu.files
+          .extractFrameFromPreview(PREVIEW_FILE_ID, frameNumber)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('extractTileFromPreview returns the raw response of the tile', async () => {
     const path = `/actions/preview-files/${PREVIEW_FILE_ID}/extract-tile`
     fake.on('GET', path, pngResponse)
@@ -144,16 +185,35 @@ describe('files namespace: preview and attachment files', () => {
     expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
   })
 
+  // Zou answers every preview of the revision, in the new order.
   it('updatePreviewPosition sets the order of the preview', async () => {
-    fake.reply(200, { id: PREVIEW_FILE_ID, position: 2 })
-    expect(
-      await kitsu.files.updatePreviewPosition(PREVIEW_FILE_ID, 2)
-    ).toMatchObject({ position: 2 })
+    const revision = [
+      { id: OTHER_ID, revision: 3, position: 1 },
+      { id: PREVIEW_FILE_ID, revision: 3, position: 2 }
+    ]
+    fake.reply(200, revision)
+    expect(await kitsu.files.updatePreviewPosition(PREVIEW_FILE_ID, 2)).toEqual(
+      revision
+    )
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/actions/preview-files/${PREVIEW_FILE_ID}/update-position`,
       body: { position: 2 }
     })
+  })
+
+  // Zou moves a preview only to a position from 1 to the number of previews
+  // of the revision, and answers 200 to any other without moving anything.
+  it('updatePreviewPosition rejects a position below 1', async () => {
+    const errors = await Promise.all(
+      [0, -2, 2.5, undefined].map(position =>
+        kitsu.files
+          .updatePreviewPosition(PREVIEW_FILE_ID, position)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   // Same shapes as Kitsu, at 25 fps: frames keyed by a time on the frame

@@ -1,4 +1,12 @@
-import { idOf, requiredOf, sortedByName } from '../core/params.js'
+import { ParameterError } from '../core/errors.js'
+import {
+  idOf,
+  likeLiteralOf,
+  orNull,
+  requiredOf,
+  sameNameOf,
+  sortedByName
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -26,10 +34,13 @@ export const studioApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First studio matching the name.
+   * @returns {Promise<Entity|null>} The studio of this name, the case
+   *   ignored but an exact match first, null when there is none.
    */
   getStudioByName: async (name, { signal } = {}) =>
-    http.fetchFirst('studios', { name: requiredOf('name', name) }, { signal }),
+    orNull(
+      http.fetchAll('studios', { name: likeLiteralOf(name) }, { signal })
+    ).then(studios => sameNameOf(studios, name)),
 
   /**
    * Studio names are unique: the API refuses a name already in use.
@@ -50,13 +61,19 @@ export const studioApi = http => ({
     ),
 
   /**
-   * Save the studio. Its metadata are fully replaced by the given ones.
+   * Save the studio: its name, color and archived fields.
    * @param {Entity} studio
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated studio.
    */
-  updateStudio: async (studio, { signal } = {}) =>
-    http.update('studios', idOf(studio), studio, { signal }),
+  updateStudio: async (studio, { signal } = {}) => {
+    const id = idOf(studio)
+    // Its id alone would become the body, which Zou answers with a 500.
+    if (typeof studio !== 'object') {
+      throw new ParameterError('Wrong format: expected the studio, not its id')
+    }
+    return http.update('studios', id, studio, { signal })
+  },
 
   /**
    * Zou refuses (400) to delete a studio that people still belong to: change

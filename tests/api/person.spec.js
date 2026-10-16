@@ -41,18 +41,39 @@ describe('person namespace', () => {
     })
   })
 
-  it('allPersons lists every person, sorted by name like gazu', async () => {
-    fake.reply(200, [
-      { id: PERSON_ID, name: 'zoe' },
-      { id: OTHER_ID, name: 'Alice' }
-    ])
-    expect(await kitsu.person.allPersons()).toEqual([
-      { id: OTHER_ID, name: 'Alice' },
-      { id: PERSON_ID, name: 'zoe' }
-    ])
+  // Zou persons have no name key: they sort on their full name.
+  it('allPersons lists every person, sorted by full name', async () => {
+    const zoe = {
+      id: PERSON_ID,
+      first_name: 'zoe',
+      last_name: 'Martin',
+      full_name: 'zoe Martin'
+    }
+    const alice = {
+      id: OTHER_ID,
+      first_name: 'Alice',
+      last_name: 'Doe',
+      full_name: 'Alice Doe'
+    }
+    fake.reply(200, [zoe, alice])
+    expect(await kitsu.person.allPersons()).toEqual([alice, zoe])
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/persons'
+    })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
+  })
+
+  it('allPersons keeps the guests or the others, departments on demand', async () => {
+    fake.reply(200, []).reply(200, [])
+    await kitsu.person.allPersons({ relations: true, isGuest: false })
+    await kitsu.person.allPersons({ isGuest: true })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      relations: 'true',
+      is_guest: 'false'
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
+      is_guest: 'true'
     })
   })
 
@@ -67,6 +88,37 @@ describe('person namespace', () => {
       path: '/data/departments'
     })
     expect(fake.calls[0].query.get('name')).toBe('Rigging')
+  })
+
+  // Zou matches the name with ILIKE: "FX_2D" would find "FX 2D" unescaped.
+  it('getDepartmentByName matches the name literally', async () => {
+    fake
+      .reply(200, [])
+      .reply(200, [])
+      .reply(200, [])
+      .reply(201, { id: DEPARTMENT_ID })
+    expect(await kitsu.person.getDepartmentByName('FX_2D 100%')).toBeNull()
+    await kitsu.person.getDepartmentByName('Comp\\Paint')
+    await kitsu.person.newDepartment('FX_2D')
+    expect(fake.calls[0].query.get('name')).toBe('FX\\_2D 100\\%')
+    expect(fake.calls[1].query.get('name')).toBe('Comp\\\\Paint')
+    expect(fake.calls[2].query.get('name')).toBe('FX\\_2D')
+    expect(fake.calls[3].body).toMatchObject({ name: 'FX_2D' })
+  })
+
+  // Zou keeps "COMP" and "Comp" apart, and its ILIKE filter finds both.
+  it('getDepartmentByName prefers the exact spelling over another case', async () => {
+    const departments = [
+      { id: OTHER_ID, name: 'COMP' },
+      { id: DEPARTMENT_ID, name: 'Comp' }
+    ]
+    fake.reply(200, departments).reply(200, departments)
+    expect(await kitsu.person.getDepartmentByName('Comp')).toEqual(
+      departments[1]
+    )
+    expect(await kitsu.person.getDepartmentByName('comp')).toEqual(
+      departments[0]
+    )
   })
 
   it('getDepartment returns the department, null on 404', async () => {
@@ -276,6 +328,18 @@ describe('person namespace', () => {
     expect(fake.calls).toHaveLength(5)
   })
 
+  // The lookup by email returns early: checked after it, a malformed
+  // department would only be refused for a new person, after a request.
+  it('newPerson rejects a malformed department before any request', async () => {
+    fake.reply(200, [{ id: PERSON_ID, email: 'john@doe.com' }])
+    await expect(
+      kitsu.person.newPerson('John', 'Doe', 'john@doe.com', {
+        departments: ['rigging']
+      })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updatePerson puts the person with its departments as ids', async () => {
     fake.reply(200, { id: PERSON_ID }).reply(200, { id: PERSON_ID })
     const person = {
@@ -318,6 +382,17 @@ describe('person namespace', () => {
       expiration_date: null,
       departments: [{ id: DEPARTMENT_ID }]
     })
+  })
+
+  // Spread, an id string would send one key per character.
+  it('updatePerson and updateBot reject a person given by its id', async () => {
+    await expect(kitsu.person.updatePerson(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    await expect(kitsu.person.updateBot(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removePerson deletes the person, forcing on demand', async () => {
@@ -370,6 +445,17 @@ describe('person namespace', () => {
       expiration_date: '2027-01-31',
       is_bot: true
     })
+  })
+
+  it('newBot rejects a missing name or email before any request', async () => {
+    await expect(kitsu.person.newBot()).rejects.toThrow(ParameterError)
+    await expect(kitsu.person.newBot('Render bot')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(kitsu.person.newBot('', 'bot@doe.com')).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('updateBot puts the bot like a person', async () => {
@@ -552,8 +638,10 @@ describe('person namespace', () => {
   })
 
   it('disableTwoFactorAuthentication deletes the 2FA of the person', async () => {
-    fake.reply(204)
-    await kitsu.person.disableTwoFactorAuthentication({ id: PERSON_ID })
+    fake.reply(200, { success: true })
+    expect(
+      await kitsu.person.disableTwoFactorAuthentication({ id: PERSON_ID })
+    ).toEqual({ success: true })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/actions/persons/${PERSON_ID}/disable-two-factor-authentication`

@@ -15,31 +15,50 @@ import { idOf } from '../core/params.js'
 export const webHostOf = apiHost =>
   apiHost.replace(/\/+$/, '').replace(/\/api$/, '')
 
+// The builders read fields that an id string, or a dict loaded without them,
+// does not carry: refuse it rather than build the URL of another page.
+const fieldOf = (entity, field, label) => {
+  const value = entity && typeof entity === 'object' ? entity[field] : null
+  if (typeof value === 'string' && value !== '') return value
+  throw new ParameterError(`Missing parameter: ${label}.${field} is required`)
+}
+
 const productionUrl = (webHost, project) =>
   `${webHost.replace(/\/+$/, '')}/productions/${idOf(project)}`
 
-const isTvShow = project => project.production_type === 'tvshow'
+const projectUrlOf = (webHost, entity, label) =>
+  productionUrl(webHost, fieldOf(entity, 'project_id', label))
+
+const isTvShow = project =>
+  fieldOf(project, 'production_type', 'project') === 'tvshow'
 
 /**
  * @param {string} webHost
  * @param {Model} project
- * @param {string} [section] "assets" by default.
+ * @param {string} [section] "assets" by default. Positional here, unlike the
+ *   `{ section }` option of kitsu.project.getProjectUrl.
  * @returns {string}
  */
-export const getProjectUrl = (webHost, project, section = 'assets') =>
-  `${productionUrl(webHost, project)}/${section}/`
+export const getProjectUrl = (webHost, project, section = 'assets') => {
+  if (typeof section !== 'string' || section === '') {
+    throw new ParameterError('Wrong format: section must be a string')
+  }
+  return `${productionUrl(webHost, project)}/${section}/`
+}
 
 /**
  * @param {string} webHost
- * @param {Entity} asset Needs project_id, and episode_id in a TV show.
+ * @param {Entity} asset Needs project_id. In a TV show, an asset without
+ *   episode_id belongs to the main pack.
  * @param {Entity} project Needs production_type.
  * @returns {string}
  */
 export const getAssetUrl = (webHost, asset, project) => {
-  const base = productionUrl(webHost, asset.project_id)
-  return isTvShow(project)
-    ? `${base}/episodes/${asset.episode_id || 'main'}/assets/${idOf(asset)}/`
-    : `${base}/assets/${idOf(asset)}/`
+  const base = projectUrlOf(webHost, asset, 'asset')
+  if (!isTvShow(project)) return `${base}/assets/${idOf(asset)}/`
+  // A main pack asset has no episode: Zou writes it null or empty.
+  const episode = asset.episode_id ? idOf(asset.episode_id) : 'main'
+  return `${base}/episodes/${episode}/assets/${idOf(asset)}/`
 }
 
 /**
@@ -59,7 +78,8 @@ export const getAllAssetsUrl = (webHost, project) =>
  * @returns {string} The asset list filtered on the asset type.
  */
 export const getAssetTypeUrl = (webHost, project, assetType) => {
-  const query = new URLSearchParams({ search: `type=[${assetType.name}]` })
+  const name = fieldOf(assetType, 'name', 'assetType')
+  const query = new URLSearchParams({ search: `type=[${name}]` })
   const list = getAllAssetsUrl(webHost, project).replace(/\/$/, '')
   return `${list}?${query}`
 }
@@ -70,7 +90,7 @@ export const getAssetTypeUrl = (webHost, project, assetType) => {
  * @returns {string}
  */
 export const getEpisodeUrl = (webHost, episode) =>
-  `${productionUrl(webHost, episode.project_id)}/episodes/${idOf(episode)}/shots`
+  `${projectUrlOf(webHost, episode, 'episode')}/episodes/${idOf(episode)}/shots`
 
 /**
  * @param {string} webHost
@@ -78,7 +98,7 @@ export const getEpisodeUrl = (webHost, episode) =>
  * @returns {string}
  */
 export const getShotUrl = (webHost, shot) => {
-  const base = productionUrl(webHost, shot.project_id)
+  const base = projectUrlOf(webHost, shot, 'shot')
   return shot.episode_id
     ? `${base}/episodes/${idOf(shot.episode_id)}/shots/${idOf(shot)}/`
     : `${base}/shots/${idOf(shot)}/`
@@ -90,7 +110,7 @@ export const getShotUrl = (webHost, shot) => {
  * @returns {string}
  */
 export const getEditUrl = (webHost, edit) => {
-  const base = productionUrl(webHost, edit.project_id)
+  const base = projectUrlOf(webHost, edit, 'edit')
   return edit.episode_id
     ? `${base}/episodes/${idOf(edit.episode_id)}/edits/${idOf(edit)}/`
     : `${base}/edits/${idOf(edit)}/`
@@ -102,7 +122,7 @@ export const getEditUrl = (webHost, edit) => {
  * @returns {string}
  */
 export const getSequenceUrl = (webHost, sequence) => {
-  const base = productionUrl(webHost, sequence.project_id)
+  const base = projectUrlOf(webHost, sequence, 'sequence')
   return sequence.parent_id
     ? `${base}/episodes/${idOf(sequence.parent_id)}/sequences/${idOf(sequence)}/`
     : `${base}/sequences/${idOf(sequence)}/`
@@ -129,12 +149,8 @@ export const getAllSequencesUrl = (webHost, project) =>
  * @param {Entity} task The task object: its project_id is needed.
  * @returns {string}
  */
-export const getTaskUrl = (webHost, task) => {
-  if (!task || typeof task !== 'object') {
-    throw new ParameterError('Wrong format: getTaskUrl needs the task object')
-  }
-  return `${productionUrl(webHost, task.project_id)}/shots/tasks/${idOf(task)}/`
-}
+export const getTaskUrl = (webHost, task) =>
+  `${projectUrlOf(webHost, task, 'task')}/shots/tasks/${idOf(task)}/`
 
 /**
  * @param {string} webHost
@@ -149,20 +165,19 @@ export const getPersonUrl = (webHost, person) =>
  * @returns {string} Path of the original file, relative to the API host.
  */
 export const getPreviewFilePath = previewFile => {
-  const kind = previewFile.extension === 'mp4' ? 'movies' : 'pictures'
-  return `${kind}/originals/preview-files/${idOf(previewFile)}.${previewFile.extension}`
+  const extension = fieldOf(previewFile, 'extension', 'previewFile')
+  const kind = extension === 'mp4' ? 'movies' : 'pictures'
+  return `${kind}/originals/preview-files/${idOf(previewFile)}.${extension}`
 }
 
 /**
- * @param {Entity} previewFile Needs extension, unless lowdef is set.
- * @param {{lowdef?: boolean}} [options] The low definition movie is always
- *   an mp4.
- * @returns {string} Path of the movie, relative to the API host.
+ * @param {Model} previewFile
+ * @param {{lowdef?: boolean}} [options]
+ * @returns {string} Path of the movie, relative to the API host. Zou serves
+ *   both definitions as mp4 only, whatever the uploaded format.
  */
 export const getPreviewMoviePath = (previewFile, { lowdef = false } = {}) =>
-  lowdef
-    ? `movies/low/preview-files/${idOf(previewFile)}.mp4`
-    : `movies/originals/preview-files/${idOf(previewFile)}.${previewFile.extension}`
+  `movies/${lowdef ? 'low' : 'originals'}/preview-files/${idOf(previewFile)}.mp4`
 
 /**
  * @param {Model} attachmentFile

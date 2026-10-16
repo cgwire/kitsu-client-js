@@ -5,10 +5,11 @@ import {
   AuthFailedError,
   KitsuError,
   MissingOtpError,
+  NotAuthenticatedError,
   NotFoundError,
   ServerError
 } from '../../src/core/errors.js'
-import { createFakeFetch } from '../helpers/fakeFetch.js'
+import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
 import { HOST } from '../helpers/ids.js'
 
 const LOGIN_BODY = {
@@ -157,5 +158,295 @@ describe('session helpers', () => {
     await kitsu.logOut().catch(() => {})
     expect(fake.calls[0].path).toBe('/auth/logout')
     expect(kitsu.getTokens()).toBeNull()
+  })
+
+  // Zou revokes the session, refresh token included, from the access token.
+  it('logOut renews an expired access token to revoke the session', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/auth/logout', call =>
+        call.headers.Authorization === 'Bearer renewed'
+          ? jsonResponse(200, { logout: true })
+          : jsonResponse(401, {})
+      )
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'renewed' })
+      )
+    const onTokensChange = vi.fn()
+    const onUnauthorized = vi.fn()
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'expired', refresh_token: 'refresh' },
+      onTokensChange,
+      onUnauthorized
+    })
+
+    expect(await kitsu.logOut()).toEqual({ logout: true })
+
+    expect(
+      fake.calls.map(call => [call.path, call.headers.Authorization])
+    ).toEqual([
+      ['/auth/logout', 'Bearer expired'],
+      ['/auth/refresh-token', 'Bearer refresh'],
+      ['/auth/logout', 'Bearer renewed']
+    ])
+    expect(kitsu.getTokens()).toBeNull()
+    expect(onTokensChange.mock.calls).toEqual([[null]])
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+
+  // Zou renews the token of a browser in a cookie only: nothing to revoke
+  // the session with.
+  it('logOut gives up when the renewal brings no access token', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/auth/logout', () => jsonResponse(401, {}))
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { refresh: true })
+      )
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'expired', refresh_token: 'refresh' }
+    })
+
+    const err = await kitsu.logOut().catch(e => e)
+
+    expect(err).toBeInstanceOf(NotAuthenticatedError)
+    expect(
+      fake.calls.map(call => [call.path, call.headers.Authorization])
+    ).toEqual([
+      ['/auth/logout', 'Bearer expired'],
+      ['/auth/refresh-token', 'Bearer refresh']
+    ])
+    expect(kitsu.getTokens()).toBeNull()
+  })
+})
+
+// The last session change started wins, whatever order the answers of Zou
+// land in.
+describe('overlapping session changes', () => {
+  const ALICE = { access_token: 'alice', refresh_token: 'alice-refresh' }
+  const BOB = { access_token: 'bob', refresh_token: 'bob-refresh' }
+  const CODES = ['code-1']
+
+  // Every answer waits for the test to release it, in the order it wants,
+  // or for the abort of its request.
+  const parked = (options = {}) => {
+    const fake = createFakeFetch()
+    const answers = []
+    const park = call =>
+      new Promise((resolve, reject) => {
+        answers.push({ call, resolve })
+        call.signal.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError'))
+        )
+      })
+    fake
+      .on('POST', '/auth/login', park)
+      .on('GET', '/auth/logout', park)
+      .on('POST', '/auth/totp', park)
+    const onTokensChange = vi.fn()
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: ALICE,
+      onTokensChange,
+      ...options
+    })
+    const release = (path, body, email) => {
+      const index = answers.findIndex(
+        ({ call }) =>
+          call.path === path && (!email || call.body.email === email)
+      )
+      const [{ resolve }] = answers.splice(index, 1)
+      resolve(jsonResponse(200, body))
+    }
+    const sent = count =>
+      vi.waitFor(() => expect(fake.calls).toHaveLength(count))
+    return { fake, kitsu, release, sent, onTokensChange }
+  }
+
+  it('keeps a logIn started after a logOut whose answer lands last', async () => {
+    const { kitsu, release, sent } = parked()
+    const loggingOut = kitsu.logOut()
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret')
+    await sent(2)
+
+    release('/auth/login', { user: { id: 'bob' }, ...BOB })
+    await loggingIn
+    release('/auth/logout', { logout: true })
+    await loggingOut
+
+    expect(kitsu.getTokens()).toEqual(BOB)
+  })
+
+  it('stays logged out when a logIn started before a logOut lands last', async () => {
+    const { kitsu, release, sent, onTokensChange } = parked()
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret').catch(e => e)
+    const loggingOut = kitsu.logOut()
+    expect(kitsu.getTokens()).toBeNull()
+    await sent(2)
+
+    release('/auth/logout', { logout: true })
+    await loggingOut
+    release('/auth/login', { user: { id: 'bob' }, ...BOB })
+
+    expect((await loggingIn).name).toBe('AbortError')
+    expect(kitsu.getTokens()).toBeNull()
+    expect(onTokensChange.mock.calls).toEqual([[null]])
+  })
+
+  it.each([
+    ['last', ['bob', 'carol']],
+    ['first', ['carol', 'bob']]
+  ])(
+    'keeps the last of two logIns when the answer of the first lands %s',
+    async (_, order) => {
+      const { kitsu, release, sent, onTokensChange } = parked()
+      const answers = {
+        carol: kitsu.logIn('carol@studio.test', 'secret').catch(e => e),
+        bob: kitsu.logIn('bob@studio.test', 'secret')
+      }
+      const bodies = {
+        carol: { user: { id: 'carol' }, access_token: 'carol' },
+        bob: { user: { id: 'bob' }, ...BOB }
+      }
+      await sent(2)
+
+      for (const name of order) {
+        release('/auth/login', bodies[name], `${name}@studio.test`)
+        await answers[name]
+      }
+
+      expect((await answers.carol).name).toBe('AbortError')
+      expect((await answers.bob).user).toEqual({ id: 'bob' })
+      expect(kitsu.getTokens()).toEqual(BOB)
+      expect(onTokensChange.mock.calls).toEqual([[BOB]])
+    }
+  )
+
+  it('keeps the token of a setToken done while a logIn is pending', async () => {
+    const { kitsu, release, sent } = parked()
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret').catch(e => e)
+    await sent(1)
+    kitsu.setToken('bot-token')
+
+    release('/auth/login', { user: { id: 'bob' }, ...BOB })
+
+    expect((await loggingIn).name).toBe('AbortError')
+    expect(kitsu.getTokens()).toEqual({ access_token: 'bot-token' })
+  })
+
+  it('returns the codes of a two-factor registration a logOut overtook, without its tokens', async () => {
+    const { kitsu, release, sent } = parked()
+    const enabling = kitsu.enableTotp('123456')
+    const loggingOut = kitsu.logOut()
+    await sent(2)
+
+    release('/auth/logout', { logout: true })
+    await loggingOut
+    release('/auth/totp', { otp_recovery_codes: CODES, ...BOB })
+
+    expect(await enabling).toEqual(CODES)
+    expect(kitsu.getTokens()).toBeNull()
+  })
+
+  // The browser applies the cookies of each answer as it lands.
+  it('in cookie mode sends a session change once the one before it settled', async () => {
+    const { kitsu, fake, release, sent } = parked({
+      auth: 'cookie',
+      tokens: null
+    })
+    const loggingOut = kitsu.logOut()
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret')
+    await sent(1)
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/logout'])
+
+    release('/auth/logout', { logout: true })
+    await loggingOut
+    await sent(2)
+    release('/auth/login', { user: { id: 'bob' } })
+
+    expect((await loggingIn).user).toEqual({ id: 'bob' })
+  })
+
+  it('in cookie mode never sends a queued change that close() aborted', async () => {
+    const { kitsu, fake, sent } = parked({ auth: 'cookie', tokens: null })
+    const loggingOut = kitsu.logOut().catch(e => e)
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret').catch(e => e)
+    await sent(1)
+
+    kitsu.close()
+
+    expect((await loggingOut).name).toBe('AbortError')
+    expect((await loggingIn).name).toBe('AbortError')
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/logout'])
+  })
+
+  it('in cookie mode never sends a queued change whose signal aborted', async () => {
+    const { kitsu, fake, release, sent } = parked({
+      auth: 'cookie',
+      tokens: null
+    })
+    const loggingOut = kitsu.logOut()
+    const controller = new AbortController()
+    const loggingIn = kitsu
+      .logIn('bob@studio.test', 'secret', { signal: controller.signal })
+      .catch(e => e)
+    await sent(1)
+
+    controller.abort()
+    release('/auth/logout', { logout: true })
+    await loggingOut
+
+    expect((await loggingIn).name).toBe('AbortError')
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/logout'])
+  })
+
+  it('in cookie mode rejects at once a queued change whose signal aborts', async () => {
+    const { kitsu, fake, release, sent } = parked({
+      auth: 'cookie',
+      tokens: null
+    })
+    const loggingIn = kitsu.logIn('bob@studio.test', 'secret').catch(e => e)
+    const controller = new AbortController()
+    const loggingOut = kitsu.logOut({ signal: controller.signal }).catch(e => e)
+    await sent(1)
+
+    controller.abort()
+
+    // Settled while the logIn before it still waits for its answer.
+    const settled = await Promise.race([
+      loggingOut,
+      new Promise(resolve => setTimeout(() => resolve('pending'), 50))
+    ])
+    expect(settled.name).toBe('AbortError')
+    release('/auth/login', { user: { id: 'bob' } })
+    expect((await loggingIn).name).toBe('AbortError')
+    await new Promise(resolve => setTimeout(resolve, 10))
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/login'])
+  })
+
+  // Dropping the session runs app code, which may start the next change.
+  it('in cookie mode sends a change started by the logOut itself after it', async () => {
+    let next = null
+    const { kitsu, fake, release, sent } = parked({
+      auth: 'cookie',
+      tokens: null,
+      onTokensChange: () => {
+        next = kitsu.logIn('bob@studio.test', 'secret')
+      }
+    })
+
+    const loggingOut = kitsu.logOut()
+    await sent(1)
+    expect(fake.calls.map(call => call.path)).toEqual(['/auth/logout'])
+    release('/auth/logout', { logout: true })
+    await loggingOut
+    await sent(2)
+    release('/auth/login', { user: { id: 'bob' } })
+
+    expect((await next).user).toEqual({ id: 'bob' })
   })
 })

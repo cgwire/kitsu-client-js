@@ -1,10 +1,14 @@
-import { ParameterError } from '../core/errors.js'
+import { KitsuError, ParameterError } from '../core/errors.js'
 import {
   idOf,
   idsOf,
+  likeLiteralOf,
+  metadataOf,
   optionalIdOf,
+  orNull,
   placeholdersToNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -14,6 +18,7 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
 // getAsset and allAssetsWithTasks write a missing preview or episode as ''
@@ -24,86 +29,93 @@ const ASSET_PLACEHOLDERS = {
   source_id: ''
 }
 
+// What Kitsu edits on an asset type: task_types are the task types applied
+// to the assets of that type.
+const ASSET_TYPE_FIELDS = [
+  'name',
+  'short_name',
+  'description',
+  'task_types',
+  'archived'
+]
+
+// An id alone, or an object without any field to save, would send an empty
+// body that Zou answers with the unchanged type.
+const assetTypeFieldsOf = assetType => {
+  const fields =
+    assetType !== null && typeof assetType === 'object'
+      ? ASSET_TYPE_FIELDS.filter(key => assetType[key] !== undefined)
+      : []
+  if (fields.length === 0) {
+    throw new ParameterError(
+      `Missing parameter: assetType has no field to save (${ASSET_TYPE_FIELDS.join(', ')})`
+    )
+  }
+  if (fields.includes('name')) requiredOf('name', assetType.name)
+  const taskTypes = assetType.task_types
+  const listed = Array.isArray(taskTypes)
+  if (fields.includes('task_types') && taskTypes !== null && !listed) {
+    throw new ParameterError('Wrong format: task_types must be a list')
+  }
+  return Object.fromEntries(
+    fields.map(key => [
+      key,
+      key === 'task_types' && listed ? idsOf(taskTypes) : assetType[key]
+    ])
+  )
+}
+
+// Zou serves its CSV exports as text/csv: a page answered with a 2xx
+// instead (a host given without /api, an SSO portal) is not the export.
+const readCsv = path => async response => {
+  const type = response.headers.get('Content-Type') || ''
+  if (type.includes('csv')) return response.text()
+  throw new KitsuError(`GET ${path} answered ${response.status} without CSV`, {
+    status: response.status,
+    path,
+    method: 'GET',
+    body: await response.text()
+  })
+}
+
 export const assetApi = http => {
-  /**
-   * @param {Model|null} project null lists the assets of every project.
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} Assets of the project, sorted by name.
-   */
-  const allAssetsForProject = async (project, { signal } = {}) => {
-    const projectId = optionalIdOf(project)
+  // The public functions are documented on the returned object: the
+  // declarations keep the JSDoc of a property, not the one of a constant.
+  const assetsOfProject = async (project, signal) => {
+    // Only an explicit null widens the list: a missing project (undefined,
+    // a property that does not exist) is refused like anywhere else.
+    const projectId = project === null ? null : idOf(project)
     const path =
       projectId === null ? 'assets/all' : `projects/${projectId}/assets`
     return http.fetchAll(path, {}, { signal }).then(sortedByName)
   }
 
-  /**
-   * @param {Model} project
-   * @param {string} name
-   * @param {{assetType?: Model, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity|null>} First asset of the project matching the
-   *   name (and the asset type when given), null when there is none.
-   */
-  const getAssetByName = async (project, name, { assetType, signal } = {}) =>
-    http.fetchFirst(
-      'assets/all',
-      {
-        project_id: idOf(project),
-        name: requiredOf('name', name),
-        entity_type_id: optionalIdOf(assetType)
-      },
-      { signal }
+  const assetByName = async (project, name, assetType, signal) => {
+    const assets = await orNull(
+      http.fetchAll(
+        'assets/all',
+        {
+          project_id: idOf(project),
+          name: likeLiteralOf(name),
+          entity_type_id: optionalIdOf(assetType)
+        },
+        { signal }
+      )
     )
+    return sameNameOf(assets, name)
+  }
 
-  /**
-   * @param {Model} asset
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The asset, null when it does not exist.
-   */
-  const getAsset = async (asset, { signal } = {}) =>
-    http.fetchOne('assets', idOf(asset), { signal })
-
-  /**
-   * Save the asset. It must already exist. An asset read with getAsset or
-   * allAssetsWithTasks can be saved back as it is: the placeholders of its
-   * missing preview, ready_for and episode are sent as null.
-   * @param {{id: string, [field: string]: any}} asset
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The updated asset.
-   */
-  const updateAsset = async (asset, { signal } = {}) =>
-    http.update(
-      'entities',
-      idOf(asset),
-      placeholdersToNull(
-        // Zou stores the episode of an asset in source_id.
-        'episode_id' in asset
-          ? { ...asset, source_id: asset.episode_id }
-          : asset,
-        ASSET_PLACEHOLDERS
-      ),
-      { signal }
-    )
-
-  /**
-   * @param {Model} assetType
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} The asset type, null when missing.
-   */
-  const getAssetType = async (assetType, { signal } = {}) =>
+  const assetTypeOf = async (assetType, signal) =>
     http.fetchOne('asset-types', idOf(assetType), { signal })
 
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First asset type matching the name.
-   */
-  const getAssetTypeByName = async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'entity-types',
-      { name: requiredOf('name', name) },
-      { signal }
+  // The asset types only: the entity types also hold the types of the
+  // shots, sequences, episodes, edits, scenes and concepts.
+  const assetTypeByName = async (name, signal) => {
+    const assetTypes = await orNull(
+      http.fetchAll('asset-types', { name: likeLiteralOf(name) }, { signal })
     )
+    return sameNameOf(assetTypes, name)
+  }
 
   return {
     /**
@@ -114,13 +126,18 @@ export const assetApi = http => {
       http
         .fetchAll('projects/open', {}, { signal })
         .then(projects =>
-          Promise.all(
-            projects.map(project => allAssetsForProject(project, { signal }))
-          )
+          Promise.all(projects.map(project => assetsOfProject(project, signal)))
         )
         .then(assetLists => sortedByName(assetLists.flat())),
 
-    allAssetsForProject,
+    /**
+     * @param {Model|null} project null, not undefined, lists the assets of
+     *   every project.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} Assets of the project, sorted by name.
+     */
+    allAssetsForProject: async (project, { signal } = {}) =>
+      assetsOfProject(project, signal),
 
     /**
      * @param {{
@@ -149,17 +166,16 @@ export const assetApi = http => {
     /**
      * Assets with their tasks, read as a stream (NDJSON) when Zou serves one:
      * made for full project views.
-     * @param {{project?: Model, episode?: Model, signal?: AbortSignal}} [options]
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the assets of the episode and the ones casted in it.
      * @returns {Promise<Entity[]>} Assets, each with its tasks, in the order
      *   given by Zou.
      */
-    allAssetsWithTasks: async ({ project, episode, signal } = {}) =>
+    allAssetsWithTasks: async (project, { episode, signal } = {}) =>
       http.getNdjson(
         'data/assets/with-tasks',
-        {
-          project_id: optionalIdOf(project),
-          episode_id: optionalIdOf(episode)
-        },
+        { project_id: idOf(project), episode_id: optionalIdOf(episode) },
         { signal }
       ),
 
@@ -183,16 +199,20 @@ export const assetApi = http => {
     },
 
     /**
-     * Share assets between projects, or stop sharing them. The scope is the
-     * given assets, narrowed or replaced by a project, or by an asset type of
-     * a project (assets is ignored by Zou in that last case).
+     * Share assets between projects, or stop sharing them: the given assets,
+     * narrowed to a project when one is given, every asset of an asset type
+     * of a project, or every asset of a project with all.
      * @param {{
      *   assets?: Model[],
      *   project?: Model,
      *   assetType?: Model,
+     *   all?: boolean,
      *   isShared?: boolean,
      *   signal?: AbortSignal
-     * }} [options] Without a project, assets is required. assetType needs its
+     * }} [options] Give one of assets, assetType or all: true. With a
+     *   project, assets cannot be empty: Zou would read an empty list as
+     *   every asset of the project. Without one, an empty list shares nothing
+     *   and resolves to [] without any request. assetType and all need the
      *   project.
      * @returns {Promise<Entity[]>} The updated assets.
      */
@@ -200,17 +220,42 @@ export const assetApi = http => {
       assets,
       project,
       assetType,
+      all = false,
       isShared = true,
       signal
     } = {}) => {
       const projectId = optionalIdOf(project)
       const assetTypeId = optionalIdOf(assetType)
-      if (projectId === null && assetTypeId !== null) {
+      const listed = assets !== null && assets !== undefined
+      // Zou widens an empty list to the whole project, and ignores the list
+      // on the asset type route: each scope is asked for explicitly.
+      if (listed && !Array.isArray(assets)) {
+        throw new ParameterError('Wrong format: assets must be a list')
+      }
+      const scopes = [listed, assetTypeId !== null, Boolean(all)]
+      if (!scopes.includes(true)) {
         throw new ParameterError(
-          'Missing parameter: project is required with assetType'
+          'Missing parameter: assets, assetType or all: true is required'
         )
       }
-      if (projectId === null) requiredOf('assets', assets)
+      if (scopes.filter(Boolean).length > 1) {
+        throw new ParameterError(
+          'Wrong format: assets, assetType and all: true exclude each other'
+        )
+      }
+      if (projectId === null && !listed) {
+        throw new ParameterError(
+          'Missing parameter: project is required with assetType or all'
+        )
+      }
+      // Zou shares nothing for an empty list without project, and every
+      // asset of the project for one with it.
+      if (listed && assets.length === 0) {
+        if (projectId === null) return []
+        throw new ParameterError(
+          'Missing parameter: assets is empty, all: true shares every asset of the project'
+        )
+      }
       const typeScope =
         assetTypeId === null ? '' : `asset-types/${assetTypeId}/`
       const scope =
@@ -218,7 +263,7 @@ export const assetApi = http => {
       return http.post(
         `actions/${scope}assets/share`,
         {
-          ...withoutNil({ asset_ids: assets ? idsOf(assets) : null }),
+          ...(listed ? { asset_ids: idsOf(assets) } : {}),
           is_shared: isShared
         },
         { signal }
@@ -261,13 +306,28 @@ export const assetApi = http => {
         )
         .then(sortedByName),
 
-    getAssetByName,
+    /**
+     * @param {Model} project
+     * @param {string} name
+     * @param {{assetType?: Model, signal?: AbortSignal}} [options]
+     * @returns {Promise<Entity|null>} The asset of the project with that name
+     *   (the case ignored, an exact match first) and of the asset type when
+     *   given, null when there is none.
+     */
+    getAssetByName: async (project, name, { assetType, signal } = {}) =>
+      assetByName(project, name, assetType, signal),
 
-    getAsset,
+    /**
+     * @param {Model} asset
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The asset, null when it does not exist.
+     */
+    getAsset: async (asset, { signal } = {}) =>
+      http.fetchOne('assets', idOf(asset), { signal }),
 
     /**
      * Create an asset, or return the asset of that name and type when the
-     * project already has one.
+     * project already has one, as getAssetByName finds it.
      * @param {Model} project
      * @param {Model} assetType
      * @param {string} name
@@ -287,24 +347,46 @@ export const assetApi = http => {
       name,
       { description, extraData = {}, episode, isShared = false, signal } = {}
     ) => {
-      const existing = await getAssetByName(project, name, {
-        assetType,
-        signal
-      })
-      if (existing !== null) return existing
-      return http.post(
-        `data/projects/${idOf(project)}/asset-types/${idOf(assetType)}/assets/new`,
-        {
-          name,
-          data: extraData,
-          is_shared: isShared,
-          ...withoutNil({ description, episode_id: optionalIdOf(episode) })
-        },
+      // Every id is checked before the lookup, even when the asset exists.
+      const path = `data/projects/${idOf(project)}/asset-types/${idOf(assetType)}/assets/new`
+      const body = {
+        name,
+        data: extraData,
+        is_shared: isShared,
+        ...withoutNil({ description, episode_id: optionalIdOf(episode) })
+      }
+      const existing = await assetByName(project, name, assetType, signal)
+      return existing || http.post(path, body, { signal })
+    },
+
+    /**
+     * Save the asset. It must already exist. An asset read with getAsset or
+     * allAssetsWithTasks can be saved back as it is: the placeholders of its
+     * missing preview, ready_for and episode are sent as null.
+     * @param {{id: string, [field: string]: any}} asset
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The updated asset.
+     */
+    updateAsset: async (asset, { signal } = {}) => {
+      const id = idOf(asset)
+      if (typeof asset !== 'object') {
+        throw new ParameterError(
+          'Wrong format: updateAsset needs the asset object, an id has nothing to save'
+        )
+      }
+      return http.update(
+        'entities',
+        id,
+        placeholdersToNull(
+          // Zou stores the episode of an asset in source_id.
+          'episode_id' in asset
+            ? { ...asset, source_id: asset.episode_id }
+            : asset,
+          ASSET_PLACEHOLDERS
+        ),
         { signal }
       )
     },
-
-    updateAsset,
 
     /**
      * Update the metadata of the asset. Keys that are not given are kept.
@@ -315,7 +397,12 @@ export const assetApi = http => {
      */
     updateAssetData: async (asset, data = {}, { signal } = {}) =>
       // Only the given keys: Zou merges them into the stored metadata.
-      http.update('entities', idOf(asset), { data: { ...data } }, { signal }),
+      http.update(
+        'entities',
+        idOf(asset),
+        { data: { ...metadataOf(data) } },
+        { signal }
+      ),
 
     /**
      * Remove the asset. Without force, an asset that has tasks is only marked
@@ -361,27 +448,72 @@ export const assetApi = http => {
         .fetchAll(`shots/${idOf(shot)}/asset-types`, {}, { signal })
         .then(sortedByName),
 
-    getAssetType,
-
-    getAssetTypeByName,
+    /**
+     * @param {Model} assetType
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The asset type, null when missing.
+     */
+    getAssetType: async (assetType, { signal } = {}) =>
+      assetTypeOf(assetType, signal),
 
     /**
-     * Create an asset type, or return the one that already has that name.
      * @param {string} name
      * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The asset type with that name (the case
+     *   ignored, an exact match first), null when there is none.
+     */
+    getAssetTypeByName: async (name, { signal } = {}) =>
+      assetTypeByName(name, signal),
+
+    /**
+     * Create an asset type, or return as it is the one that already has that
+     * name, as getAssetTypeByName finds it. Zou refuses a name taken by
+     * another entity type, such as Shot or Concept (ParameterError).
+     * @param {string} name
+     * @param {{
+     *   shortName?: string,
+     *   description?: string,
+     *   taskTypes?: Model[],
+     *   signal?: AbortSignal
+     * }} [options] taskTypes are the task types applied to the assets of the
+     *   type.
      * @returns {Promise<Entity>} The created (or already existing) asset type.
      */
-    newAssetType: async (name, { signal } = {}) => {
-      const existing = await getAssetTypeByName(name, { signal })
+    newAssetType: async (
+      name,
+      { shortName, description, taskTypes, signal } = {}
+    ) => {
+      const body = {
+        name,
+        ...withoutNil({
+          short_name: shortName,
+          description,
+          task_types:
+            taskTypes === null || taskTypes === undefined
+              ? null
+              : idsOf(taskTypes)
+        })
+      }
+      const existing = await assetTypeByName(name, signal)
       if (existing !== null) return existing
-      return http.create('entity-types', { name }, { signal })
+      return http.create('entity-types', body, { signal })
     },
 
     /**
-     * Save the name of the asset type. It must already exist. Asset types are
-     * entity types in Zou: data/asset-types is read-only, writes go through
-     * data/entity-types.
-     * @param {{id: string, name: string}} assetType
+     * Save the asset type. It must already exist. Asset types are entity
+     * types in Zou: data/asset-types is read-only, writes go through
+     * data/entity-types. Only the editable fields given are sent: name,
+     * short_name, description, task_types and archived.
+     * @param {{
+     *   id: string,
+     *   name?: string,
+     *   short_name?: string|null,
+     *   description?: string|null,
+     *   task_types?: Model[]|null,
+     *   archived?: boolean,
+     *   [field: string]: any
+     * }} assetType task_types are the task types applied to the assets of
+     *   the type, as entities or ids.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated asset type.
      */
@@ -389,7 +521,7 @@ export const assetApi = http => {
       http.update(
         'entity-types',
         idOf(assetType),
-        { name: assetType.name },
+        assetTypeFieldsOf(assetType),
         { signal }
       ),
 
@@ -412,7 +544,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Instances of the asset inside shots.
+     * @returns {Promise<Record<string, Entity[]>>} The instances of the asset
+     *   linked to shots, keyed by shot id.
      */
     allShotAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
@@ -450,7 +583,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Instances of the asset inside scenes.
+     * @returns {Promise<Record<string, Entity[]>>} The instances of the asset
+     *   inside scenes, keyed by scene id.
      */
     allSceneAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
@@ -462,7 +596,8 @@ export const assetApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     allAssetInstancesForShot: async (shot, { signal } = {}) =>
       http.fetchAll(`shots/${idOf(shot)}/asset-instances`, {}, { signal }),
@@ -470,8 +605,8 @@ export const assetApi = http => {
     /**
      * @param {Model} asset
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Asset instances instantiated inside the
-     *   asset.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances inside
+     *   the asset, keyed by the id of the asset they instantiate.
      */
     allAssetInstancesForAsset: async (asset, { signal } = {}) =>
       http.fetchAll(
@@ -507,16 +642,12 @@ export const assetApi = http => {
      * the project.
      * @param {Model} project
      * @param {Blob} csvFile
-     * @param {{
-     *   update?: boolean,
-     *   fileName?: string,
-     *   onProgress?: (progress: {loaded: number, total: number}) => void,
-     *   signal?: AbortSignal
-     * }} [options] update also updates the assets that already exist.
-     *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
-     *   report it. A client given its own fetch (Tauri) uploads through it
-     *   and never calls onProgress.
-     * @returns {Promise<Entity[]>} The assets created by the import.
+     * @param {TransferOptions & {update?: boolean}} [options] update also
+     *   updates the assets that already exist.
+     * @returns {Promise<Entity[]>} The asset of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importAssetsWithCsv: async (
       project,
@@ -546,15 +677,17 @@ export const assetApi = http => {
     exportAssetsWithCsv: async (
       project,
       { episode, assignedTo, signal } = {}
-    ) =>
-      http.request('GET', `export/csv/projects/${idOf(project)}/assets.csv`, {
+    ) => {
+      const path = `export/csv/projects/${idOf(project)}/assets.csv`
+      return http.request('GET', path, {
         query: {
           episode_id: optionalIdOf(episode),
           assigned_to: optionalIdOf(assignedTo)
         },
         signal,
-        read: response => response.text()
-      }),
+        read: readCsv(path)
+      })
+    },
 
     /**
      * @param {Model|{
@@ -566,7 +699,7 @@ export const assetApi = http => {
      *   or episode_id, is read first.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The episode of the asset, null when the
-     *   asset belongs to the main pack.
+     *   asset belongs to the main pack or does not exist.
      */
     getEpisodeFromAsset: async (asset, { signal } = {}) => {
       // source_id is the episode link; listings serialize it as episode_id,
@@ -578,7 +711,8 @@ export const assetApi = http => {
         ('source_id' in asset || 'episode_id' in asset)
       const source = known
         ? asset
-        : await http.get(`data/assets/${idOf(asset)}`, {}, { signal })
+        : await http.fetchOne('assets', idOf(asset), { signal })
+      if (source === null) return null
       const episodeId = optionalIdOf(
         source.source_id || source.episode_id || null
       )
@@ -588,12 +722,28 @@ export const assetApi = http => {
     },
 
     /**
-     * @param {{entity_type_id: string}} asset
+     * @param {Model|{
+     *   id: string,
+     *   entity_type_id?: string,
+     *   asset_type_id?: string,
+     *   [field: string]: any
+     * }} asset An asset given as an id, or as an object without its
+     *   entity_type_id (getAsset) or asset_type_id (allAssetsWithTasks), is
+     *   read first.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The asset type of the asset.
+     * @returns {Promise<Entity|null>} The asset type of the asset, null when
+     *   the asset does not exist.
      */
-    getAssetTypeFromAsset: async (asset, { signal } = {}) =>
-      getAssetType(asset.entity_type_id, { signal }),
+    getAssetTypeFromAsset: async (asset, { signal } = {}) => {
+      const typeIdOf = source =>
+        source.entity_type_id || source.asset_type_id || null
+      const known =
+        typeof asset === 'object' && asset !== null && typeIdOf(asset) !== null
+      const source = known
+        ? asset
+        : await http.fetchOne('assets', idOf(asset), { signal })
+      return source === null ? null : assetTypeOf(typeIdOf(source), signal)
+    },
 
     /**
      * Loads the asset and its project, like gazu: the URL differs in a TV show.
@@ -633,19 +783,17 @@ export const assetApi = http => {
      * @returns {Promise<string>} URL of the asset list filtered on the type.
      */
     getAssetTypeUrl: async (project, assetType, { signal } = {}) => {
+      const projectId = idOf(project)
+      const assetTypeId = idOf(assetType)
       const loadedProject = await http.get(
-        `data/projects/${idOf(project)}`,
+        `data/projects/${projectId}`,
         {},
         { signal }
       )
       const named =
-        typeof assetType === 'object' && assetType && 'name' in assetType
+        typeof assetType === 'object' && 'name' in assetType
           ? assetType
-          : await http.get(
-              `data/asset-types/${idOf(assetType)}`,
-              {},
-              { signal }
-            )
+          : await http.get(`data/asset-types/${assetTypeId}`, {}, { signal })
       return urls.getAssetTypeUrl(
         urls.webHostOf(http.host),
         loadedProject,

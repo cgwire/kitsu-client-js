@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { STUDIO_ID } from '../helpers/ids.js'
+import { OTHER_ID, STUDIO_ID } from '../helpers/ids.js'
 
 describe('studio namespace', () => {
   let kitsu, fake
@@ -49,6 +49,29 @@ describe('studio namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Angers')
   })
 
+  // Left as is, "Studio_A" would also find "Studio-A", and a trailing
+  // backslash, the escape character of LIKE, would fail the query.
+  it('getStudioByName escapes the LIKE wildcards and the backslash', async () => {
+    fake.reply(200, []).reply(200, [])
+    await kitsu.studio.getStudioByName('Studio_A 100%')
+    await kitsu.studio.getStudioByName('Angers\\')
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Studio\\_A 100\\%',
+      'Angers\\\\'
+    ])
+  })
+
+  // Zou keeps "Paris" and "paris" apart, and its ILIKE filter finds both.
+  it('getStudioByName prefers the exact spelling over another case', async () => {
+    const both = [
+      { id: OTHER_ID, name: 'Paris' },
+      { id: STUDIO_ID, name: 'paris' }
+    ]
+    fake.reply(200, both).reply(200, [both[0]])
+    expect(await kitsu.studio.getStudioByName('paris')).toEqual(both[1])
+    expect(await kitsu.studio.getStudioByName('paris')).toEqual(both[0])
+  })
+
   it('getStudioByName rejects a blank name', async () => {
     await expect(kitsu.studio.getStudioByName('')).rejects.toThrow(
       ParameterError
@@ -65,6 +88,13 @@ describe('studio namespace', () => {
       path: `/data/studios/${STUDIO_ID}`
     })
     expect(fake.calls[0].body).toEqual({ name: 'Angers', color: '#ff0000' })
+  })
+
+  it('updateStudio rejects an id given in place of the studio', async () => {
+    await expect(kitsu.studio.updateStudio(STUDIO_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   // Zou never reads force on this route: the former option sends nothing.

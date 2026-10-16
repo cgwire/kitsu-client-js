@@ -82,7 +82,8 @@ describe('playlist namespace: Kitsu coverage', () => {
   )
 
   it('sendShareLinkInvitations emails the share link', async () => {
-    fake.reply(200, { sent: 2 })
+    const sent = ['client@studio.test', 'supervisor@studio.test']
+    fake.reply(200, { sent })
     expect(
       await kitsu.playlist.sendShareLinkInvitations(
         { id: PLAYLIST_ID },
@@ -93,7 +94,7 @@ describe('playlist namespace: Kitsu coverage', () => {
           message: 'Please review'
         }
       )
-    ).toEqual({ sent: 2 })
+    ).toEqual({ sent })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/data/playlists/${PLAYLIST_ID}/share/${SHARE_TOKEN}/invite`
@@ -106,7 +107,7 @@ describe('playlist namespace: Kitsu coverage', () => {
   })
 
   it('sendShareLinkInvitations sends empty lists by default', async () => {
-    fake.reply(200, {})
+    fake.reply(200, { sent: [] })
     await kitsu.playlist.sendShareLinkInvitations(PLAYLIST_ID, SHARE_TOKEN)
     expect(fake.calls[0].body).toEqual({ emails: [], person_ids: [] })
   })

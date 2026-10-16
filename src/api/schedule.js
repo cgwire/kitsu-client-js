@@ -1,6 +1,8 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
+  fieldsOf,
   idOf,
   idsOf,
   optionalIdOf,
@@ -25,18 +27,20 @@ const kindOf = kind => {
   )
 }
 
-// An update sends null on purpose (it clears the field): only the keys left
-// unset stay out of the body.
-const withoutUndefined = data =>
-  Object.fromEntries(
-    Object.entries(data).filter(([, value]) => value !== undefined)
-  )
-
 const optionalIdsOf = models =>
   models === undefined || models === null ? models : idsOf(models)
 
-const clearableIdOf = model =>
-  model === undefined ? undefined : optionalIdOf(model)
+// Up to 0.2.0 the changes were options: such a call would now save nothing.
+// Null options are no options.
+const optionsOf = (options, names, saved) => {
+  const given = options ?? {}
+  if (names.some(name => name in given)) {
+    throw new ParameterError(
+      `Wrong format: the changes are fields of the ${saved}, not options`
+    )
+  }
+  return given
+}
 
 export const scheduleApi = http => ({
   /**
@@ -60,40 +64,48 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a milestone. Only the given fields are sent; a null task type
-   * clears it.
-   * @param {Model} milestone
+   * Save the date, name and task_type_id of the milestone. A field missing
+   * from the given object is left untouched, a null task_type_id clears the
+   * task type.
    * @param {{
+   *   id: string,
    *   date?: Date|string,
    *   name?: string,
-   *   taskType?: Model|null,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   task_type_id?: string|null,
+   *   [field: string]: any
+   * }} milestone A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateMilestone: async (milestone, { date, name, taskType, signal } = {}) =>
-    http.update(
+  updateMilestone: async (milestone, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['date', 'name', 'taskType'],
+      'milestone'
+    )
+    const id = idOf(milestone)
+    const { date, name, task_type_id } = fieldsOf(milestone)
+    return http.update(
       'milestones',
-      idOf(milestone),
-      withoutUndefined({
-        date: dateOf(date),
-        name,
-        task_type_id: clearableIdOf(taskType)
-      }),
+      id,
+      changesOf({ date: dateOf(date), name, task_type_id }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * Delete a milestone.
    * @param {Model} milestone
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeMilestone: async (milestone, { signal } = {}) =>
     http.remove('milestones', idOf(milestone), undefined, { signal }),
 
   /**
-   * Schedule items of a project at the task type level.
+   * Schedule items of a project at the task type level. Zou creates the item
+   * of each task type of the project that has none, from today to tomorrow,
+   * and announces it with a schedule-item:new event.
    * @param {Model} project
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>}
@@ -117,7 +129,9 @@ export const scheduleApi = http => ({
     }),
 
   /**
-   * Schedule items of a task type for one kind of entity.
+   * Schedule items of a task type for one kind of entity. Zou creates the
+   * item of each asset type, sequence, edit or episode that has none, from
+   * today to tomorrow, and announces it with a schedule-item:new event.
    * @param {Model} project
    * @param {Model} taskType
    * @param {ScheduleItemKind} kind
@@ -137,7 +151,10 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Create a schedule item for a task type of a project.
+   * Create a schedule item for a task type of a project. Zou keeps one such
+   * item per task type and refuses a second one (ParameterError), and
+   * allTaskTypeScheduleItems creates the missing ones: change an existing
+   * item with updateScheduleItem.
    * @param {Model} project
    * @param {Model} taskType
    * @param {Date|string} startDate A Date (its local day) or "YYYY-MM-DD".
@@ -165,36 +182,43 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a schedule item. Only the given fields are sent.
-   * @param {Model} scheduleItem
+   * Save the start_date, end_date and man_days of the schedule item. A field
+   * missing from the given object is left untouched.
    * @param {{
-   *   startDate?: Date|string,
-   *   endDate?: Date|string,
-   *   manDays?: number|null,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   id: string,
+   *   start_date?: Date|string,
+   *   end_date?: Date|string,
+   *   man_days?: number|null,
+   *   [field: string]: any
+   * }} scheduleItem A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleItem: async (
-    scheduleItem,
-    { startDate, endDate, manDays, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleItem: async (scheduleItem, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['startDate', 'endDate', 'manDays'],
+      'schedule item'
+    )
+    const id = idOf(scheduleItem)
+    const { start_date, end_date, man_days } = fieldsOf(scheduleItem)
+    return http.update(
       'schedule-items',
-      idOf(scheduleItem),
-      withoutUndefined({
-        start_date: dateOf(startDate),
-        end_date: dateOf(endDate),
-        man_days: manDays
+      id,
+      changesOf({
+        start_date: dateOf(start_date),
+        end_date: dateOf(end_date),
+        man_days
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * Delete a schedule item.
    * @param {Model} scheduleItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleItem: async (scheduleItem, { signal } = {}) =>
     http.remove('schedule-items', idOf(scheduleItem), undefined, { signal }),
@@ -237,32 +261,39 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a production schedule version. Only the given fields are sent.
-   * @param {Model} version
+   * Save the name, canceled and locked fields of the production schedule
+   * version. A field missing from the given object is left untouched.
    * @param {{
+   *   id: string,
    *   name?: string,
    *   canceled?: boolean,
    *   locked?: boolean,
-   *   signal?: AbortSignal
-   * }} [options]
+   *   [field: string]: any
+   * }} version
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersion: async (
-    version,
-    { name, canceled, locked, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleVersion: async (version, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['name', 'canceled', 'locked'],
+      'version'
+    )
+    const id = idOf(version)
+    const { name, canceled, locked } = fieldsOf(version)
+    return http.update(
       'production-schedule-versions',
-      idOf(version),
-      withoutUndefined({ name, canceled, locked }),
+      id,
+      changesOf({ name, canceled, locked }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * Delete a production schedule version.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleVersion: async (version, { signal } = {}) =>
     http.remove('production-schedule-versions', idOf(version), undefined, {
@@ -273,7 +304,8 @@ export const scheduleApi = http => ({
    * Fill the task links of a version from the tasks of its production.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The task links.
+   * @returns {Promise<{success: boolean, task_link_count: number}>} The
+   *   number of task links set.
    */
   setTaskLinksFromProduction: async (version, { signal } = {}) =>
     http.post(
@@ -287,7 +319,8 @@ export const scheduleApi = http => ({
    * @param {Model} version
    * @param {Model} fromVersion The source version.
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The task links.
+   * @returns {Promise<{success: boolean, task_link_count: number}>} The
+   *   number of task links set.
    */
   setTaskLinksFromScheduleVersion: async (
     version,
@@ -301,11 +334,14 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Apply the dates, estimations and assignees of a version to the tasks of
-   * its production.
+   * Copy the start dates, due dates and estimations of the task links of a
+   * version onto the tasks of its production (the assignees are not
+   * applied), then lock the version and record it as the
+   * from_schedule_version_id of the project.
    * @param {Model} version
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} The updated tasks.
+   * @returns {Promise<{success: boolean, task_count: number}>} The number of
+   *   tasks updated.
    */
   applyScheduleVersionToProduction: async (version, { signal } = {}) =>
     http.post(
@@ -369,39 +405,46 @@ export const scheduleApi = http => ({
     ),
 
   /**
-   * Update a task link. Only the given fields are sent; a null date clears
-   * it.
-   * @param {Model} taskLink
+   * Save the start_date, due_date, estimation and assignees of the task
+   * link. A field missing from the given object is left untouched, a null
+   * date clears it.
    * @param {{
-   *   startDate?: Date|string|null,
-   *   dueDate?: Date|string|null,
+   *   id: string,
+   *   start_date?: Date|string|null,
+   *   due_date?: Date|string|null,
    *   estimation?: number,
    *   assignees?: Model[],
-   *   signal?: AbortSignal
-   * }} [options] A Date gives its local day.
+   *   [field: string]: any
+   * }} taskLink A Date gives its local day.
+   * @param {RequestOptions} [options]
    * @returns {Promise<Entity>}
    */
-  updateScheduleVersionTaskLink: async (
-    taskLink,
-    { startDate, dueDate, estimation, assignees, signal } = {}
-  ) =>
-    http.update(
+  updateScheduleVersionTaskLink: async (taskLink, options) => {
+    const { signal } = optionsOf(
+      options,
+      ['startDate', 'dueDate', 'estimation', 'assignees'],
+      'task link'
+    )
+    const id = idOf(taskLink)
+    const { start_date, due_date, estimation, assignees } = fieldsOf(taskLink)
+    return http.update(
       'production-schedule-version-task-links',
-      idOf(taskLink),
-      withoutUndefined({
-        start_date: dateOf(startDate),
-        due_date: dateOf(dueDate),
+      id,
+      changesOf({
+        start_date: dateOf(start_date),
+        due_date: dateOf(due_date),
         estimation,
         assignees: optionalIdsOf(assignees)
       }),
       { signal }
-    ),
+    )
+  },
 
   /**
    * Delete a task link of a production schedule version.
    * @param {Model} taskLink
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeScheduleVersionTaskLink: async (taskLink, { signal } = {}) =>
     http.remove(

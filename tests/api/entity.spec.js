@@ -80,6 +80,37 @@ describe('entity namespace', () => {
     expect(fake.calls[1].query.get('project_id')).toBe(PROJECT_ID)
   })
 
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getEntityByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'sh0010' }
+    const entity = { id: ENTITY_ID, name: 'sh_010' }
+    fake.reply(200, [nearName, entity]).reply(200, [nearName])
+    expect(
+      await kitsu.entity.getEntityByName('SH_010', { project: PROJECT_ID })
+    ).toEqual(entity)
+    expect(await kitsu.entity.getEntityByName('sh_010')).toBeNull()
+  })
+
+  it('getEntityByName prefers the exact spelling to another case', async () => {
+    const upper = { id: OTHER_ID, name: 'Hero' }
+    const lower = { id: ENTITY_ID, name: 'hero' }
+    fake.reply(200, [upper, lower])
+    expect(await kitsu.entity.getEntityByName('hero')).toEqual(lower)
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups escape the backslash and the wildcards of LIKE', async () => {
+    const entity = { id: ENTITY_ID, name: 'prop\\v2_100%' }
+    fake.reply(200, [entity]).reply(200, [])
+    expect(await kitsu.entity.getEntityByName('prop\\v2_100%')).toEqual(entity)
+    expect(await kitsu.entity.getEntityTypeByName('FX\\')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'prop\\\\v2\\_100\\%',
+      'FX\\\\'
+    ])
+  })
+
   it('getEntityType returns the type, null on 404', async () => {
     fake.reply(200, { id: OTHER_ID }).reply(404, {})
     expect(await kitsu.entity.getEntityType(OTHER_ID)).toEqual({ id: OTHER_ID })
@@ -99,9 +130,28 @@ describe('entity namespace', () => {
     expect(fake.calls[0].query.get('name')).toBe('Shot')
   })
 
+  it('getEntityTypeByName keeps the exact name, the case aside', async () => {
+    const types = [
+      { id: ENTITY_ID, name: 'Set-Dress' },
+      { id: OTHER_ID, name: 'Set_Dress' }
+    ]
+    fake.reply(200, types).reply(200, types)
+    expect(await kitsu.entity.getEntityTypeByName('set_dress')).toEqual(
+      types[1]
+    )
+    expect(await kitsu.entity.getEntityTypeByName('Set%')).toBeNull()
+  })
+
   it('guessFromPath posts the path to match against the file tree', async () => {
-    fake.reply(200, [{ id: ENTITY_ID }]).reply(200, [])
-    await kitsu.entity.guessFromPath({ id: PROJECT_ID }, '/prod/shots/sh010')
+    // Zou answers the matching templates, each with the ids of its tokens.
+    const matches = [
+      { Template: 'shot', Project: PROJECT_ID, Shot: ENTITY_ID },
+      { Template: 'instance', Project: PROJECT_ID }
+    ]
+    fake.reply(200, matches).reply(200, [])
+    expect(
+      await kitsu.entity.guessFromPath({ id: PROJECT_ID }, '/prod/shots/sh010')
+    ).toEqual(matches)
     await kitsu.entity.guessFromPath(PROJECT_ID, 'C:\\prod\\sh010', {
       sep: '\\'
     })
@@ -123,6 +173,16 @@ describe('entity namespace', () => {
       path: '/data/entity-types',
       body: { name: 'Prop' }
     })
+  })
+
+  it('newEntityType rejects a missing name before any request', async () => {
+    const errors = await Promise.all(
+      [undefined, null, ''].map(name =>
+        kitsu.entity.newEntityType(name).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeEntityType deletes the type', async () => {

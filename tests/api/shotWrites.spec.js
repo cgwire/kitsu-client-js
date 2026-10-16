@@ -40,12 +40,25 @@ describe('shot namespace: writes', () => {
     expect(fake.calls[1].body).toEqual({ name: 'SQ01', episode_id: EPISODE_ID })
   })
 
-  it('newSequence returns the existing sequence instead of creating', async () => {
-    fake.reply(200, [{ id: SEQUENCE_ID, name: 'SQ01' }])
-    expect(await kitsu.shot.newSequence(PROJECT_ID, 'SQ01')).toEqual({
-      id: SEQUENCE_ID,
-      name: 'SQ01'
+  it('newSequence sends the description and the metadata', async () => {
+    fake.reply(200, []).reply(201, { id: SEQUENCE_ID })
+    await kitsu.shot.newSequence(PROJECT_ID, 'SQ01', {
+      episode: EPISODE_ID,
+      description: 'Act 1',
+      data: { mood: 'dark' }
     })
+    expect(fake.calls[1].body).toEqual({
+      name: 'SQ01',
+      episode_id: EPISODE_ID,
+      description: 'Act 1',
+      data: { mood: 'dark' }
+    })
+  })
+
+  it('newSequence returns the existing sequence instead of creating', async () => {
+    const sequence = { id: SEQUENCE_ID, name: 'SQ01', parent_id: null }
+    fake.reply(200, [sequence])
+    expect(await kitsu.shot.newSequence(PROJECT_ID, 'SQ01')).toEqual(sequence)
     expect(fake.calls).toHaveLength(1)
   })
 
@@ -89,12 +102,56 @@ describe('shot namespace: writes', () => {
   })
 
   it('newShot returns the existing shot instead of creating', async () => {
-    fake.reply(200, [{ id: SHOT_ID, name: 'SH010' }])
-    expect(await kitsu.shot.newShot(PROJECT_ID, SEQUENCE_ID, 'SH010')).toEqual({
-      id: SHOT_ID,
-      name: 'SH010'
-    })
+    const shot = { id: SHOT_ID, name: 'SH010', parent_id: SEQUENCE_ID }
+    fake.reply(200, [shot])
+    expect(await kitsu.shot.newShot(PROJECT_ID, SEQUENCE_ID, 'SH010')).toEqual(
+      shot
+    )
     expect(fake.calls).toHaveLength(1)
+  })
+
+  // Zou matches the lookup with ILIKE, where _ is a wildcard.
+  it('newShot creates the shot when only a close name exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'SH-010', parent_id: SEQUENCE_ID }])
+      .reply(201, { id: SHOT_ID, name: 'SH_010' })
+    expect(
+      await kitsu.shot.newShot(PROJECT_ID, SEQUENCE_ID, 'SH_010')
+    ).toMatchObject({ id: SHOT_ID })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: `/data/projects/${PROJECT_ID}/shots`,
+      body: { name: 'SH_010', data: {}, sequence_id: SEQUENCE_ID }
+    })
+  })
+
+  // Zou looks for the same name in the same parent before creating one.
+  it('newSequence creates a sequence outside the episodes holding that name', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'SQ01', parent_id: EPISODE_ID }])
+      .reply(201, { id: SEQUENCE_ID, name: 'SQ01', parent_id: null })
+    expect(await kitsu.shot.newSequence(PROJECT_ID, 'SQ01')).toMatchObject({
+      id: SEQUENCE_ID
+    })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: `/data/projects/${PROJECT_ID}/sequences`,
+      body: { name: 'SQ01' }
+    })
+  })
+
+  // A vendor gets every episode they are assigned to, whatever the name.
+  it('newEpisode creates the episode when the lookup gives other names', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'E01' }])
+      .reply(201, { id: EPISODE_ID, name: 'E02' })
+    expect(await kitsu.shot.newEpisode(PROJECT_ID, 'E02')).toMatchObject({
+      id: EPISODE_ID
+    })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      body: { name: 'E02' }
+    })
   })
 
   it('newShot rejects a malformed project before any request', async () => {
@@ -279,6 +336,21 @@ describe('shot namespace: writes', () => {
       path: `/data/projects/${PROJECT_ID}/episodes`
     })
     expect(fake.calls[1].body).toEqual({ name: 'E01' })
+  })
+
+  it('newEpisode sends the description, the status and the metadata', async () => {
+    fake.reply(200, []).reply(201, { id: EPISODE_ID })
+    await kitsu.shot.newEpisode(PROJECT_ID, 'E01', {
+      description: 'Pilot',
+      status: 'standby',
+      data: { airing: '2027-01' }
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'E01',
+      description: 'Pilot',
+      status: 'standby',
+      data: { airing: '2027-01' }
+    })
   })
 
   it('newEpisode returns the existing episode instead of creating', async () => {

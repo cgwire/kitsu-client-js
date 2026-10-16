@@ -28,6 +28,12 @@ npm i socket.io-client
 
 It needs Zou 1.0.94 or later, the API server of Kitsu.
 
+For real-time events, pass the `io` function of socket.io-client:
+`createClient({ host, io })`. A bundled app must, since the client loads it
+by itself only in Node. In bearer mode the events need Node or the main
+process of Electron; a browser or a webview listens in cookie mode, on the
+Kitsu origin (see [Real-time events](./docs/events.md#platforms)).
+
 ## Quick start
 
 With a bot token, the recommended mode for integrations:

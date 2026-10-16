@@ -46,6 +46,67 @@ const ERRORS = [
   'MissingOtpError'
 ]
 
+// The helpers of the utils entry, also exported from the root. Listed here
+// rather than read from the entry: a re-export that vanishes must fail.
+const UTILS = [
+  // frames
+  'DEFAULT_FPS',
+  'ceilToFrame',
+  'floorToFrame',
+  'formatFrame',
+  'formatTime',
+  'formatToTimecode',
+  'frameToSeconds',
+  'getEntityFrameStart',
+  'roundToFrame',
+  // preview
+  'formatRevision',
+  'isDiffPreview',
+  'isFilePreview',
+  'isMarkdownPreview',
+  'isModelPreview',
+  'isMoviePreview',
+  'isPdfPreview',
+  'isPicturePreview',
+  'isSoundPreview',
+  'isTransparentPicturePreview',
+  // sorting
+  'compareBy',
+  'sortAssets',
+  'sortByDate',
+  'sortByName',
+  'sortByPersonName',
+  'sortByValue',
+  'sortComments',
+  'sortEdits',
+  'sortPeople',
+  'sortProductions',
+  'sortRevisionPreviewFiles',
+  'sortSequences',
+  'sortShots',
+  'sortTaskNames',
+  'sortTaskStatuses',
+  'sortTaskTypes',
+  'sortTasks',
+  // urls
+  'getAllAssetsUrl',
+  'getAllEpisodesUrl',
+  'getAllSequencesUrl',
+  'getAssetTypeUrl',
+  'getAssetUrl',
+  'getAttachmentThumbnailPath',
+  'getEditUrl',
+  'getEpisodeUrl',
+  'getPersonUrl',
+  'getPreviewFilePath',
+  'getPreviewMoviePath',
+  'getProjectUrl',
+  'getSequenceUrl',
+  'getShotUrl',
+  'getTaskUrl',
+  'webHostOf'
+]
+
 // Vite resolves a package's own name through its "exports" map like Node
 // does, so these imports exercise the map a consumer goes through. The
 // require() test below goes through the resolver and loader of Node itself.
@@ -69,7 +130,9 @@ describe('package exports', () => {
       .map(file => file.slice(0, -3))
     expect(modules.sort()).toEqual([...SUBPATHS].sort())
     for (const name of SUBPATHS) {
-      const namespace = await import(`@cgwire/kitsu-client/${name}`)
+      // A template literal in import() makes Vite resolve it as a pattern.
+      const specifier = `@cgwire/kitsu-client/${name}`
+      const namespace = await import(specifier)
       expect(Object.keys(namespace)).toEqual([`${name}Api`])
     }
   })
@@ -88,20 +151,44 @@ describe('package exports', () => {
 
   // The exact lists: an internal helper leaking through a new "export *"
   // must fail here.
-  it('exports nothing else from the root and core entries', async () => {
+  it('exports nothing else from the root, core and utils entries', async () => {
     const root = await import('@cgwire/kitsu-client')
     const core = await import('@cgwire/kitsu-client/core')
     const utils = await import('@cgwire/kitsu-client/utils')
     expect(Object.keys(root).sort()).toEqual(
-      ['createClient', ...ERRORS, ...Object.keys(utils)].sort()
+      ['createClient', ...ERRORS, ...UTILS].sort()
     )
     expect(Object.keys(core).sort()).toEqual(['createCore', ...ERRORS].sort())
+    expect(Object.keys(utils).sort()).toEqual([...UTILS].sort())
   })
 
   it('exports package.json', () => {
     const require = createRequire(import.meta.url)
     const pkg = require('@cgwire/kitsu-client/package.json')
     expect(pkg.name).toBe('@cgwire/kitsu-client')
+  })
+
+  // A "./*" pattern would map any casing to a file: macOS and Windows find
+  // it, Linux does not.
+  it('lists every subpath as an exact key, whatever the file system', () => {
+    const require = createRequire(import.meta.url)
+    const pkg = require('@cgwire/kitsu-client/package.json')
+    expect(Object.keys(pkg.exports).sort()).toEqual(
+      [
+        '.',
+        './core',
+        './utils',
+        './package.json',
+        ...SUBPATHS.map(name => `./${name}`)
+      ].sort()
+    )
+    for (const specifier of ['projecttemplate', 'Task', 'core/index']) {
+      expect(() =>
+        require.resolve(`@cgwire/kitsu-client/${specifier}`)
+      ).toThrow(
+        expect.objectContaining({ code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' })
+      )
+    }
   })
 
   it('loads every entry point with require(), as CommonJS code does', async () => {
@@ -129,7 +216,7 @@ describe('package exports', () => {
       '.',
       './core',
       './utils',
-      './*'
+      ...SUBPATHS.map(name => `./${name}`)
     ])
     for (const [, target] of entries) {
       expect(target.types).toBe(declarationOf(target.default))

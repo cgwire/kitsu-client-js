@@ -9,13 +9,17 @@ import {
   dateOf,
   datetimeOf,
   dayOf,
+  fieldsOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
-  withoutNil
+  withoutNil,
+  withoutUndefined
 } from '../../src/core/params.js'
 import { OTHER_ID, SHOT_ID } from '../helpers/ids.js'
 
@@ -23,6 +27,16 @@ describe('idOf', () => {
   it('accepts an entity object or a UUID string', () => {
     expect(idOf({ id: SHOT_ID, name: 'SH010' })).toBe(SHOT_ID)
     expect(idOf(SHOT_ID)).toBe(SHOT_ID)
+  })
+
+  // Some routes compare the id of the path with the lowercase ids Zou
+  // writes: the casting ones refuse an uppercase project id with a 403.
+  it('returns the id in lowercase, as Zou writes it', () => {
+    const upper = OTHER_ID.toUpperCase()
+    expect(idOf(upper)).toBe(OTHER_ID)
+    expect(idOf({ id: upper })).toBe(OTHER_ID)
+    expect(optionalIdOf(upper)).toBe(OTHER_ID)
+    expect(idsOf([upper])).toEqual([OTHER_ID])
   })
 
   it('rejects a missing entity, so it never lands in a path as "null"', () => {
@@ -59,6 +73,12 @@ describe('idsOf', () => {
     expect(() => idsOf([SHOT_ID, undefined])).toThrow(ParameterError)
     expect(() => idsOf([null])).toThrow(ParameterError)
   })
+
+  it('rejects anything else than a list, a single entity for one', () => {
+    expect(() => idsOf(SHOT_ID)).toThrow(ParameterError)
+    expect(() => idsOf({ id: SHOT_ID })).toThrow(ParameterError)
+    expect(() => idsOf(null)).toThrow(ParameterError)
+  })
 })
 
 describe('requiredOf', () => {
@@ -68,6 +88,15 @@ describe('requiredOf', () => {
     expect(() => requiredOf('name', '')).toThrow(/name is required/)
     expect(() => requiredOf('name', null)).toThrow(ParameterError)
     expect(() => requiredOf('name', undefined)).toThrow(ParameterError)
+  })
+})
+
+describe('fieldsOf', () => {
+  it('returns the object to save, and rejects an id that holds nothing', () => {
+    const shot = { id: SHOT_ID, name: 'SH010' }
+    expect(fieldsOf(shot)).toBe(shot)
+    expect(() => fieldsOf(SHOT_ID)).toThrow(ParameterError)
+    expect(() => fieldsOf(null)).toThrow(/expected the object to save/)
   })
 })
 
@@ -82,6 +111,18 @@ describe('withoutNil', () => {
     }
     expect(withoutNil(data)).toEqual({ name: 'a', nb: 0, flag: false })
     expect(data).toHaveProperty('description', null)
+  })
+})
+
+describe('withoutUndefined', () => {
+  it('returns a copy without the undefined values, null included', () => {
+    const data = { name: 'a', description: null, nb: 0, x: undefined }
+    expect(withoutUndefined(data)).toEqual({
+      name: 'a',
+      description: null,
+      nb: 0
+    })
+    expect(data).toHaveProperty('x', undefined)
   })
 })
 
@@ -104,6 +145,50 @@ describe('sortedByName', () => {
       { name: 'shot' }
     ])
     expect(entries[0]).toEqual({ name: 'shot' })
+  })
+})
+
+describe('likeLiteralOf', () => {
+  // The backslash is the escape character of the LIKE patterns of
+  // PostgreSQL: left as is, it hides the next character, and a trailing one
+  // fails the query.
+  it('escapes the backslash and the wildcards of ILIKE', () => {
+    expect(likeLiteralOf('Props')).toBe('Props')
+    expect(likeLiteralOf('Comp\\Paint')).toBe('Comp\\\\Paint')
+    expect(likeLiteralOf('Review\\')).toBe('Review\\\\')
+    expect(likeLiteralOf('FX_2D 100%')).toBe('FX\\_2D 100\\%')
+  })
+
+  it('rejects a blank name that buildQuery would drop', () => {
+    expect(() => likeLiteralOf('')).toThrow(ParameterError)
+    expect(() => likeLiteralOf(null)).toThrow(ParameterError)
+    expect(() => likeLiteralOf(undefined)).toThrow(/name is required/)
+  })
+})
+
+describe('sameNameOf', () => {
+  const twins = [
+    { id: 1, name: 'DONE' },
+    { id: 2, name: 'Done' }
+  ]
+
+  it('picks the exact spelling first, wherever Zou lists it', () => {
+    expect(sameNameOf(twins, 'Done')).toEqual({ id: 2, name: 'Done' })
+    expect(sameNameOf([...twins].reverse(), 'DONE')).toEqual({
+      id: 1,
+      name: 'DONE'
+    })
+  })
+
+  it('falls back on the same name in another case', () => {
+    expect(sameNameOf(twins, 'done')).toEqual({ id: 1, name: 'DONE' })
+  })
+
+  it('keeps only a row of that name, null otherwise', () => {
+    const rows = [{ id: 1, name: 'Props 2' }, { id: 2 }, { id: 3, name: null }]
+    expect(sameNameOf(rows, 'Props')).toBeNull()
+    expect(sameNameOf([], 'Props')).toBeNull()
+    expect(sameNameOf(null, 'Props')).toBeNull()
   })
 })
 
