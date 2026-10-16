@@ -329,6 +329,30 @@ describe('project namespace: budgets', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Zou answers 500 to a cleared required field, and would save the others
+  // after the read.
+  it('updateBudgetEntry refuses a field it cannot save before any request', async () => {
+    const changes = [
+      'abc',
+      { dailySalary: 450 },
+      { daily_salary: null },
+      { department_id: null, months_duration: null },
+      { start_date: null },
+      { start_date: '03/01/2026' },
+      { start_date: new Date('not a date') }
+    ]
+    const errors = await Promise.all(
+      changes.map(data =>
+        kitsu.project
+          .updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, data)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(errors[3].message).toMatch(/department_id, months_duration/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateBudgetEntry rejects when the entry does not exist', async () => {
     fake.reply(404, { message: 'Budget entry not found' })
     await expect(

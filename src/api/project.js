@@ -42,6 +42,13 @@ const OUT_FIELD_TYPES = ['status', 'ready_for']
 const POSITIONS = ['supervisor', 'lead', 'artist']
 const SENIORITIES = ['senior', 'mid', 'junior']
 
+// The columns of a budget entry that cannot be null, start_date aside.
+const BUDGET_REQUIRED_FIELDS = [
+  'department_id',
+  'months_duration',
+  'daily_salary'
+]
+
 // The choices of the board roles of a task status link.
 const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
 
@@ -935,8 +942,9 @@ export const projectApi = http => ({
 
   /**
    * Change fields of the budget entry. The others keep their value, as do
-   * the fields given as undefined, while null clears a field: the entry is
-   * read first and saved whole with the given fields merged in.
+   * the fields given as undefined, while null clears person_id, position,
+   * seniority or exceptions: the entry is read first and saved whole with
+   * the given fields merged in. The other fields cannot be cleared.
    * @param {Model} project
    * @param {Model} budget
    * @param {Model} entry
@@ -951,22 +959,49 @@ export const projectApi = http => ({
   updateBudgetEntry: async (project, budget, entry, data, { signal } = {}) => {
     const entries = entriesOf(project, budget)
     const id = idOf(entry)
-    const { position, seniority } = data || {}
-    choiceOf('position', POSITIONS, position)
-    choiceOf('seniority', SENIORITIES, seniority)
+    const {
+      department_id,
+      person_id,
+      start_date,
+      months_duration,
+      daily_salary,
+      position,
+      seniority,
+      exceptions
+    } = fieldsOf(data)
+    const changes = changesOf({
+      department_id,
+      person_id,
+      // A day, as createBudgetEntry takes it.
+      start_date: start_date === undefined ? undefined : dayOf(start_date),
+      months_duration,
+      daily_salary,
+      position: choiceOf('position', POSITIONS, position),
+      seniority: choiceOf('seniority', SENIORITIES, seniority),
+      exceptions
+    })
+    // Zou cannot store an entry without them: it answers 500.
+    const cleared = BUDGET_REQUIRED_FIELDS.filter(
+      field => changes[field] === null
+    )
+    if (cleared.length > 0) {
+      throw new ParameterError(
+        `Missing parameter: ${cleared.join(', ')} cannot be cleared`
+      )
+    }
     const current = await http.get(`data/${entries}/${id}`, {}, { signal })
     // Zou writes every field of the entry, null for a missing one: a partial
     // body would fail on the required ones and clear the person, the
     // position, the seniority and the exceptions. A field given as undefined
     // keeps its value too.
-    const merged = { ...current, ...withoutUndefined({ ...data }) }
+    const merged = { ...current, ...changes }
     return http.update(
       entries,
       id,
       {
         department_id: merged.department_id,
         person_id: merged.person_id,
-        start_date: dateOf(merged.start_date),
+        start_date: merged.start_date,
         months_duration: merged.months_duration,
         daily_salary: merged.daily_salary,
         position: merged.position,
