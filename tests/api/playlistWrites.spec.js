@@ -383,6 +383,19 @@ describe('playlist namespace: writes', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  it('removeEntityFromPlaylist matches and saves the ids in lowercase', async () => {
+    const removed = 'ABCDEF12-3456-4789-8ABC-DEF123456789'
+    const kept = 'FEDCBA98-7654-4321-8FED-CBA987654321'
+    fake.reply(200, { id: PLAYLIST_ID })
+    await kitsu.playlist.removeEntityFromPlaylist(
+      { id: PLAYLIST_ID, shots: [{ entity_id: removed }, { entity_id: kept }] },
+      removed
+    )
+    expect(fake.calls[0].body).toEqual({
+      shots: [{ entity_id: kept.toLowerCase(), preview_file_id: null }]
+    })
+  })
+
   it('removeEntityFromPlaylist without persist sends nothing', async () => {
     expect(
       await kitsu.playlist.removeEntityFromPlaylist(
