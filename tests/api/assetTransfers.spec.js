@@ -140,6 +140,22 @@ describe('asset namespace: CSV transfers', () => {
     expect(fake.calls[0].signal.aborted).toBe(true)
   })
 
+  // The core only stops an HTML page: any other type reaches the CSV reader.
+  it('exportAssetsWithCsv refuses an answer that is not CSV', async () => {
+    fake.on(
+      'GET',
+      `/export/csv/projects/${PROJECT_ID}/assets.csv`,
+      () =>
+        new Response('{"message":"ok"}', {
+          headers: { 'Content-Type': 'application/json' }
+        })
+    )
+    const err = await kitsu.asset.exportAssetsWithCsv(PROJECT_ID).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err.message).toMatch(/without CSV/)
+    expect(err).toMatchObject({ status: 200, body: '{"message":"ok"}' })
+  })
+
   // A host given without /api serves the web app with a 200.
   it('exportAssetsWithCsv refuses a page that is not CSV', async () => {
     fake.on(

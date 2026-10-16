@@ -143,6 +143,22 @@ describe('shot namespace: transfers', () => {
     expect(fake.calls[0].query.get('assigned_to')).toBe(PERSON_ID)
   })
 
+  // The core only stops an HTML page: any other type reaches the CSV reader.
+  it('exportShotsWithCsv refuses an answer that is not CSV', async () => {
+    fake.on(
+      'GET',
+      `/export/csv/projects/${PROJECT_ID}/shots.csv`,
+      () =>
+        new Response('{"message":"ok"}', {
+          headers: { 'Content-Type': 'application/json' }
+        })
+    )
+    const err = await kitsu.shot.exportShotsWithCsv(PROJECT_ID).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err.message).toMatch(/without CSV/)
+    expect(err).toMatchObject({ status: 200, body: '{"message":"ok"}' })
+  })
+
   // A host given without /api serves the web app with a 200.
   it('exportShotsWithCsv refuses a page that is not CSV', async () => {
     fake.on(
