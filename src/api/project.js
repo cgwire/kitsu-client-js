@@ -1,7 +1,9 @@
 import { KitsuError, ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
   dayOf,
+  fieldsOf,
   idOf,
   idsOf,
   likeLiteralOf,
@@ -537,6 +539,17 @@ export const projectApi = http => ({
     { signal } = {}
   ) => {
     const id = idOf(metadataDescriptor)
+    const { name, data_type, choices, for_client, departments } =
+      fieldsOf(metadataDescriptor)
+    const changes = changesOf({
+      name,
+      data_type,
+      choices,
+      for_client,
+      departments
+    })
+    // Before any request: a department given by its name is refused.
+    if (changes.departments) idsOf(changes.departments)
     const current = await http.get(
       `data/${descriptorsOf(project)}/${id}`,
       {},
@@ -547,12 +560,12 @@ export const projectApi = http => ({
     // and the client visibility. The name is the exception: kept when it is
     // missing, and any name sent sets the field name from it. A field given
     // as undefined keeps its value too.
-    const merged = { ...current, ...withoutUndefined(metadataDescriptor) }
+    const merged = { ...current, ...changes }
     return http.update(
       descriptorsOf(project),
       id,
       withoutNil({
-        name: metadataDescriptor.name,
+        name: changes.name,
         data_type: merged.data_type,
         choices: merged.choices,
         for_client: merged.for_client,
