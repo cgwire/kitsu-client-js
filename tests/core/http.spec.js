@@ -651,14 +651,14 @@ describe('timeouts and cancellation', () => {
   })
 
   it('reports a caller abort as AbortError whatever the injected fetch rejects with', async () => {
-    const cancelling = (url, init) =>
+    const canceling = (url, init) =>
       new Promise((resolve, reject) => {
         init.signal.addEventListener('abort', () =>
-          reject(new Error('Request cancelled'))
+          reject(new Error('Request canceled'))
         )
       })
     const controller = new AbortController()
-    const pending = makeHttp(cancelling)
+    const pending = makeHttp(canceling)
       .get('data/tasks', {}, { signal: controller.signal })
       .catch(e => e)
     controller.abort()
@@ -728,14 +728,14 @@ describe('timeouts and cancellation', () => {
     expect(signals[0].aborted).toBe(false)
   })
 
-  it('releases a raw response whose body is cancelled', async () => {
+  it('releases a raw response whose body is canceled', async () => {
     const signals = []
-    const cancelled = vi.fn()
+    const canceled = vi.fn()
     const http = makeHttp(async (url, init) => {
       signals.push(init.signal)
       const body = new ReadableStream({
         pull: stream => stream.enqueue(new Uint8Array(1024)),
-        cancel: cancelled
+        cancel: canceled
       })
       return new Response(body, { status: 200 })
     })
@@ -747,7 +747,7 @@ describe('timeouts and cancellation', () => {
     })
     await response.body.cancel()
     // The connection is released, and the caller signal let go.
-    expect(cancelled).toHaveBeenCalledTimes(1)
+    expect(canceled).toHaveBeenCalledTimes(1)
     expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
     http.abortAll()
     expect(signals[0].aborted).toBe(false)

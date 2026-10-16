@@ -80,7 +80,7 @@ const retryAfterOf = response => {
 }
 
 // The answer with a body that calls release once it ends, fails or is
-// cancelled. A stream source of its own: browsers ignore the cancel hook of
+// canceled. A stream source of its own: browsers ignore the cancel hook of
 // a transformer. The body of the answer is locked on the first read only:
 // undici cancels an unlocked body once its response is garbage collected.
 // The Response constructor keeps the status and the headers only: the url,
@@ -223,7 +223,7 @@ export const createHttp = (config, session) => {
       }
       if (raw && response.body) {
         // The body is still to be read by the caller: the abort wiring
-        // stays until the body ends, fails or is cancelled, or an abort
+        // stays until the body ends, fails or is canceled, or an abort
         // (caller signal, abortAll) releases it.
         streaming = true
         controller.signal.addEventListener('abort', release, { once: true })
