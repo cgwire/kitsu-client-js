@@ -121,6 +121,16 @@ describe('hardware namespace: Kitsu parity', () => {
     expect(fake.calls[0].body).toEqual({ archived: false })
   })
 
+  it('updateHardwareItem refuses an item holding none of its fields', async () => {
+    await expect(
+      kitsu.hardware.updateHardwareItem({
+        id: HARDWARE_ITEM_ID,
+        shortName: 'WS'
+      })
+    ).rejects.toThrow(/nothing to save/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateHardwareItem rejects an id given in place of the item', async () => {
     await expect(
       kitsu.hardware.updateHardwareItem(HARDWARE_ITEM_ID)

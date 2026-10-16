@@ -93,6 +93,16 @@ describe('customAction namespace', () => {
     expect(fake.calls[0].body).toEqual({ name: 'Publish' })
   })
 
+  it('updateCustomAction refuses an action holding none of its fields', async () => {
+    await expect(
+      kitsu.customAction.updateCustomAction({
+        id: CUSTOM_ACTION_ID,
+        entityType: 'shot'
+      })
+    ).rejects.toThrow(/nothing to save/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('updateCustomAction rejects an id given in place of the action', async () => {
     await expect(
       kitsu.customAction.updateCustomAction(CUSTOM_ACTION_ID)

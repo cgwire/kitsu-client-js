@@ -340,4 +340,20 @@ describe('person namespace, Kitsu store coverage', () => {
       body: { salary: 3200 }
     })
   })
+
+  // Zou would answer the empty body as a success.
+  it('updateSalaryScale refuses a scale without its salary', async () => {
+    const scales = [
+      OTHER_ID,
+      { id: OTHER_ID },
+      { id: OTHER_ID, salary: undefined }
+    ]
+    const errors = await Promise.all(
+      scales.map(scale =>
+        kitsu.person.updateSalaryScale(scale).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
 })

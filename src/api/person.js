@@ -1,5 +1,6 @@
 import { KitsuError, ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
   dayOf,
   fieldsOf,
@@ -1125,7 +1126,7 @@ export const personApi = http => ({
     http.update(
       'salary-scales',
       idOf(salaryScale),
-      { salary: salaryScale.salary },
+      changesOf({ salary: fieldsOf(salaryScale).salary }),
       { signal }
     ),
 

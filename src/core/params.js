@@ -125,6 +125,23 @@ export const refuseUnknownOptions = others => {
 }
 
 /**
+ * The body of an update. An object holding none of the fields the function
+ * saves would send an empty one, that Zou answers as a success: it is
+ * refused instead.
+ * @param {Record<string, any>} fields Each field the function saves.
+ * @param {(data: Record<string, any>) => Record<string, any>} [keep] Leaves
+ *   out the fields not given: the undefined ones by default.
+ * @returns {Record<string, any>}
+ */
+export const changesOf = (fields, keep = withoutUndefined) => {
+  const changes = keep(fields)
+  if (Object.keys(changes).length > 0) return changes
+  throw new ParameterError(
+    `Missing parameter: nothing to save, give one of ${Object.keys(fields).join(', ')}`
+  )
+}
+
+/**
  * Some reads write a missing id as a placeholder string ('' or 'None') that
  * Zou refuses on save: each one goes back as the null it stands for.
  * @param {Record<string, any>} fields

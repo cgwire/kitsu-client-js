@@ -1,13 +1,13 @@
 import { ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
   fieldsOf,
   idOf,
   idsOf,
   optionalIdOf,
   requiredOf,
-  withoutNil,
-  withoutUndefined
+  withoutNil
 } from '../core/params.js'
 
 /**
@@ -88,7 +88,7 @@ export const scheduleApi = http => ({
     return http.update(
       'milestones',
       id,
-      withoutUndefined({ date: dateOf(date), name, task_type_id }),
+      changesOf({ date: dateOf(date), name, task_type_id }),
       { signal }
     )
   },
@@ -205,7 +205,7 @@ export const scheduleApi = http => ({
     return http.update(
       'schedule-items',
       id,
-      withoutUndefined({
+      changesOf({
         start_date: dateOf(start_date),
         end_date: dateOf(end_date),
         man_days
@@ -284,7 +284,7 @@ export const scheduleApi = http => ({
     return http.update(
       'production-schedule-versions',
       id,
-      withoutUndefined({ name, canceled, locked }),
+      changesOf({ name, canceled, locked }),
       { signal }
     )
   },
@@ -430,7 +430,7 @@ export const scheduleApi = http => ({
     return http.update(
       'production-schedule-version-task-links',
       id,
-      withoutUndefined({
+      changesOf({
         start_date: dateOf(start_date),
         due_date: dateOf(due_date),
         estimation,
