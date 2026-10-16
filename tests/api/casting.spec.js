@@ -377,6 +377,19 @@ describe('casting namespace: writes', () => {
     expect(fake.calls[0].body).toEqual([])
   })
 
+  // Zou compares them as strings: on an episode, an asset id in uppercase
+  // would be uncast from every shot of the episode.
+  it('updateEpisodeCasting sends the asset ids in lowercase', async () => {
+    const assetId = 'C46C80C6-AB12-4CDE-8F00-0A1B2C3D4E5F'
+    const casting = [{ asset_id: assetId, nb_occurences: 1 }]
+    fake.reply(200, [])
+    await kitsu.casting.updateEpisodeCasting(PROJECT_ID, EPISODE_ID, casting)
+    expect(fake.calls[0].body).toEqual([
+      { asset_id: assetId.toLowerCase(), nb_occurences: 1 }
+    ])
+    expect(casting[0].asset_id).toBe(assetId)
+  })
+
   it('castAsset sends only the entity ids by default', async () => {
     fake.reply(200, { [SHOT_ID]: CASTING })
     expect(

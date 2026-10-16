@@ -43,20 +43,21 @@ const isCastingEntry = entry =>
 
 // Zou empties the casting first, then creates the entries holding both an
 // asset_id and a nb_occurences: any other entry would drop its asset without
-// an error.
+// an error. It compares the asset ids of an episode casting as strings: an id
+// in uppercase would read as a removed asset, uncast from every shot of the
+// episode.
 const castingOf = casting => {
   if (!Array.isArray(requiredOf('casting', casting))) {
     throw new ParameterError('Wrong format: casting must be a list of entries')
   }
-  casting.forEach(entry => {
+  return casting.map(entry => {
     if (!isCastingEntry(entry)) {
       throw new ParameterError(
         'Wrong format: each casting entry needs an asset_id and nb_occurences, a whole number'
       )
     }
-    idOf(entry.asset_id)
+    return { ...entry, asset_id: idOf(entry.asset_id) }
   })
-  return casting
 }
 
 const castingsOf = castings => {
@@ -66,11 +67,12 @@ const castingsOf = castings => {
       'Wrong format: castings must map entity ids to casting lists'
     )
   }
-  Object.entries(given).forEach(([entityId, casting]) => {
-    idOf(entityId)
-    castingOf(casting)
-  })
-  return given
+  return Object.fromEntries(
+    Object.entries(given).map(([entityId, casting]) => [
+      idOf(entityId),
+      castingOf(casting)
+    ])
+  )
 }
 
 export const castingApi = http => {

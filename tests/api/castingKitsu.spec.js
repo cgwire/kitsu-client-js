@@ -27,6 +27,20 @@ describe('casting namespace: Kitsu parity', () => {
     expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
+  it('updateCastings sends the entity and asset ids in lowercase', async () => {
+    const entityId = 'E0E0E0E0-AB12-4CDE-8F00-0A1B2C3D4E5F'
+    const assetId = 'C46C80C6-AB12-4CDE-8F00-0A1B2C3D4E5F'
+    fake.reply(200, {})
+    await kitsu.casting.updateCastings(PROJECT_ID, {
+      [entityId]: [{ asset_id: assetId, nb_occurences: 2 }]
+    })
+    expect(fake.calls[0].body).toEqual({
+      [entityId.toLowerCase()]: [
+        { asset_id: assetId.toLowerCase(), nb_occurences: 2 }
+      ]
+    })
+  })
+
   it('updateCastings rejects missing castings without any request', async () => {
     await expect(
       kitsu.casting.updateCastings(PROJECT_ID)
