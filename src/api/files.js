@@ -648,6 +648,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * List the softwares set for the task types of the project. Needs a Zou
+     * release after 1.0.96: an older one answers 404.
      * @param {Model} project
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The softwares set for the task types of
@@ -662,7 +664,8 @@ export const filesApi = http => {
 
     /**
      * Set a software for a task type of the project. A second call returns
-     * the existing link.
+     * the existing link. Needs a Zou release after 1.0.96: an older one
+     * answers 404.
      * @param {Model} project
      * @param {Model} taskType A task type of the project.
      * @param {Model} software A software that is not archived.
@@ -682,6 +685,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * Unset a software of a task type of the project. Needs a Zou release
+     * after 1.0.96: an older one answers 404.
      * @param {Model} project
      * @param {Model} taskType
      * @param {Model} software
