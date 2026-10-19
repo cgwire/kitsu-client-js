@@ -1,8 +1,13 @@
+import { KitsuError } from '../core/errors.js'
 import {
   idOf,
+  likeLiteralOf,
+  metadataOf,
   optionalIdOf,
+  orNull,
   placeholdersToNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -13,6 +18,14 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  * @typedef {import('../core/params.js').TransferOptions} TransferOptions
+ * @typedef {{
+ *   name: string,
+ *   color: string,
+ *   count: number,
+ *   frames: number,
+ *   drawings: number
+ * }} StatusStats The tasks of a task status: their count, and the frames and
+ *   drawings of their entities.
  */
 
 // Same defaults as gazu. Zou fills these placeholders itself: they are not
@@ -22,6 +35,23 @@ const otioNamingConvention = episodeId =>
     ? '${project_name}_${episode_name}-${sequence_name}-${shot_name}'
     : '${project_name}_${sequence_name}-${shot_name}'
 
+// Zou serves its CSV exports as text/csv: a page answered with a 2xx
+// instead (a host given without /api, an SSO portal) is not the export.
+const readCsv = path => async response => {
+  const type = response.headers.get('Content-Type') || ''
+  if (type.includes('csv')) return response.text()
+  throw new KitsuError(`GET ${path} answered ${response.status} without CSV`, {
+    status: response.status,
+    path,
+    method: 'GET',
+    body: await response.text()
+  })
+}
+
+const idKey = id => (id ? String(id).toLowerCase() : null)
+
+const childOf = parentId => entry => idKey(entry.parent_id) === idKey(parentId)
+
 export const shotApi = http => {
   const fetchOne = (model, entity, signal) =>
     http.fetchOne(model, idOf(entity), { signal })
@@ -29,38 +59,57 @@ export const shotApi = http => {
   // An id or an object without its parent_id key says nothing about the
   // parent: the entity is read first. A missing entity has no parent.
   const parentIdOf = async (model, entity, signal) => {
-    const known = typeof entity === 'object' && 'parent_id' in entity
+    const known =
+      entity !== null && typeof entity === 'object' && 'parent_id' in entity
     const source = known ? entity : await fetchOne(model, entity, signal)
     return source ? source.parent_id : null
   }
 
-  // Like gazu: a sequence name is unique per episode on a TV show, per
-  // project otherwise.
-  const sequenceByName = (project, name, episode, signal) => {
+  // A missing sequence or episode in the filters answers a 404: nothing has
+  // that name there. Zou gives a vendor every episode or sequence they are
+  // assigned to, whatever the filters: the parent is checked on the rows.
+  const named = (path, query, name, inParent, signal) =>
+    orNull(http.fetchAll(path, query, { signal })).then(entries =>
+      sameNameOf(Array.isArray(entries) ? entries.filter(inParent) : [], name)
+    )
+
+  // A sequence name is unique per episode on a TV show, per project
+  // otherwise: without an episode, only a sequence outside any episode
+  // matches, as Zou checks before creating one.
+  const sequenceByName = async (project, name, episode, signal) => {
     const projectId = idOf(project)
-    const filter = { name: requiredOf('name', name) }
-    return http.fetchFirst(
+    const episodeId = optionalIdOf(episode)
+    const filter = { name: likeLiteralOf(name) }
+    return named(
       'sequences',
-      episode
-        ? { ...filter, episode_id: idOf(episode) }
-        : { ...filter, project_id: projectId },
-      { signal }
+      episodeId === null
+        ? { ...filter, project_id: projectId }
+        : { ...filter, episode_id: episodeId },
+      name,
+      childOf(episodeId),
+      signal
     )
   }
 
-  const episodeByName = (project, name, signal) =>
-    http.fetchFirst(
+  const episodeByName = async (project, name, signal) =>
+    named(
       'episodes',
-      { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+      { project_id: idOf(project), name: likeLiteralOf(name) },
+      name,
+      () => true,
+      signal
     )
 
-  const shotByName = (sequence, name, signal) =>
-    http.fetchFirst(
+  const shotByName = async (sequence, name, signal) => {
+    const sequenceId = idOf(sequence)
+    return named(
       'shots/all',
-      { sequence_id: idOf(sequence), name: requiredOf('name', name) },
-      { signal }
+      { sequence_id: sequenceId, name: likeLiteralOf(name) },
+      name,
+      childOf(sequenceId),
+      signal
     )
+  }
 
   // Shots, sequences and episodes are all saved through the entity route.
   // The rows of allSequencesWithTasks and allEpisodesWithTasks write a
@@ -78,7 +127,12 @@ export const shotApi = http => {
   // fail for a supervisor with departments (Zou refuses that supervisor on
   // sequences and episodes whatever the keys).
   const saveEntityData = (entity, data, signal) =>
-    http.update('entities', idOf(entity), { data: { ...data } }, { signal })
+    http.update(
+      'entities',
+      idOf(entity),
+      { data: { ...metadataOf(data) } },
+      { signal }
+    )
 
   const removeWithForce = (model, entity, force, signal) =>
     http.remove(model, idOf(entity), { force: force ? true : null }, { signal })
@@ -90,7 +144,8 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   shot: task type ids as keys, revisions as values.
      */
     allPreviewsForShot: async (shot, { signal } = {}) =>
       http.fetchAll(`shots/${idOf(shot)}/preview-files`, {}, { signal }),
@@ -167,7 +222,9 @@ export const shotApi = http => {
      * @param {Model} project
      * @param {string} episodeName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The episode of the project with that name.
+     * @returns {Promise<Entity|null>} The episode of the project with that
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
     getEpisodeByName: async (project, episodeName, { signal } = {}) =>
       episodeByName(project, episodeName, signal),
@@ -196,8 +253,10 @@ export const shotApi = http => {
      * @param {Model} project
      * @param {string} sequenceName
      * @param {{episode?: Model, signal?: AbortSignal}} [options] With an
-     *   episode (TV show), the lookup is scoped to it instead of the project.
-     * @returns {Promise<Entity|null>} The sequence with that name.
+     *   episode (TV show), the lookup is scoped to it. Without one, only a
+     *   sequence of the project outside any episode matches.
+     * @returns {Promise<Entity|null>} The sequence with that name (the case
+     *   ignored, an exact match first), null when there is none.
      */
     getSequenceByName: async (
       project,
@@ -227,33 +286,51 @@ export const shotApi = http => {
      * @param {Model} sequence
      * @param {string} shotName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The shot of the sequence with that name.
+     * @returns {Promise<Entity|null>} The shot of the sequence with that name
+     *   (the case ignored, an exact match first), null when there is none.
      */
     getShotByName: async (sequence, shotName, { signal } = {}) =>
       shotByName(sequence, shotName, signal),
 
     /**
-     * Create a sequence, unless one already has that name in the project (or
-     * in the episode): the existing sequence is then returned.
+     * Create a sequence, unless the episode, or the project outside any
+     * episode, already has one with that name, as getSequenceByName finds
+     * it: the existing sequence is then returned.
      * @param {Model} project
      * @param {string} name
-     * @param {{episode?: Model, signal?: AbortSignal}} [options]
+     * @param {{
+     *   episode?: Model,
+     *   description?: string,
+     *   data?: object,
+     *   signal?: AbortSignal
+     * }} [options] data is a free field for metadata of any kind.
      * @returns {Promise<Entity>} The created or existing sequence.
      */
-    newSequence: async (project, name, { episode, signal } = {}) => {
+    newSequence: async (
+      project,
+      name,
+      { episode, description, data, signal } = {}
+    ) => {
       const existing = await sequenceByName(project, name, episode, signal)
       if (existing) return existing
       return http.post(
         `data/projects/${idOf(project)}/sequences`,
-        { name, ...withoutNil({ episode_id: optionalIdOf(episode) }) },
+        {
+          name,
+          ...withoutNil({
+            episode_id: optionalIdOf(episode),
+            description,
+            data
+          })
+        },
         { signal }
       )
     },
 
     /**
-     * Create a shot, unless one already has that name in the sequence: the
-     * existing shot is then returned. Frame in and frame out are stored in
-     * the shot metadata.
+     * Create a shot, unless one already has that name in the sequence, as
+     * getShotByName finds it: the existing shot is then returned. Frame in
+     * and frame out are stored in the shot metadata.
      * @param {Model} project
      * @param {Model} sequence
      * @param {string} name
@@ -311,7 +388,8 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     getAssetInstancesForShot: async (shot, { signal } = {}) =>
       assetInstancesOf(shot, signal),
@@ -320,7 +398,8 @@ export const shotApi = http => {
      * Alias of getAssetInstancesForShot, kept for parity with gazu.
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances linked to the shot.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances linked
+     *   to the shot, keyed by the id of their asset.
      */
     allAssetInstancesForShot: async (shot, { signal } = {}) =>
       assetInstancesOf(shot, signal),
@@ -366,19 +445,29 @@ export const shotApi = http => {
       http.put(`data/shots/${idOf(shot)}`, { canceled: false }, { signal }),
 
     /**
-     * Create an episode, unless one already has that name in the project:
-     * the existing episode is then returned.
+     * Create an episode, unless one already has that name in the project, as
+     * getEpisodeByName finds it: the existing episode is then returned.
      * @param {Model} project
      * @param {string} name
-     * @param {RequestOptions} [options]
+     * @param {{
+     *   description?: string,
+     *   status?: 'running'|'complete'|'standby'|'canceled',
+     *   data?: object,
+     *   signal?: AbortSignal
+     * }} [options] status is running by default. data is a free field for
+     *   metadata of any kind.
      * @returns {Promise<Entity>} The created or existing episode.
      */
-    newEpisode: async (project, name, { signal } = {}) => {
+    newEpisode: async (
+      project,
+      name,
+      { description, status, data, signal } = {}
+    ) => {
       const existing = await episodeByName(project, name, signal)
       if (existing) return existing
       return http.post(
         `data/projects/${idOf(project)}/episodes`,
-        { name },
+        { name, ...withoutNil({ description, status, data }) },
         { signal }
       )
     },
@@ -461,7 +550,10 @@ export const shotApi = http => {
      * @param {Blob} csvFile The CSV data, as a Blob or a File.
      * @param {TransferOptions & {update?: boolean}} [options] update also
      *   updates the shots that already exist.
-     * @returns {Promise<Entity[]>} The shots created by the import.
+     * @returns {Promise<Entity[]>} The shot of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importShotsWithCsv: async (
       project,
@@ -486,7 +578,8 @@ export const shotApi = http => {
      *   episode?: Model,
      *   namingConvention?: string,
      *   matchCase?: boolean
-     * }} [options] namingConvention is the template matching the shot names
+     * }} [options] episode is required on a TV show: Zou refuses the import
+     *   without it. namingConvention is the template matching the shot names
      *   of the file, by default
      *   "${project_name}_${sequence_name}-${shot_name}" (with
      *   "${episode_name}-" before the sequence when an episode is given).
@@ -530,12 +623,17 @@ export const shotApi = http => {
      *   episode?: Model,
      *   assignedTo?: Model,
      *   signal?: AbortSignal
-     * }} [options] episode keeps the shots of that episode only, assignedTo
-     *   the shots with at least one task assigned to that person.
+     * }} [options] episode keeps the shots of that episode only. assignedTo
+     *   keeps the shots with a task assigned to the logged in user, and only
+     *   the tasks of that user: Zou reads it as a flag, whoever is given.
      * @returns {Promise<string>} The shots of the project, as CSV.
      */
-    exportShotsWithCsv: async (project, { episode, assignedTo, signal } = {}) =>
-      http.request('GET', `export/csv/projects/${idOf(project)}/shots.csv`, {
+    exportShotsWithCsv: async (
+      project,
+      { episode, assignedTo, signal } = {}
+    ) => {
+      const path = `export/csv/projects/${idOf(project)}/shots.csv`
+      return http.request('GET', path, {
         query: {
           episode_id: optionalIdOf(episode),
           assigned_to: optionalIdOf(assignedTo)
@@ -543,26 +641,22 @@ export const shotApi = http => {
         signal,
         // A CSV table: the http core refuses a non-JSON body unless told how
         // to read it.
-        read: response => response.text()
-      }),
+        read: readCsv(path)
+      })
+    },
 
     /**
      * The shots with their tasks, as the shot list of the Kitsu web app loads
      * them (streamed when the API supports it).
-     * @param {{
-     *   project?: Model,
-     *   episode?: Model,
-     *   signal?: AbortSignal
-     * }} [options]
+     * @param {Model} project
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] episode keeps
+     *   the shots of that episode only.
      * @returns {Promise<Entity[]>} The shots, each with its tasks.
      */
-    allShotsWithTasks: async ({ project, episode, signal } = {}) =>
+    allShotsWithTasks: async (project, { episode, signal } = {}) =>
       http.getNdjson(
         'data/shots/with-tasks',
-        {
-          project_id: optionalIdOf(project),
-          episode_id: optionalIdOf(episode)
-        },
+        { project_id: idOf(project), episode_id: optionalIdOf(episode) },
         { signal }
       ),
 
@@ -594,8 +688,10 @@ export const shotApi = http => {
     /**
      * @param {Model} project
      * @param {RequestOptions} [options]
-     * @returns {Promise<Object<string, object>>} The task counts per status
-     *   and task type, keyed by episode id ("all" sums the episodes).
+     * @returns {Promise<Record<string, Record<string, Record<string,
+     *   StatusStats>>>>} The task counts keyed by episode id ("all" sums the
+     *   episodes), then by task type id ("all" sums the task types), then by
+     *   task status id.
      */
     getEpisodeStats: async (project, { signal } = {}) =>
       http.get(`data/projects/${idOf(project)}/episodes/stats`, {}, { signal }),
@@ -603,8 +699,10 @@ export const shotApi = http => {
     /**
      * @param {Model} project
      * @param {RequestOptions} [options]
-     * @returns {Promise<Object<string, object>>} The retake counts per task
-     *   type, keyed by episode id ("all" sums the episodes).
+     * @returns {Promise<Record<string, Record<string, Record<string, any>>>>}
+     *   The retake counts keyed by episode id ("all" sums the episodes), then
+     *   by task type id ("all" sums the task types): max_retake_count,
+     *   evolution (by retake number), done, retake and other.
      */
     getEpisodeRetakeStats: async (project, { signal } = {}) =>
       http.get(
@@ -616,8 +714,11 @@ export const shotApi = http => {
     /**
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The data history of the shot: one version
-     *   per change of its metadata.
+     * @returns {Promise<Entity[]>} The data history of the shot, most recent
+     *   first. Zou records a version when the name or the frame range change
+     *   through the entity route (updateShot, updateShotData), and folds the
+     *   changes one person makes within a minute. The other routes (the CSV
+     *   and OTIO imports, setNbFramesFromTaskTypePreviews) record nothing.
      */
     allVersionsForShot: async (shot, { signal } = {}) =>
       http.get(`data/shots/${idOf(shot)}/versions`, {}, { signal }),
@@ -625,16 +726,16 @@ export const shotApi = http => {
     /**
      * Set the number of frames of the shots from the length of their latest
      * preview for the task type.
-     * @param {Model} taskType
      * @param {Model} project
+     * @param {Model} taskType
      * @param {{episode?: Model, signal?: AbortSignal}} [options] episode
      *   limits the change to the shots of that episode.
      * @returns {Promise<{id: string, nb_frames: number}[]>} The new number of
      *   frames of each updated shot.
      */
     setNbFramesFromTaskTypePreviews: async (
-      taskType,
       project,
+      taskType,
       { episode, signal } = {}
     ) =>
       http.request(

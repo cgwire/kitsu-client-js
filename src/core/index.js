@@ -1,5 +1,5 @@
 import { authApi } from './auth.js'
-import { createEvents } from './events.js'
+import { createEvents, throwOutOfBand } from './events.js'
 import { createHttp } from './http.js'
 import { createSession } from './session.js'
 
@@ -17,11 +17,69 @@ const timerOf = (key, value) => {
   return value === 0 || value > MAX_TIMER ? Infinity : value
 }
 
+/**
+ * @param {ClientOptions} options
+ * @returns {'all'|'progress'|'none'} The uploads that go through XHR.
+ */
+const uploadsOverXhr = ({ xhrUploads, fetch }) => {
+  if (xhrUploads === true) return 'all'
+  return xhrUploads === false || fetch ? 'none' : 'progress'
+}
+
 const resolveTimeout = (timeout = {}) =>
   Object.freeze({
     response: timerOf('response', timeout.response),
     deadline: timerOf('deadline', timeout.deadline)
   })
+
+// The hooks of the app run inside a session change, a refresh or a request:
+// an exception of theirs must not fail the logIn, the requests waiting on the
+// refresh or the 401 it was called from.
+const outOfBand = hook =>
+  hook
+    ? (...args) => {
+        try {
+          hook(...args)
+        } catch (err) {
+          throwOutOfBand(err)
+        }
+      }
+    : undefined
+
+const OPTION_TYPES = {
+  fetch: 'function',
+  xhrUploads: 'boolean',
+  onTokensChange: 'function',
+  onUnauthorized: 'function',
+  eventHost: 'string'
+}
+
+// A wrong option throws at creation, instead of being ignored or failing
+// later in a request. Undefined and null keep the default.
+const checkOptions = options => {
+  if (typeof options.host !== 'string') {
+    throw new TypeError('createClient: host must be a string')
+  }
+  if (!['bearer', 'cookie', undefined, null].includes(options.auth)) {
+    throw new TypeError('createClient: auth must be "bearer" or "cookie"')
+  }
+  const { timeout } = options
+  if (
+    timeout !== undefined &&
+    timeout !== null &&
+    typeof timeout !== 'object'
+  ) {
+    throw new TypeError(
+      'createClient: timeout must be an object: { response, deadline }'
+    )
+  }
+  Object.entries(OPTION_TYPES).forEach(([name, type]) => {
+    const value = options[name]
+    if (value !== undefined && value !== null && typeof value !== type) {
+      throw new TypeError(`createClient: ${name} must be a ${type}`)
+    }
+  })
+}
 
 /**
  * @typedef {object} ClientOptions
@@ -30,19 +88,29 @@ const resolveTimeout = (timeout = {}) =>
  * @property {typeof fetch} [fetch] Defaults to the global fetch. Tauri apps
  *   inject the fetch of their http plugin here. Every request goes through
  *   it, uploads included: they then report no progress (see xhrUploads).
- * @property {boolean} [xhrUploads] Send the uploads given an onProgress
- *   through XMLHttpRequest, the only way to report their progress, which
- *   skips an injected fetch. Defaults to true without a fetch option, false
- *   with one.
+ * @property {boolean} [xhrUploads] Which uploads go through
+ *   XMLHttpRequest, the only way to report their progress. Left out, the
+ *   uploads given an onProgress, none with a fetch option. true: every
+ *   upload, skipping an injected fetch and the headers it adds. false: none.
+ *   In bearer mode an upload to the origin of the page goes through fetch
+ *   anyway: XMLHttpRequest would send the Kitsu session cookie of the page,
+ *   which Zou reads before the token.
  * @property {'bearer'|'cookie'} [auth] Defaults to "bearer".
  * @property {import('./session.js').Tokens|null} [tokens] Resume a session.
  * @property {(tokens: import('./session.js').Tokens|null) => void} [onTokensChange]
- *   Called on every token change, to persist them.
+ *   Called on every token change, to persist them. An exception it throws
+ *   is rethrown out of band, from a timer: the change stands, and in Node
+ *   the process ends unless the hook catches its own errors.
  * @property {() => void} [onUnauthorized] Called when a request stays
- *   unauthorized after the refresh attempt.
+ *   unauthorized after the refresh attempt, or when Zou refuses to renew the
+ *   token it refused the event socket. Zou never renews the token of a
+ *   bearer client it takes for a browser: such a session ends with its
+ *   access token. An exception it throws is rethrown out of band too.
  * @property {string} [eventHost] Defaults to the host without "/api".
  * @property {Function} [io] The socket.io-client "io" function. Left out,
- *   the first events.on() imports the optional peer "socket.io-client".
+ *   the first events.on() imports the optional peer "socket.io-client",
+ *   which only works in Node without a bundler: a bundled app, in a browser
+ *   or not, passes io.
  * @property {{response?: number|null, deadline?: number|null}} [timeout]
  *   Milliseconds to the first byte (60 000) and for the whole call
  *   (300 000). A key left out, undefined or null keeps its default; 0 or
@@ -58,43 +126,39 @@ export const createCore = options => {
   if (!options || !options.host) {
     throw new TypeError('createClient: host is required')
   }
+  checkOptions(options)
   const auth = options.auth || 'bearer'
   const config = Object.freeze({
     host: options.host,
     // Wrapped: calling a detached window.fetch throws "Illegal invocation".
     fetch: options.fetch || ((input, init) => globalThis.fetch(input, init)),
-    // Uploads with progress use XHR, which goes out like the global fetch:
-    // an injected fetch carries them instead, unless the app opts back in.
-    xhrUploads: options.xhrUploads ?? !options.fetch,
+    // Which uploads use XHR. XHR goes out like the global fetch: an
+    // injected fetch carries them all instead, unless the app opts in.
+    xhrUploads: uploadsOverXhr(options),
     timeout: resolveTimeout(options.timeout || undefined),
     // Bearer mode never sends cookies: Zou reads the session cookie before
     // the Authorization header, so a bearer client living in a Kitsu page
     // would act as the logged-in user.
     credentials: auth === 'cookie' ? 'same-origin' : 'omit'
   })
-  const persistTokens = options.onTokensChange || (() => {})
   const session = createSession({
     auth,
     tokens: options.tokens,
-    onTokensChange: tokens => {
-      // The socket follows the session first. The app hook persists the
-      // tokens: it runs whatever happens to the socket.
-      try {
-        syncSession()
-      } finally {
-        persistTokens(tokens)
-      }
-    },
-    onUnauthorized: options.onUnauthorized
+    onChange: () => syncSession(),
+    onTokensChange: outOfBand(options.onTokensChange),
+    onUnauthorized: outOfBand(options.onUnauthorized)
   })
   const http = createHttp(config, session)
   const { syncSession, ...events } = createEvents({
     eventHost: (
-      options.eventHost || config.host.replace(/\/api\/?$/, '')
+      options.eventHost || config.host.replace(/\/+$/, '').replace(/\/api$/, '')
     ).replace(/\/+$/, ''),
     session,
-    io: options.io
+    io: options.io,
+    probe: () => http.get('auth/authenticated')
   })
+
+  const { abortTurns, ...account } = authApi(http, session)
 
   return {
     host: config.host,
@@ -104,10 +168,11 @@ export const createCore = options => {
       try {
         events.disconnect()
       } finally {
+        abortTurns()
         http.abortAll()
       }
     },
-    ...authApi(http, session)
+    ...account
   }
 }
 

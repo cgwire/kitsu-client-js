@@ -1,8 +1,11 @@
 import {
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
+  orNull,
   requiredOf,
+  sameNameOf,
   sortedByName
 } from '../core/params.js'
 
@@ -38,14 +41,17 @@ export const entityApi = http => ({
   /**
    * @param {string} name
    * @param {{project?: Model, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity|null>} First entity matching the name.
+   * @returns {Promise<Entity|null>} An entity with that name (the case
+   *   ignored, an exact match first), null when there is none.
    */
   getEntityByName: async (name, { project, signal } = {}) =>
-    http.fetchFirst(
-      'entities',
-      { name: requiredOf('name', name), project_id: optionalIdOf(project) },
-      { signal }
-    ),
+    orNull(
+      http.fetchAll(
+        'entities',
+        { name: likeLiteralOf(name), project_id: optionalIdOf(project) },
+        { signal }
+      )
+    ).then(entities => sameNameOf(entities, name)),
 
   /**
    * @param {Model} entityType
@@ -58,21 +64,23 @@ export const entityApi = http => ({
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First entity type matching the name.
+   * @returns {Promise<Entity|null>} The entity type with that name (the case
+   *   ignored, an exact match first), null when there is none.
    */
   getEntityTypeByName: async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'entity-types',
-      { name: requiredOf('name', name) },
-      { signal }
-    ),
+    orNull(
+      http.fetchAll('entity-types', { name: likeLiteralOf(name) }, { signal })
+    ).then(entityTypes => sameNameOf(entityTypes, name)),
 
   /**
    * Find the entities a file path points to, from the project file tree.
    * @param {Model} project
    * @param {string} path
    * @param {{sep?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<Entity[]>} The matching entities.
+   * @returns {Promise<Record<string, string>[]>} The templates of the file
+   *   tree matching the path: each match names its Template and gives the
+   *   value of every token of the path, an id for an entity token (Project,
+   *   Asset, Sequence, Shot...). A match has no id of its own.
    */
   guessFromPath: async (project, path, { sep = '/', signal } = {}) =>
     http.post(
@@ -87,7 +95,7 @@ export const entityApi = http => ({
    * @returns {Promise<Entity>} The created entity type.
    */
   newEntityType: async (name, { signal } = {}) =>
-    http.create('entity-types', { name }, { signal }),
+    http.create('entity-types', { name: requiredOf('name', name) }, { signal }),
 
   /**
    * @param {Model} entityType

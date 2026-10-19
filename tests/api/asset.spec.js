@@ -50,6 +50,21 @@ describe('asset namespace: assets', () => {
     })
   })
 
+  // A missing argument or property must not list the assets of every
+  // project: only an explicit null does.
+  it('allAssetsForProject rejects a missing project before any request', async () => {
+    const shot = { id: OTHER_ID, project_id: PROJECT_ID }
+    const errors = await Promise.all(
+      [
+        kitsu.asset.allAssetsForProject(),
+        kitsu.asset.allAssetsForProject(undefined),
+        kitsu.asset.allAssetsForProject(shot.project)
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('allAssetsForOpenProjects gathers the assets of every open project', async () => {
     fake
       .on('GET', '/data/projects/open', () =>
@@ -122,6 +137,41 @@ describe('asset namespace: assets', () => {
     expect(fake.calls[1].query.get('entity_type_id')).toBe(ASSET_TYPE_ID)
   })
 
+  // Zou matches a name filter with ILIKE: any case, _ and % as wildcards.
+  it('getAssetByName keeps the exact name among the ILIKE matches', async () => {
+    const nearName = { id: OTHER_ID, name: 'chr-hero' }
+    const asset = { id: ASSET_ID, name: 'chr_hero' }
+    fake.reply(200, [nearName, asset]).reply(200, [nearName, asset])
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      asset
+    )
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, '%')).toBeNull()
+  })
+
+  it('getAssetByName ignores the case like gazu, the exact spelling first', async () => {
+    const upper = { id: ASSET_ID, name: 'Chr_Hero' }
+    const lower = { id: OTHER_ID, name: 'chr_hero' }
+    fake.reply(200, [upper]).reply(200, [upper, lower])
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      upper
+    )
+    expect(await kitsu.asset.getAssetByName(PROJECT_ID, 'chr_hero')).toEqual(
+      lower
+    )
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, the lookup would miss the asset and newAsset create it again.
+  it('newAsset finds an asset whose name holds a backslash or a wildcard', async () => {
+    const asset = { id: ASSET_ID, name: 'prop\\v2_100%' }
+    fake.reply(200, [asset])
+    expect(
+      await kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'prop\\v2_100%')
+    ).toEqual(asset)
+    expect(fake.calls).toHaveLength(1)
+    expect(fake.calls[0].query.get('name')).toBe('prop\\\\v2\\_100\\%')
+  })
+
   it('getAsset accepts an object or an id and returns null on 404', async () => {
     fake.reply(200, { id: ASSET_ID }).reply(404, {})
     expect(await kitsu.asset.getAsset({ id: ASSET_ID })).toEqual({
@@ -172,6 +222,33 @@ describe('asset namespace: assets', () => {
       description: 'A rabbit',
       episode_id: EPISODE_ID
     })
+  })
+
+  it('newAsset creates the asset when only a close name exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'chr-hero' }])
+      .reply(201, { id: ASSET_ID, name: 'chr_hero' })
+    expect(
+      await kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'chr_hero')
+    ).toEqual({ id: ASSET_ID, name: 'chr_hero' })
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      body: { name: 'chr_hero' }
+    })
+  })
+
+  // Even when the asset exists and no creation follows.
+  it('newAsset rejects a malformed asset type or episode before any request', async () => {
+    const errors = await Promise.all(
+      [
+        kitsu.asset.newAsset(PROJECT_ID, null, 'Bunny'),
+        kitsu.asset.newAsset(PROJECT_ID, ASSET_TYPE_ID, 'Bunny', {
+          episode: 'E01'
+        })
+      ].map(promise => promise.catch(err => err))
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('newAsset returns the existing asset instead of creating it', async () => {
@@ -259,6 +336,13 @@ describe('asset namespace: assets', () => {
       episode_id: EPISODE_ID,
       source_id: EPISODE_ID
     })
+  })
+
+  it('updateAsset rejects an asset given as an id before any request', async () => {
+    await expect(kitsu.asset.updateAsset(ASSET_ID)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('updateAssetData sends only the given keys, Zou merges them', async () => {

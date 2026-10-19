@@ -9,6 +9,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job runs the whole devDependency toolchain: give it a token that can
+# only read, and keep that token out of the checkout.
+permissions:
+  contents: read
+
 env:
   HUSKY: 0
 
@@ -18,10 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22, 24, current]
+        # 22.12.0 is the documented floor: the first 22.x that require()s ESM.
+        node: [22.12.0, 22, 24, current]
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -41,6 +49,8 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -60,6 +70,8 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -74,3 +86,10 @@ jobs:
         run: npm run types
       - name: Check the declarations as a consumer
         run: npm run test:types
+      # The README promises TypeScript 5.9 to the consumers: the declarations
+      # come from a newer compiler, which may emit what 5.9 cannot read.
+      - name: Check the declarations with TypeScript 5.9
+        run: |
+          npm install --no-save typescript@5.9
+          node_modules/.bin/tsc -v
+          npm run test:types

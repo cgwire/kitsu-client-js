@@ -1,4 +1,5 @@
-import { idOf, requiredOf, withoutNil } from '../core/params.js'
+import { ParameterError } from '../core/errors.js'
+import { changesOf, idOf, requiredOf, withoutNil } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -27,7 +28,8 @@ export const hardwareApi = http => ({
   /**
    * @param {string} name
    * @param {{shortName?: string, monthlyCost?: number,
-   * inventoryAmount?: number, signal?: AbortSignal}} [options]
+   * inventoryAmount?: number, signal?: AbortSignal}} [options] Zou needs a
+   *   short name: shortName is "" by default, as in the Kitsu form.
    * @returns {Promise<Entity>} The created hardware item.
    */
   newHardwareItem: async (
@@ -38,7 +40,7 @@ export const hardwareApi = http => ({
       'hardware-items',
       withoutNil({
         name: requiredOf('name', name),
-        short_name: shortName,
+        short_name: shortName ?? '',
         monthly_cost: monthlyCost,
         inventory_amount: inventoryAmount
       }),
@@ -53,24 +55,37 @@ export const hardwareApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated hardware item.
    */
-  updateHardwareItem: async (hardwareItem, { signal } = {}) =>
-    http.update(
+  updateHardwareItem: async (hardwareItem, { signal } = {}) => {
+    const id = idOf(hardwareItem)
+    // Its id alone holds no field: the empty body would pass as a save.
+    if (typeof hardwareItem !== 'object') {
+      throw new ParameterError(
+        'Wrong format: expected the hardware item, not its id'
+      )
+    }
+    return http.update(
       'hardware-items',
-      idOf(hardwareItem),
-      withoutNil({
-        name: hardwareItem.name,
-        short_name: hardwareItem.short_name,
-        monthly_cost: hardwareItem.monthly_cost,
-        inventory_amount: hardwareItem.inventory_amount,
-        archived: hardwareItem.archived
-      }),
+      id,
+      changesOf(
+        {
+          name: hardwareItem.name,
+          short_name: hardwareItem.short_name,
+          monthly_cost: hardwareItem.monthly_cost,
+          inventory_amount: hardwareItem.inventory_amount,
+          archived: hardwareItem.archived
+        },
+        withoutNil
+      ),
       { signal }
-    ),
+    )
+  },
 
   /**
+   * Zou refuses (400) to delete an item still linked to a department: unlink
+   * it with removeHardwareItemFromDepartment first.
    * @param {Model} hardwareItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeHardwareItem: async (hardwareItem, { signal } = {}) =>
     http.remove('hardware-items', idOf(hardwareItem), {}, { signal }),
@@ -104,7 +119,7 @@ export const hardwareApi = http => ({
    * @param {Model} department
    * @param {Model} hardwareItem
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeHardwareItemFromDepartment: async (
     department,

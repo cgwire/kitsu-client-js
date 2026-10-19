@@ -1,4 +1,14 @@
-import { idOf, optionalIdOf, requiredOf, withoutNil } from '../core/params.js'
+import { ParameterError } from '../core/errors.js'
+import {
+  changesOf,
+  idOf,
+  likeLiteralOf,
+  optionalIdOf,
+  orNull,
+  requiredOf,
+  sameNameOf,
+  withoutNil
+} from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
 /**
@@ -22,7 +32,9 @@ import * as urls from '../utils/urls.js'
  * @property {string} [name] File name suffix, "main" by default.
  * @property {string} [mode] Template of the file tree, "output" by default.
  * @property {string} [representation] Selects a template inside the mode.
- * @property {number} [revision]
+ * @property {number} [revision] 0 by default. Zou then takes the next
+ *   revision for the file name of an entity, but keeps 0 in its folder, and
+ *   in the whole path of an asset instance: pass the revision to build.
  * @property {string} [sep] OS separator, "/" by default.
  * @property {AbortSignal} [signal]
  */
@@ -36,7 +48,8 @@ import * as urls from '../utils/urls.js'
  * @property {number} [nbElements] Number of files of an image sequence.
  * @property {string} [representation] "abc", "jpg"...
  * @property {string} [sep] OS separator, "/" by default.
- * @property {Model} [fileStatusId] File status set at creation.
+ * @property {Model} [fileStatus] File status set at creation, the default
+ *   one of Zou when left out.
  * @property {AbortSignal} [signal]
  */
 
@@ -45,8 +58,8 @@ import * as urls from '../utils/urls.js'
  * @property {string} [fileName] Name sent with the file: a bare Blob has none.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
- *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress.
+ *   client given its own fetch (Tauri) calls it only with xhrUploads: true,
+ *   and a bearer client never for an upload to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 
@@ -94,41 +107,34 @@ const outputFileFilters = ({
   file_status_id: optionalIdOf(fileStatus)
 })
 
+// Zou counts preview positions and movie frames from 1: below, a position
+// changes nothing and a frame number seeks before the first frame.
+const fromOneOf = (label, value) => {
+  if (Number.isInteger(value) && value >= 1) return value
+  throw new ParameterError(
+    `Wrong format: ${label} must be an integer counted from 1`
+  )
+}
+
 const instanceEntityPath = (assetInstance, temporalEntity) =>
   `data/asset-instances/${idOf(assetInstance)}/entities/${idOf(temporalEntity)}`
 
 export const filesApi = http => {
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First output type matching the name.
-   */
-  const getOutputTypeByName = async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'output-types',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
+  // The public functions are documented where they are returned: one
+  // returned by its name would lose its JSDoc in the declarations.
 
   /**
+   * The row of that name, the case ignored but an exact match first: Zou
+   * keeps "Maya" and "maya" apart.
+   * @param {string} model
    * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First software matching the name.
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Entity|null>}
    */
-  const getSoftwareByName = async (name, { signal } = {}) =>
-    http.fetchFirst('softwares', { name: requiredOf('name', name) }, { signal })
-
-  /**
-   * @param {string} name
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First file status matching the name.
-   */
-  const getFileStatusByName = async (name, { signal } = {}) =>
-    http.fetchFirst(
-      'file-status',
-      { name: requiredOf('name', name) },
-      { signal }
-    )
+  const byName = async (model, name, signal) =>
+    orNull(
+      http.fetchAll(model, { name: likeLiteralOf(name) }, { signal })
+    ).then(entries => sameNameOf(entries, name))
 
   /**
    * @param {string} path
@@ -181,7 +187,14 @@ export const filesApi = http => {
     outputType,
     taskType,
     comment,
-    {
+    options = {}
+  ) => {
+    // 0.2.0 named it fileStatusId: dropped without a word, it would leave the
+    // default status on the file.
+    if ('fileStatusId' in options) {
+      throw new ParameterError('Wrong format: fileStatusId is now fileStatus')
+    }
+    const {
       workingFile,
       person,
       name = defaultName,
@@ -189,11 +202,10 @@ export const filesApi = http => {
       nbElements = 1,
       representation = '',
       sep = '/',
-      fileStatusId,
+      fileStatus,
       signal
-    } = {}
-  ) =>
-    http.post(
+    } = options
+    return http.post(
       path,
       withoutNil({
         output_type_id: idOf(outputType),
@@ -206,10 +218,11 @@ export const filesApi = http => {
         sep,
         working_file_id: optionalIdOf(workingFile),
         person_id: optionalIdOf(person),
-        file_status_id: optionalIdOf(fileStatusId)
+        file_status_id: optionalIdOf(fileStatus)
       }),
       { signal }
     )
+  }
 
   const nextOutputRevision = (path, outputType, taskType, name, signal) =>
     http
@@ -229,10 +242,9 @@ export const filesApi = http => {
    * @param {Model} outputType
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<number>} Next revision available for the output files
-   *   of the entity, 1 when there is no output file yet.
+   * @returns {Promise<number>}
    */
-  const getNextEntityOutputRevision = async (
+  const nextEntityRevision = (
     entity,
     outputType,
     taskType,
@@ -248,14 +260,13 @@ export const filesApi = http => {
 
   /**
    * @param {Model} assetInstance
-   * @param {Model} temporalEntity Shot or scene the instance appears in.
+   * @param {Model} temporalEntity
    * @param {Model} outputType
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
-   * @returns {Promise<number>} Next revision available for the output files
-   *   of the instance, 1 when there is no output file yet.
+   * @returns {Promise<number>}
    */
-  const getNextAssetInstanceOutputRevision = async (
+  const nextInstanceRevision = (
     assetInstance,
     temporalEntity,
     outputType,
@@ -272,11 +283,10 @@ export const filesApi = http => {
 
   /**
    * @param {Model} task
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Record<string, Entity>>} Last working file of the task
-   *   for each working file name.
+   * @param {AbortSignal} [signal]
+   * @returns {Promise<Record<string, Entity>>}
    */
-  const getLastWorkingFiles = async (task, { signal } = {}) =>
+  const lastWorkingFiles = (task, signal) =>
     http.get(
       `data/tasks/${idOf(task)}/working-files/last-revisions`,
       {},
@@ -369,17 +379,25 @@ export const filesApi = http => {
     getOutputType: async (outputType, { signal } = {}) =>
       http.fetchOne('output-types', idOf(outputType), { signal }),
 
-    getOutputTypeByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The output type of this name, the case
+     *   ignored but an exact match first, null when there is none.
+     */
+    getOutputTypeByName: async (name, { signal } = {}) =>
+      byName('output-types', name, signal),
 
     /**
-     * Create an output type, or return the one that already has this name.
+     * Create an output type, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} shortName
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The created or existing output type.
      */
     newOutputType: async (name, shortName, { signal } = {}) =>
-      (await getOutputTypeByName(name, { signal })) ||
+      (await byName('output-types', name, signal)) ||
       http.create('output-types', { name, short_name: shortName }, { signal }),
 
     /**
@@ -522,30 +540,55 @@ export const filesApi = http => {
     getSoftware: async (software, { signal } = {}) =>
       http.fetchOne('softwares', idOf(software), { signal }),
 
-    getSoftwareByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The software of this name, the case
+     *   ignored but an exact match first, null when there is none.
+     */
+    getSoftwareByName: async (name, { signal } = {}) =>
+      byName('softwares', name, signal),
 
     /**
-     * Create a software, or return the one that already has this name.
+     * Create a software, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} shortName
      * @param {string} fileExtension Main extension written by the software.
-     * @param {{secondaryExtensions?: string[], signal?: AbortSignal}} [options]
+     * @param {{
+     *   secondaryExtensions?: string[],
+     *   version?: string,
+     *   monthlyCost?: number,
+     *   inventoryAmount?: number,
+     *   signal?: AbortSignal
+     * }} [options] version, monthlyCost and inventoryAmount describe the
+     *   license, as in the form of Kitsu. The options only go to a created
+     *   software: an existing one comes back as it is.
      * @returns {Promise<Entity>} The created or existing software.
      */
     newSoftware: async (
       name,
       shortName,
       fileExtension,
-      { secondaryExtensions, signal } = {}
+      {
+        secondaryExtensions,
+        version,
+        monthlyCost,
+        inventoryAmount,
+        signal
+      } = {}
     ) =>
-      (await getSoftwareByName(name, { signal })) ||
+      (await byName('softwares', name, signal)) ||
       http.create(
         'softwares',
         withoutNil({
           name,
           short_name: shortName,
           file_extension: fileExtension,
-          secondary_extensions: secondaryExtensions
+          secondary_extensions: secondaryExtensions,
+          version,
+          monthly_cost: monthlyCost,
+          inventory_amount: inventoryAmount
         }),
         { signal }
       ),
@@ -605,6 +648,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * List the softwares set for the task types of the project. Needs a Zou
+     * release after 1.0.96: an older one answers 404.
      * @param {Model} project
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The softwares set for the task types of
@@ -619,7 +664,8 @@ export const filesApi = http => {
 
     /**
      * Set a software for a task type of the project. A second call returns
-     * the existing link.
+     * the existing link. Needs a Zou release after 1.0.96: an older one
+     * answers 404.
      * @param {Model} project
      * @param {Model} taskType A task type of the project.
      * @param {Model} software A software that is not archived.
@@ -639,6 +685,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * Unset a software of a task type of the project. Needs a Zou release
+     * after 1.0.96: an older one answers 404.
      * @param {Model} project
      * @param {Model} taskType
      * @param {Model} software
@@ -658,12 +706,16 @@ export const filesApi = http => {
       ),
 
     /**
-     * Build the path of a working file from the project file tree.
+     * Build the path of a working file from the project file tree. Without
+     * software, Zou takes 3ds Max where newWorkingFile takes Blender, and
+     * creates it when missing: give both functions the same software.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
      *   revision?: number, sep?: string, signal?: AbortSignal}} [options]
      *   name is the file name suffix, mode selects a template of the file
-     *   tree, sep is the OS separator.
+     *   tree, sep is the OS separator. revision is 1 by default, as in gazu:
+     *   0 asks Zou for the next revision of the name, the one newWorkingFile
+     *   creates by default.
      * @returns {Promise<string>} The working file path, without extension.
      */
     buildWorkingFilePath: async (
@@ -733,7 +785,13 @@ export const filesApi = http => {
 
     /**
      * Create a working file for a task. The server builds its path and, when
-     * revision is 0, sets the revision to the last one plus one.
+     * revision is 0 (the default), sets the revision to the last one plus
+     * one: save the file at the path of the created working file.
+     *
+     * Zou also assigns the task to the calling user, whoever person names.
+     * Without software, it takes Blender where buildWorkingFilePath takes
+     * 3ds Max, and creates it when missing: give both functions the same
+     * software.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
      *   comment?: string, person?: Model, revision?: number,
@@ -820,15 +878,54 @@ export const filesApi = http => {
         options
       ),
 
-    getNextEntityOutputRevision,
+    /**
+     * @param {Model} entity
+     * @param {Model} outputType
+     * @param {Model} taskType
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "main" by default, like for the other entity output file functions.
+     * @returns {Promise<number>} Next revision available for the output files
+     *   of the entity, 1 when there is no output file yet.
+     */
+    getNextEntityOutputRevision: async (
+      entity,
+      outputType,
+      taskType,
+      options
+    ) => nextEntityRevision(entity, outputType, taskType, options),
 
-    getNextAssetInstanceOutputRevision,
+    /**
+     * @param {Model} assetInstance
+     * @param {Model} temporalEntity Shot or scene the instance appears in.
+     * @param {Model} outputType
+     * @param {Model} taskType
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "master" by default, like for newAssetInstanceOutputFile (gazu), while
+     *   buildAssetInstanceOutputFilePath takes "main".
+     * @returns {Promise<number>} Next revision available for the output files
+     *   of the instance, 1 when there is no output file yet.
+     */
+    getNextAssetInstanceOutputRevision: async (
+      assetInstance,
+      temporalEntity,
+      outputType,
+      taskType,
+      options
+    ) =>
+      nextInstanceRevision(
+        assetInstance,
+        temporalEntity,
+        outputType,
+        taskType,
+        options
+      ),
 
     /**
      * @param {Model} entity
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "main" by default, like for the other entity output file functions.
      * @returns {Promise<number>} Last revision of the output files of the
      *   entity, 0 when there is no output file yet.
      */
@@ -838,7 +935,7 @@ export const filesApi = http => {
       taskType,
       options
     ) =>
-      getNextEntityOutputRevision(entity, outputType, taskType, options).then(
+      nextEntityRevision(entity, outputType, taskType, options).then(
         revision => revision - 1
       ),
 
@@ -847,7 +944,9 @@ export const filesApi = http => {
      * @param {Model} temporalEntity Shot or scene the instance appears in.
      * @param {Model} outputType
      * @param {Model} taskType
-     * @param {{name?: string, signal?: AbortSignal}} [options]
+     * @param {{name?: string, signal?: AbortSignal}} [options] name is
+     *   "master" by default, like for newAssetInstanceOutputFile (gazu), while
+     *   buildAssetInstanceOutputFilePath takes "main".
      * @returns {Promise<number>} Last revision of the output files of the
      *   instance, 0 when there is no output file yet.
      */
@@ -858,7 +957,7 @@ export const filesApi = http => {
       taskType,
       options
     ) =>
-      getNextAssetInstanceOutputRevision(
+      nextInstanceRevision(
         assetInstance,
         temporalEntity,
         outputType,
@@ -905,7 +1004,14 @@ export const filesApi = http => {
     getWorkingFilesForTask: async (task, { signal } = {}) =>
       http.get(`data/tasks/${idOf(task)}/working-files`, {}, { signal }),
 
-    getLastWorkingFiles,
+    /**
+     * @param {Model} task
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Record<string, Entity>>} Last working file of the task
+     *   for each working file name.
+     */
+    getLastWorkingFiles: async (task, { signal } = {}) =>
+      lastWorkingFiles(task, signal),
 
     /**
      * @param {Model} task
@@ -914,7 +1020,7 @@ export const filesApi = http => {
      *   name, null when there is none.
      */
     getLastWorkingFileRevision: async (task, { name = 'main', signal } = {}) =>
-      own(await getLastWorkingFiles(task, { signal }), name),
+      own(await lastWorkingFiles(task, signal), name),
 
     /**
      * @param {Model} workingFile
@@ -970,7 +1076,7 @@ export const filesApi = http => {
       http.update(
         'projects',
         idOf(project),
-        { file_tree: fileTree },
+        changesOf({ file_tree: fileTree }),
         { signal }
       ),
 
@@ -994,6 +1100,8 @@ export const filesApi = http => {
 
     /**
      * Download the original file of a preview, movie or not.
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the original file.
@@ -1021,22 +1129,18 @@ export const filesApi = http => {
      * @returns {Promise<Response>} Raw response holding the attached file.
      */
     downloadAttachmentFile: async (attachmentFile, { signal } = {}) => {
-      // Not getAttachmentFile: a missing attachment must raise NotFoundError,
-      // not be null.
-      const { id, name } = await http.get(
-        `data/attachment-files/${idOf(attachmentFile)}`,
-        {},
-        { signal }
-      )
-      // The name is free text typed by a user: left as is, a "#", a "?" or a
-      // "/" would cut or reshape the route.
-      return http.download(
-        `data/attachment-files/${id}/file/${encodeURIComponent(name)}`,
-        { signal }
-      )
+      const id = idOf(attachmentFile)
+      // Zou never reads the file name of the route, it names the download
+      // from its record: the id stands there, where a stored name holding a
+      // "/" or made of dots would no longer match the route.
+      return http.download(`data/attachment-files/${id}/file/${id}`, {
+        signal
+      })
     },
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the PNG thumbnail.
@@ -1048,6 +1152,8 @@ export const filesApi = http => {
       ),
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the full size PNG
@@ -1123,13 +1229,26 @@ export const filesApi = http => {
       http.update('preview-files', idOf(previewFile), data, { signal }),
 
     /**
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Preview files currently being processed.
+     * List the preview files of the open productions whose status is
+     * processing, broken or missing, newest first. Admins only. A broken or
+     * missing preview stays listed until its status changes.
+     * @param {{limit?: number, lastPreviewFile?: Model,
+     *   signal?: AbortSignal}} [options] Without limit, the API answers every
+     *   preview file at once. lastPreviewFile is the last preview file of the
+     *   previous page (cursor pagination).
+     * @returns {Promise<Entity[]>} The preview files, each with the
+     *   project_id, task_type_id and full_entity_name of its task.
      */
-    getRunningPreviewFiles: async ({ signal } = {}) =>
-      http.fetchAll('playlists/preview-files/running', {}, { signal }),
+    getRunningPreviewFiles: async ({ limit, lastPreviewFile, signal } = {}) =>
+      http.fetchAll(
+        'playlists/preview-files/running',
+        { limit, cursor_preview_file_id: optionalIdOf(lastPreviewFile) },
+        { signal }
+      ),
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the original movie.
@@ -1143,6 +1262,8 @@ export const filesApi = http => {
     },
 
     /**
+     * A preview whose files Zou still builds rejects with a KitsuError of
+     * status 202, whose retryAfter tells when to ask again.
      * @param {Model} previewFile
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the low definition
@@ -1166,7 +1287,8 @@ export const filesApi = http => {
 
     /**
      * @param {Model} previewFile
-     * @param {number} frameNumber
+     * @param {number} frameNumber Counted from 1, as the frame of an
+     *   annotation.
      * @param {RequestOptions} [options]
      * @returns {Promise<Response>} Raw response holding the frame picture.
      */
@@ -1178,20 +1300,27 @@ export const filesApi = http => {
       http.request(
         'GET',
         `actions/preview-files/${idOf(previewFile)}/extract-frame`,
-        { raw: true, query: { frame_number: frameNumber }, signal }
+        {
+          raw: true,
+          query: { frame_number: fromOneOf('frameNumber', frameNumber) },
+          signal
+        }
       ),
 
     /**
      * Set the displayed order of a preview among those of its revision.
      * @param {Model} previewFile
-     * @param {number} position
+     * @param {number} position Counted from 1, up to the number of previews
+     *   of the revision: Zou keeps the order as it is for a position past
+     *   the last one.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The updated preview file.
+     * @returns {Promise<Entity[]>} Every preview file of the revision, in its
+     *   new order.
      */
     updatePreviewPosition: async (previewFile, position, { signal } = {}) =>
       http.put(
         `actions/preview-files/${idOf(previewFile)}/update-position`,
-        { position },
+        { position: fromOneOf('position', position) },
         { signal }
       ),
 
@@ -1239,14 +1368,15 @@ export const filesApi = http => {
       http.fetchAll('file-status', {}, { signal }),
 
     /**
-     * Create a file status, or return the one that already has this name.
+     * Create a file status, or return the one that already has this name, case
+     * ignored.
      * @param {string} name
      * @param {string} color Hex string, "#00FF00" for instance.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The created or existing file status.
      */
     newFileStatus: async (name, color, { signal } = {}) =>
-      (await getFileStatusByName(name, { signal })) ||
+      (await byName('file-status', name, signal)) ||
       http.create('file-status', { name, color }, { signal }),
 
     /**
@@ -1257,7 +1387,14 @@ export const filesApi = http => {
     getFileStatus: async (fileStatus, { signal } = {}) =>
       http.fetchOne('file-status', idOf(fileStatus), { signal }),
 
-    getFileStatusByName,
+    /**
+     * @param {string} name
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity|null>} The file status of this name, the case
+     *   ignored but an exact match first, null when there is none.
+     */
+    getFileStatusByName: async (name, { signal } = {}) =>
+      byName('file-status', name, signal),
 
     /**
      * @param {Model} previewFile Loaded for its extension, like gazu.

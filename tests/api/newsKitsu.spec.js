@@ -11,7 +11,16 @@ import {
   TASK_TYPE_ID
 } from '../helpers/ids.js'
 
-const FEED = { data: [{ id: OTHER_ID }], total: 1, stats: [] }
+// The page envelope of Zou, with the count of news per task status id.
+const FEED = {
+  data: [{ id: OTHER_ID }],
+  total: 1,
+  nb_pages: 1,
+  limit: 50,
+  offset: 0,
+  page: 1,
+  stats: { [TASK_STATUS_ID]: 1 }
+}
 
 describe('news namespace: Kitsu coverage', () => {
   let kitsu, fake
@@ -66,6 +75,24 @@ describe('news namespace: Kitsu coverage', () => {
       after: '2026-09-01T00:00:00',
       before: '2026-09-19T00:00:00'
     })
+  })
+
+  // Zou reads both bounds as naive UTC times, to the second.
+  it('allNews sends a Date bound in UTC, to the second', async () => {
+    fake.reply(200, FEED)
+    await kitsu.news.allNews({
+      after: new Date(Date.UTC(2026, 8, 1, 6, 30, 15, 500)),
+      before: new Date(Date.UTC(2026, 8, 19))
+    })
+    expect(fake.calls[0].query.get('after')).toBe('2026-09-01T06:30:15')
+    expect(fake.calls[0].query.get('before')).toBe('2026-09-19T00:00:00')
+  })
+
+  it('allNews rejects an invalid Date before any request', async () => {
+    await expect(
+      kitsu.news.allNews({ after: new Date('nope') })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('allNews rejects a malformed filter', async () => {

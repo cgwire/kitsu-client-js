@@ -62,12 +62,14 @@ describe('schedule namespace: milestones', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('updateMilestone sends only the given fields', async () => {
+  it('updateMilestone saves the fields of the milestone', async () => {
     fake.reply(200, { id: MILESTONE_ID })
-    await kitsu.schedule.updateMilestone(
-      { id: MILESTONE_ID },
-      { date: new Date(2026, 8, 20), name: 'Final', taskType: null }
-    )
+    await kitsu.schedule.updateMilestone({
+      id: MILESTONE_ID,
+      date: new Date(2026, 8, 20),
+      name: 'Final',
+      task_type_id: null
+    })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/milestones/${MILESTONE_ID}`
@@ -79,17 +81,40 @@ describe('schedule namespace: milestones', () => {
     })
   })
 
-  it('updateMilestone keeps unset fields out of the body', async () => {
+  it('updateMilestone saves the changes of a milestone read before', async () => {
+    const milestone = {
+      id: MILESTONE_ID,
+      type: 'Milestone',
+      date: '2026-09-19',
+      name: 'Delivery',
+      project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID,
+      created_at: '2026-09-01T10:00:00',
+      updated_at: '2026-09-01T10:00:00'
+    }
+    fake.reply(200, milestone)
+    await kitsu.schedule.updateMilestone({ ...milestone, name: 'Final' })
+    expect(fake.calls[0].body).toEqual({
+      date: '2026-09-19',
+      name: 'Final',
+      task_type_id: TASK_TYPE_ID
+    })
+  })
+
+  it('updateMilestone keeps the missing fields out of the body', async () => {
     fake.reply(200, { id: MILESTONE_ID })
-    await kitsu.schedule.updateMilestone(MILESTONE_ID, {
-      taskType: TASK_TYPE_ID
+    await kitsu.schedule.updateMilestone({
+      id: MILESTONE_ID,
+      task_type_id: TASK_TYPE_ID
     })
     expect(fake.calls[0].body).toEqual({ task_type_id: TASK_TYPE_ID })
   })
 
   it('removeMilestone deletes the milestone', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeMilestone({ id: MILESTONE_ID })
+    expect(
+      await kitsu.schedule.removeMilestone({ id: MILESTONE_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/milestones/${MILESTONE_ID}`
@@ -209,12 +234,14 @@ describe('schedule namespace: schedule items', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('updateScheduleItem sends only the given fields', async () => {
+  it('updateScheduleItem saves the fields of the item', async () => {
     fake.reply(200, { id: ITEM_ID })
-    await kitsu.schedule.updateScheduleItem(
-      { id: ITEM_ID },
-      { startDate: new Date(2026, 8, 19), endDate: '2026-09-25', manDays: 4 }
-    )
+    await kitsu.schedule.updateScheduleItem({
+      id: ITEM_ID,
+      start_date: new Date(2026, 8, 19),
+      end_date: '2026-09-25',
+      man_days: 4
+    })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/schedule-items/${ITEM_ID}`
@@ -226,15 +253,41 @@ describe('schedule namespace: schedule items', () => {
     })
   })
 
-  it('updateScheduleItem keeps unset fields out of the body', async () => {
+  // A row of allTaskTypeScheduleItems.
+  it('updateScheduleItem saves the changes of an item read before', async () => {
+    const item = {
+      id: ITEM_ID,
+      start_date: '2026-09-19',
+      end_date: '2026-09-20',
+      man_days: null,
+      project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID,
+      object_id: null
+    }
+    fake.reply(200, item)
+    await kitsu.schedule.updateScheduleItem({
+      ...item,
+      end_date: '2026-09-25'
+    })
+    expect(fake.calls[0].body).toEqual({
+      start_date: '2026-09-19',
+      end_date: '2026-09-25',
+      man_days: null
+    })
+  })
+
+  it('updateScheduleItem keeps the missing fields out of the body', async () => {
     fake.reply(200, { id: ITEM_ID })
-    await kitsu.schedule.updateScheduleItem(ITEM_ID, { endDate: '2026-09-25' })
+    await kitsu.schedule.updateScheduleItem({
+      id: ITEM_ID,
+      end_date: '2026-09-25'
+    })
     expect(fake.calls[0].body).toEqual({ end_date: '2026-09-25' })
   })
 
   it('removeScheduleItem deletes the schedule item', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleItem({ id: ITEM_ID })
+    expect(await kitsu.schedule.removeScheduleItem({ id: ITEM_ID })).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/schedule-items/${ITEM_ID}`
@@ -306,32 +359,42 @@ describe('schedule namespace: schedule versions', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
-  it('updateScheduleVersion sends only the given fields', async () => {
-    fake.reply(200, { id: VERSION_ID })
-    await kitsu.schedule.updateScheduleVersion(
-      { id: VERSION_ID },
-      { name: 'V3', canceled: false, locked: true }
-    )
+  it('updateScheduleVersion saves the changes of a version read before', async () => {
+    const version = {
+      id: VERSION_ID,
+      type: 'ProductionScheduleVersion',
+      name: 'V2',
+      project_id: PROJECT_ID,
+      production_schedule_from: null,
+      locked: false,
+      canceled: false,
+      created_at: '2026-09-01T10:00:00',
+      updated_at: '2026-09-01T10:00:00'
+    }
+    fake.reply(200, { ...version, locked: true })
+    await kitsu.schedule.updateScheduleVersion({ ...version, locked: true })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/production-schedule-versions/${VERSION_ID}`
     })
     expect(fake.calls[0].body).toEqual({
-      name: 'V3',
+      name: 'V2',
       canceled: false,
       locked: true
     })
   })
 
-  it('updateScheduleVersion keeps unset fields out of the body', async () => {
+  it('updateScheduleVersion keeps the missing fields out of the body', async () => {
     fake.reply(200, { id: VERSION_ID })
-    await kitsu.schedule.updateScheduleVersion(VERSION_ID, { locked: true })
+    await kitsu.schedule.updateScheduleVersion({ id: VERSION_ID, locked: true })
     expect(fake.calls[0].body).toEqual({ locked: true })
   })
 
   it('removeScheduleVersion deletes the version', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleVersion({ id: VERSION_ID })
+    expect(
+      await kitsu.schedule.removeScheduleVersion({ id: VERSION_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/production-schedule-versions/${VERSION_ID}`
@@ -339,10 +402,10 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('setTaskLinksFromProduction copies the production tasks', async () => {
-    fake.reply(200, [{ id: LINK_ID }])
+    fake.reply(200, { success: true, task_link_count: 12 })
     expect(
       await kitsu.schedule.setTaskLinksFromProduction({ id: VERSION_ID })
-    ).toEqual([{ id: LINK_ID }])
+    ).toEqual({ success: true, task_link_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/set-task-links-from-production`
@@ -350,11 +413,13 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('setTaskLinksFromScheduleVersion copies another version', async () => {
-    fake.reply(200, [{ id: LINK_ID }])
-    await kitsu.schedule.setTaskLinksFromScheduleVersion(
-      { id: VERSION_ID },
-      { id: OTHER_ID }
-    )
+    fake.reply(200, { success: true, task_link_count: 12 })
+    expect(
+      await kitsu.schedule.setTaskLinksFromScheduleVersion(
+        { id: VERSION_ID },
+        { id: OTHER_ID }
+      )
+    ).toEqual({ success: true, task_link_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/set-task-links-from-production-schedule-version`
@@ -365,8 +430,10 @@ describe('schedule namespace: schedule versions', () => {
   })
 
   it('applyScheduleVersionToProduction applies the version', async () => {
-    fake.reply(200, [{ id: TASK_ID }])
-    await kitsu.schedule.applyScheduleVersionToProduction({ id: VERSION_ID })
+    fake.reply(200, { success: true, task_count: 12 })
+    expect(
+      await kitsu.schedule.applyScheduleVersionToProduction({ id: VERSION_ID })
+    ).toEqual({ success: true, task_count: 12 })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/production-schedule-versions/${VERSION_ID}/apply-to-production`
@@ -455,17 +522,15 @@ describe('schedule namespace: schedule version task links', () => {
     })
   })
 
-  it('updateScheduleVersionTaskLink sends only the given fields', async () => {
+  it('updateScheduleVersionTaskLink saves the fields of the task link', async () => {
     fake.reply(200, { id: LINK_ID })
-    await kitsu.schedule.updateScheduleVersionTaskLink(
-      { id: LINK_ID },
-      {
-        startDate: null,
-        dueDate: new Date(2026, 8, 25),
-        estimation: 240,
-        assignees: [PERSON_ID]
-      }
-    )
+    await kitsu.schedule.updateScheduleVersionTaskLink({
+      id: LINK_ID,
+      start_date: null,
+      due_date: new Date(2026, 8, 25),
+      estimation: 240,
+      assignees: [{ id: PERSON_ID }]
+    })
     expect(fake.calls[0]).toMatchObject({
       method: 'PUT',
       path: `/data/production-schedule-version-task-links/${LINK_ID}`
@@ -478,9 +543,37 @@ describe('schedule namespace: schedule version task links', () => {
     })
   })
 
-  it('updateScheduleVersionTaskLink keeps unset fields out', async () => {
+  // A row of allScheduleVersionTaskLinks, which asks for the relations.
+  it('updateScheduleVersionTaskLink saves the changes of a link read before', async () => {
+    const link = {
+      id: LINK_ID,
+      type: 'ProductionScheduleVersionTaskLink',
+      production_schedule_version_id: VERSION_ID,
+      task_id: TASK_ID,
+      start_date: '2026-09-19T00:00:00',
+      due_date: '2026-09-25T00:00:00',
+      estimation: 240,
+      assignees: [PERSON_ID],
+      created_at: '2026-09-01T10:00:00',
+      updated_at: '2026-09-01T10:00:00'
+    }
+    fake.reply(200, link)
+    await kitsu.schedule.updateScheduleVersionTaskLink({
+      ...link,
+      estimation: 60
+    })
+    expect(fake.calls[0].body).toEqual({
+      start_date: '2026-09-19T00:00:00',
+      due_date: '2026-09-25T00:00:00',
+      estimation: 60,
+      assignees: [PERSON_ID]
+    })
+  })
+
+  it('updateScheduleVersionTaskLink keeps the missing fields out', async () => {
     fake.reply(200, { id: LINK_ID })
-    await kitsu.schedule.updateScheduleVersionTaskLink(LINK_ID, {
+    await kitsu.schedule.updateScheduleVersionTaskLink({
+      id: LINK_ID,
       estimation: 60
     })
     expect(fake.calls[0].body).toEqual({ estimation: 60 })
@@ -488,10 +581,105 @@ describe('schedule namespace: schedule version task links', () => {
 
   it('removeScheduleVersionTaskLink deletes the task link', async () => {
     fake.reply(204)
-    await kitsu.schedule.removeScheduleVersionTaskLink({ id: LINK_ID })
+    expect(
+      await kitsu.schedule.removeScheduleVersionTaskLink({ id: LINK_ID })
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/production-schedule-version-task-links/${LINK_ID}`
     })
+  })
+})
+
+// 0.2.0 read the changes from the options: such a call would now save
+// nothing.
+describe('schedule namespace: updates', () => {
+  let kitsu, fake
+  beforeEach(() => {
+    ;({ kitsu, fake } = makeClient())
+  })
+
+  it.each([
+    ['updateMilestone', MILESTONE_ID, { name: 'Final' }],
+    ['updateScheduleItem', ITEM_ID, { endDate: '2026-09-25' }],
+    ['updateScheduleVersion', VERSION_ID, { locked: true }],
+    ['updateScheduleVersionTaskLink', LINK_ID, { estimation: 60 }]
+  ])('%s refuses the changes given as options', async (name, id, options) => {
+    await expect(kitsu.schedule[name]({ id }, options)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // An id holds nothing to save: Zou would answer the empty update with the
+  // record, its updated_at bumped and an update event sent.
+  it.each([
+    ['updateMilestone', MILESTONE_ID],
+    ['updateScheduleItem', ITEM_ID],
+    ['updateScheduleVersion', VERSION_ID],
+    ['updateScheduleVersionTaskLink', LINK_ID]
+  ])('%s refuses an id given alone', async (name, id) => {
+    await expect(kitsu.schedule[name](id)).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Saving nothing, Zou would still bump updated_at and send an update event.
+  it.each([
+    ['updateMilestone', MILESTONE_ID, { taskType: TASK_TYPE_ID }],
+    ['updateScheduleItem', ITEM_ID, { startDate: '2026-09-25' }],
+    ['updateScheduleVersion', VERSION_ID, { isLocked: true }],
+    ['updateScheduleVersionTaskLink', LINK_ID, { dueDate: '2026-09-25' }]
+  ])(
+    '%s refuses an object holding none of its fields',
+    async (name, id, fields) => {
+      await expect(
+        kitsu.schedule[name]({ id, project_id: PROJECT_ID, ...fields })
+      ).rejects.toThrow(/nothing to save/)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
+  it.each([
+    ['updateMilestone', MILESTONE_ID, { name: 'Final' }],
+    ['updateScheduleItem', ITEM_ID, { man_days: 12 }],
+    ['updateScheduleVersion', VERSION_ID, { locked: true }],
+    ['updateScheduleVersionTaskLink', LINK_ID, { estimation: 60 }]
+  ])('%s takes null options as none', async (name, id, fields) => {
+    fake.reply(200, { id, ...fields })
+    expect(await kitsu.schedule[name]({ id, ...fields }, null)).toEqual({
+      id,
+      ...fields
+    })
+    expect(fake.calls[0].body).toEqual(fields)
+  })
+
+  it('updateMilestone refuses an invalid Date', async () => {
+    await expect(
+      kitsu.schedule.updateMilestone({
+        id: MILESTONE_ID,
+        date: new Date('not a date')
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // The core aborts its own request signal as soon as the caller signal is
+  // aborted: an aborted request signal proves the option went through.
+  it.each([
+    ['updateMilestone', MILESTONE_ID],
+    ['updateScheduleItem', ITEM_ID],
+    ['updateScheduleVersion', VERSION_ID],
+    ['updateScheduleVersionTaskLink', LINK_ID]
+  ])('%s forwards the caller signal', async (name, id) => {
+    const controller = new AbortController()
+    controller.abort()
+    fake.reply(200, { id })
+    await kitsu.schedule[name](
+      { id, name: 'Final', man_days: 12, estimation: 60 },
+      { signal: controller.signal }
+    )
+    expect(fake.calls[0].signal.aborted).toBe(true)
   })
 })

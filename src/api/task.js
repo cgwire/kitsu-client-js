@@ -1,12 +1,17 @@
 import { NotFoundError, ParameterError } from '../core/errors.js'
 import {
   dateOf,
+  datetimeOf,
   dayOf,
   idOf,
   idsOf,
+  likeLiteralOf,
+  metadataOf,
   optionalIdOf,
   orNull,
+  refuseUnknownOptions,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -19,15 +24,98 @@ import * as urls from '../utils/urls.js'
  * @typedef {{relations?: boolean, signal?: AbortSignal}} RelationsOptions
  * @typedef {{forEntity?: string, department?: Model,
  *   signal?: AbortSignal}} TaskTypeFilters
- * @typedef {{
- *   comment?: string,
- *   person?: Model,
- *   checklist?: object[],
- *   attachments?: Blob[],
- *   createdAt?: string,
- *   links?: string[]
- * }} CommentFields person is the author, checklist holds entries like
- *   {text: "Item 1", checked: false}, createdAt is the comment date.
+ * @typedef {{total: number, [personId: string]: Entity[]|number}}
+ *   TaskTimeSpents
+ */
+
+/**
+ * @typedef {object} CommentFields
+ * @property {string} [comment]
+ * @property {Model} [person] Author of the comment (managers only).
+ * @property {object[]} [checklist] Entries like
+ *   {text: "Item 1", checked: false}.
+ * @property {Blob[]} [attachments]
+ * @property {Date|string} [createdAt] Date of the comment (managers only): a
+ *   Date, or "YYYY-MM-DDTHH:MM:SS" in UTC.
+ * @property {string[]} [links]
+ */
+
+/**
+ * @typedef {object} OpenTasksFilters
+ * @property {Model} [project]
+ * @property {Model} [taskType] Without it, the tasks of the concepts are
+ *   left out.
+ * @property {Model} [taskStatus]
+ * @property {Model[]|'unassigned'} [persons] Tasks assigned to one of the
+ *   persons, or "unassigned" for the tasks nobody is assigned to. An empty
+ *   list is refused: it would match everybody.
+ * @property {Model} [department] Tasks with an assignee of the department.
+ * @property {Model} [studio] Tasks with an assignee of the studio.
+ * @property {Date|string} [startDate] Tasks starting on that day or later.
+ * @property {Date|string} [dueDate] Tasks due on that day or earlier.
+ * @property {number} [priority] The one of the task type, its rank in the
+ *   order reorderTaskTypes sets, not the priority of the task.
+ * @property {AbortSignal} [signal]
+ */
+
+/**
+ * @typedef {object} OpenTasksPage
+ * @property {Entity[]} data The tasks of the page.
+ * @property {{total: number, total_duration: number,
+ *   total_estimation: number,
+ *   status: {task_status_id: string, amount: number}[]}} stats Counts of
+ *   the tasks matching the filters, over every page: their time spent and
+ *   estimations in minutes, and their number for each task status.
+ * @property {boolean} is_more
+ * @property {number} limit
+ * @property {number} page
+ */
+
+/**
+ * @typedef {object} OpenTasksBurndown
+ * @property {number} total Number of tasks matching the filters.
+ * @property {number} total_estimation Sum of their estimations, in minutes.
+ * @property {string|null} start_date First day of the chart: the first start
+ *   date of the tasks, else of their projects.
+ * @property {string|null} end_date Last day of the chart.
+ * @property {{date: string, done: number, done_estimation: number}[]}
+ *   done_by_day Number of tasks done each day, with their estimations.
+ */
+
+/**
+ * @typedef {object} ProjectTasksStats
+ * @property {number} amount Number of tasks.
+ * @property {number} amount_done Number of done tasks.
+ * @property {number} total_duration Time spent on the tasks, in minutes.
+ * @property {number} total_estimation Their estimations, in minutes.
+ * @property {{task_type_id: string, task_status_id: string,
+ *   project_id: string, amount: number, amount_done: number,
+ *   total_duration: number, total_estimation: number}[]} task_types The
+ *   same counts for each task type and task status.
+ */
+
+/**
+ * @typedef {object} PersonTasksDates
+ * @property {string} person_id
+ * @property {string|null} min_date First start date of the tasks of the
+ *   person.
+ * @property {string|null} max_date Last due date of the tasks of the person.
+ * @property {{start_date: string, end_date: string}[]} busy_periods When the
+ *   person works in the productions the user is not part of, without their
+ *   tasks.
+ */
+
+/**
+ * @typedef {object} BatchComment
+ * @property {string} [task_id] Id of the task, required without the task
+ *   option.
+ * @property {string} task_status_id
+ * @property {string} text Can be empty.
+ * @property {string} [person_id] Author of the comment (managers only).
+ * @property {Date|string} [created_at] Date of the comment (managers only):
+ *   a Date or "YYYY-MM-DDTHH:MM:SS" in UTC.
+ * @property {{text: string, checked: boolean}[]} [checklist]
+ * @property {string[]} [links]
  */
 
 /**
@@ -37,15 +125,43 @@ import * as urls from '../utils/urls.js'
  *   extension of the file name.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
- *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress.
+ *   client given its own fetch (Tauri) calls it only with xhrUploads: true,
+ *   and a bearer client never for an upload to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 
 const HEX_COLOR = /^#[0-9a-fA-F]*$/
 
+const COMMENT_DATE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}$/
+
 const COLLECTION_ROUTES = ['assets', 'shots', 'edits', 'concepts']
 const ENTITY_TYPE_ROUTES = ['episodes', 'sequences']
+
+/**
+ * Zou reads the date of a comment to the second, as naive UTC, and dates
+ * the comment now in any other format, without an error: toISOString() and
+ * a Date sent as JSON carry milliseconds and a Z.
+ * @param {Date|string} [createdAt]
+ * @returns {string|undefined}
+ */
+const commentDateOf = createdAt => {
+  const date = datetimeOf(createdAt)
+  if (date === undefined || date === null || date === '') return undefined
+  if (COMMENT_DATE.test(date)) return date
+  throw new ParameterError(
+    'Wrong format: createdAt must be a Date or a "YYYY-MM-DDTHH:MM:SS" string in UTC'
+  )
+}
+
+/**
+ * The date of a batch comment follows the rule of addComment.
+ * @param {Record<string, any>} entry
+ * @returns {Record<string, any>}
+ */
+const batchEntryOf = entry =>
+  entry && entry.created_at !== undefined
+    ? { ...entry, created_at: commentDateOf(entry.created_at) }
+    : entry
 
 /**
  * FormData names a bare Blob "blob", and Zou reads the preview type from the
@@ -66,6 +182,56 @@ const namedPreviewOf = (file, fileName) => {
   throw new ParameterError(
     'Missing parameter: fileName is required when the file has no name'
   )
+}
+
+/**
+ * Zou reads an empty list as no selection at all and widens the request to
+ * everything in scope: a selection that came out empty is refused instead.
+ * @param {string} label Name of the parameter, for the error message.
+ * @param {Model[]} models
+ * @returns {string[]}
+ */
+const selectionOf = (label, models) => {
+  if (Array.isArray(models) && models.length > 0) return idsOf(models)
+  throw new ParameterError(
+    `Missing parameter: ${label} must be a non-empty list`
+  )
+}
+
+/**
+ * The list of the open tasks and its burndown read the same filters.
+ * @param {OpenTasksFilters} filters
+ * @returns {Record<string, any>} The query.
+ */
+const openTasksQuery = filters => {
+  const {
+    project,
+    taskType,
+    taskStatus,
+    persons,
+    department,
+    studio,
+    startDate,
+    dueDate,
+    priority,
+    ...others
+  } = filters
+  refuseUnknownOptions(others)
+  const personIds =
+    persons === undefined || persons === null || persons === 'unassigned'
+      ? persons
+      : selectionOf('persons', persons).join(',')
+  return {
+    project_id: optionalIdOf(project),
+    task_type_id: optionalIdOf(taskType),
+    task_status_id: optionalIdOf(taskStatus),
+    person_id: personIds,
+    department_id: optionalIdOf(department),
+    studio_id: optionalIdOf(studio),
+    start_date: dateOf(startDate),
+    due_date: dateOf(dueDate),
+    priority
+  }
 }
 
 export const taskApi = http => {
@@ -137,55 +303,68 @@ export const taskApi = http => {
    * @param {Model} taskType
    * @param {{name?: string, signal?: AbortSignal}} [options]
    * @returns {Promise<Entity|null>} The task of the entity for this task type
-   *   and name, null when missing.
+   *   and name, the case ignored but an exact match first, null when
+   *   missing.
    */
   const getTaskByEntity = async (
     entity,
     taskType,
     { name = 'main', signal } = {}
   ) =>
-    http.fetchFirst(
-      'tasks',
-      {
-        name: requiredOf('name', name),
-        task_type_id: idOf(taskType),
-        entity_id: idOf(entity)
-      },
-      { signal }
-    )
+    orNull(
+      http.fetchAll(
+        'tasks',
+        {
+          name: likeLiteralOf(name),
+          task_type_id: idOf(taskType),
+          entity_id: idOf(entity)
+        },
+        { signal }
+      )
+    ).then(tasks => sameNameOf(tasks, name))
 
   /**
    * @param {string} name
    * @param {TaskTypeFilters} [options] forEntity is the entity type the task
    *   type applies to ("Asset", "Shot", ...).
-   * @returns {Promise<Entity|null>} First task type matching the name.
+   * @returns {Promise<Entity|null>} The task type of this name, the case
+   *   ignored but an exact match first, null when there is none.
    */
   const getTaskTypeByName = async (
     name,
     { forEntity, department, signal } = {}
   ) =>
+    orNull(
+      http.fetchAll(
+        'task-types',
+        {
+          name: likeLiteralOf(name),
+          for_entity: forEntity,
+          department_id: optionalIdOf(department)
+        },
+        { signal }
+      )
+    ).then(taskTypes => sameNameOf(taskTypes, name))
+
+  /**
+   * @param {RequestOptions} [options]
+   * @returns {Promise<Entity|null>} The status new tasks start on (Todo by
+   *   default). The default status of the concepts is left out.
+   */
+  const getDefaultTaskStatus = async ({ signal } = {}) =>
+    // Zou flags two statuses as default, Todo and the Neutral of the
+    // concepts, and lists them in no set order.
     http.fetchFirst(
-      'task-types',
-      {
-        name: requiredOf('name', name),
-        for_entity: forEntity,
-        department_id: optionalIdOf(department)
-      },
+      'task-status',
+      { is_default: true, for_concept: false },
       { signal }
     )
 
   /**
-   * @param {RequestOptions} [options]
-   * @returns {Promise<{id: string}|null>} The task status flagged as default.
-   */
-  const getDefaultTaskStatus = async ({ signal } = {}) =>
-    http.fetchFirst('task-status', { is_default: true }, { signal })
-
-  /**
    * @param {string} shortName
    * @param {RequestOptions} [options]
-   * @returns {Promise<{id: string}|null>} First task status matching the
-   *   short name.
+   * @returns {Promise<Entity|null>} First task status matching the short
+   *   name.
    */
   const getTaskStatusByShortName = async (shortName, { signal } = {}) =>
     http.fetchFirst(
@@ -209,29 +388,38 @@ export const taskApi = http => {
    * stored as null. An older Zou replaces them with the given ones. An
    * empty or null data clears them all.
    * @param {{id: string, assignees?: Model[]|null, [field: string]: any}} task
+   *   assignees replaces the assignees of the task, null clears them. Left
+   *   out or undefined, they stay as they are.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated task.
    */
-  const updateTask = async (task, { signal } = {}) =>
-    http.update(
+  const updateTask = async (task, { signal } = {}) => {
+    if (!task || typeof task !== 'object') {
+      throw new ParameterError('Wrong format: updateTask needs the task object')
+    }
+    // Undefined assignees are left out, as JSON drops them: an empty list
+    // would unassign everybody.
+    return http.update(
       'tasks',
       idOf(task),
-      'assignees' in task
-        ? { ...task, assignees: idsOf(task.assignees || []) }
-        : task,
+      task.assignees === undefined
+        ? task
+        : { ...task, assignees: idsOf(task.assignees || []) },
       { signal }
     )
+  }
 
   /**
    * @param {Model} entity
-   * @param {Model[]} taskTypes
+   * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+   *   every task type of the entity.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity[]>} The created tasks, one per task type.
    */
   const createEntityTasks = async (entity, taskTypes, { signal } = {}) =>
     http.post(
       `data/entities/${idOf(entity)}/tasks`,
-      { task_type_ids: idsOf(taskTypes) },
+      { task_type_ids: selectionOf('taskTypes', taskTypes) },
       { signal }
     )
 
@@ -268,7 +456,7 @@ export const taskApi = http => {
       checklist,
       links,
       person_id: optionalIdOf(person),
-      created_at: createdAt
+      created_at: commentDateOf(createdAt)
     }
     if (!attachments || attachments.length === 0) {
       return http.post(path, withoutNil({ ...data, for_client: forClient }), {
@@ -327,7 +515,8 @@ export const taskApi = http => {
    * @param {Model} previewFile
    * @param {{frameNumber?: number, signal?: AbortSignal}} [options]
    *   frameNumber picks the frame of a movie preview.
-   * @returns {Promise<Entity>} The preview file.
+   * @returns {Promise<Entity>} The updated entity (asset, shot...), with the
+   *   preview_file_status of the preview.
    */
   const setMainPreview = async (previewFile, { frameNumber, signal } = {}) =>
     http.put(
@@ -456,12 +645,14 @@ export const taskApi = http => {
       allTasksForEntity(sequence, 'sequences', 'tasks', options),
 
     /**
+     * Zou reads no relations option on this route: the tasks come without
+     * their assignees.
      * @param {Model} scene
-     * @param {RelationsOptions} [options]
+     * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Tasks of the scene, sorted by name.
      */
-    allTasksForScene: async (scene, options) =>
-      allTasksForEntity(scene, 'scenes', 'tasks', options),
+    allTasksForScene: async (scene, { signal } = {}) =>
+      allTasksForEntity(scene, 'scenes', 'tasks', { signal }),
 
     /**
      * @param {Model} asset
@@ -472,12 +663,14 @@ export const taskApi = http => {
       allTasksForEntity(asset, 'assets', 'tasks', options),
 
     /**
+     * Zou reads no relations option on this route: the tasks come without
+     * their assignees.
      * @param {Model} episode
-     * @param {RelationsOptions} [options]
+     * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Tasks of the episode, sorted by name.
      */
-    allTasksForEpisode: async (episode, options) =>
-      allTasksForEntity(episode, 'episodes', 'tasks', options),
+    allTasksForEpisode: async (episode, { signal } = {}) =>
+      allTasksForEntity(episode, 'episodes', 'tasks', { signal }),
 
     /**
      * @param {Model} sequence
@@ -586,8 +779,8 @@ export const taskApi = http => {
     /**
      * @param {Model} sequence
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Task types of the sequence tasks, sorted by
-     *   name.
+     * @returns {Promise<Entity[]>} Task types of the tasks of the shots and
+     *   scenes of the sequence, not of the sequence itself, sorted by name.
      */
     allTaskTypesForSequence: async (sequence, options) =>
       allTaskTypesForEntity(sequence, 'sequences', options),
@@ -595,8 +788,8 @@ export const taskApi = http => {
     /**
      * @param {Model} episode
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Task types of the episode tasks, sorted by
-     *   name.
+     * @returns {Promise<Entity[]>} Task types of the tasks of the shots and
+     *   scenes of the episode, not of the episode itself, sorted by name.
      */
     allTaskTypesForEpisode: async (episode, options) =>
       allTaskTypesForEntity(episode, 'episodes', options),
@@ -633,10 +826,15 @@ export const taskApi = http => {
       http.fetchAll(`persons/${idOf(person)}/done-tasks`, {}, { signal }),
 
     /**
+     * Not only the tasks of the person: every task of this task type on the
+     * entities where the person has a task, of any type, in an open
+     * production, whoever is assigned to it. allTasksForPerson lists the
+     * tasks of the person.
      * @param {Model} person
      * @param {Model} taskType
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} Tasks of the person for this task type.
+     * @returns {Promise<Entity[]>} Tasks of this task type on the entities of
+     *   the person.
      */
     allTasksForPersonAndType: async (person, taskType, { signal } = {}) =>
       http.fetchAll(
@@ -663,73 +861,35 @@ export const taskApi = http => {
 
     /**
      * One page of the open tasks, the same way the Kitsu task list reads it.
-     * @param {{
-     *   project?: Model,
-     *   taskType?: Model,
-     *   taskStatus?: Model,
-     *   persons?: Model[]|'unassigned',
-     *   department?: Model,
-     *   studio?: Model,
-     *   startDate?: Date|string,
-     *   dueDate?: Date|string,
-     *   priority?: number,
-     *   page?: number,
-     *   limit?: number,
-     *   signal?: AbortSignal
-     * }} [options] persons is a list, or "unassigned" for the tasks nobody
-     *   is assigned to. page starts at 1, limit is 100 by default.
-     * @returns {Promise<{data: Entity[], stats: object, is_more: boolean,
-     *   limit: number, page: number}>} The page of Zou.
+     * @param {OpenTasksFilters & {page?: number, limit?: number}} [options]
+     *   page starts at 1, limit is 100 by default.
+     * @returns {Promise<OpenTasksPage>} The page of Zou.
      */
-    allOpenTasks: async ({
-      project,
-      taskType,
-      taskStatus,
-      persons,
-      department,
-      studio,
-      startDate,
-      dueDate,
-      priority,
-      page,
-      limit,
-      signal
-    } = {}) =>
+    allOpenTasks: async ({ page, limit, signal, ...filters } = {}) =>
       http.get(
         'data/tasks/open-tasks',
-        {
-          project_id: optionalIdOf(project),
-          task_type_id: optionalIdOf(taskType),
-          task_status_id: optionalIdOf(taskStatus),
-          person_id:
-            persons === 'unassigned'
-              ? persons
-              : persons && idsOf(persons).join(','),
-          department_id: optionalIdOf(department),
-          studio_id: optionalIdOf(studio),
-          start_date: dateOf(startDate),
-          due_date: dateOf(dueDate),
-          priority,
-          page,
-          limit
-        },
+        { ...openTasksQuery(filters), page, limit },
         { signal }
       ),
 
     /**
+     * Statistics of the tasks of the open productions, concepts left out.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} Statistics of the open tasks.
+     * @returns {Promise<Record<string, ProjectTasksStats>>} The statistics of
+     *   each production, by project id.
      */
     getOpenTasksStats: async ({ signal } = {}) =>
-      orNull(http.get('data/tasks/open-tasks/stats', {}, { signal })),
+      http.get('data/tasks/open-tasks/stats', {}, { signal }),
 
     /**
+     * For the team schedule, the first and last dates of the tasks of each
+     * person in the open productions, for supervisors and above. Below
+     * admin, the productions the user is not part of come as busy periods.
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} For each person, the first and last task
-     *   start and due dates.
+     * @returns {Promise<PersonTasksDates[]>} One entry per person.
      */
     getPersonsTasksDates: async ({ signal } = {}) =>
-      orNull(http.get('data/persons/task-dates', {}, { signal })),
+      http.get('data/persons/task-dates', {}, { signal }),
 
     getTaskByEntity,
 
@@ -775,22 +935,25 @@ export const taskApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} First task status matching the name.
+     * @returns {Promise<Entity|null>} The task status of this name, the case
+     *   ignored but an exact match first, null when there is none. Zou keeps
+     *   "Done" and "DONE" apart.
      */
     getTaskStatusByName: async (name, { signal } = {}) =>
-      http.fetchFirst(
-        'task-status',
-        { name: requiredOf('name', name) },
-        { signal }
-      ),
+      orNull(
+        http.fetchAll('task-status', { name: likeLiteralOf(name) }, { signal })
+      ).then(taskStatuses => sameNameOf(taskStatuses, name)),
 
     getTaskStatusByShortName,
 
     /**
+     * Delete the task type. A type still used by tasks, or by other records
+     * like playlists, cannot be deleted, force or not: delete its tasks first
+     * (removeTasksForType).
      * @param {Model} taskType
-     * @param {{force?: boolean, signal?: AbortSignal}} [options] force deletes
-     *   the type even when tasks use it. A type attached to a project must be
-     *   detached first.
+     * @param {{force?: boolean, signal?: AbortSignal}} [options] force
+     *   detaches the type from every project and deletes its schedule items.
+     *   Without it, a type attached to a project or scheduled is refused.
      * @returns {Promise<null>}
      */
     removeTaskType: async (taskType, { force = false, signal } = {}) =>
@@ -802,12 +965,16 @@ export const taskApi = http => {
       ),
 
     /**
+     * Delete the task status. Zou refuses a status still used by tasks or
+     * comments.
+     *
+     * gazu's force is not sent: Zou never reads it on this route.
      * @param {Model} taskStatus
      * @param {RequestOptions} [options]
      * @returns {Promise<null>}
      */
     removeTaskStatus: async (taskStatus, { signal } = {}) =>
-      http.remove('task-status', idOf(taskStatus), { force: true }, { signal }),
+      http.remove('task-status', idOf(taskStatus), {}, { signal }),
 
     /**
      * @param {Entity} taskType
@@ -829,13 +996,13 @@ export const taskApi = http => {
 
     /**
      * Create a task, or return the task that already exists for the same
-     * entity, task type and name (its status and assignees are then left as
-     * they are).
+     * entity, task type and name, as getTaskByEntity finds it (its status
+     * and assignees are then left as they are).
      * @param {string|{id: string, project_id?: string}} entity The entity is
      *   fetched when only its id is given: the task needs its project.
      * @param {Model} taskType
      * @param {{name?: string, taskStatus?: Model, assigner?: Model,
-     *   assignees?: Model[], signal?: AbortSignal}} [options] taskStatus
+     *   assignees?: Model[]|null, signal?: AbortSignal}} [options] taskStatus
      *   defaults to the default task status.
      * @returns {Promise<Entity>} The created or existing task.
      */
@@ -844,13 +1011,26 @@ export const taskApi = http => {
       taskType,
       { name = 'main', taskStatus, assigner, assignees, signal } = {}
     ) => {
+      // Every id is checked before the first request, even when the task
+      // turns out to exist.
+      const fields = {
+        entity_id: idOf(entity),
+        task_type_id: idOf(taskType),
+        assignees: idsOf(assignees ?? []),
+        name,
+        assigner_id: optionalIdOf(assigner)
+      }
+      const taskStatusId = optionalIdOf(taskStatus)
       const existing = await getTaskByEntity(entity, taskType, { name, signal })
       if (existing) return existing
       const { project_id } =
         typeof entity === 'object' && entity.project_id
           ? entity
-          : await http.get(`data/entities/${idOf(entity)}`, {}, { signal })
-      const status = taskStatus || (await getDefaultTaskStatus({ signal }))
+          : await http.get(`data/entities/${fields.entity_id}`, {}, { signal })
+      const status =
+        taskStatusId === null
+          ? await getDefaultTaskStatus({ signal })
+          : { id: taskStatusId }
       if (!status) {
         throw new NotFoundError(
           'No default task status: give one in the taskStatus option'
@@ -858,20 +1038,15 @@ export const taskApi = http => {
       }
       return http.create(
         'tasks',
-        withoutNil({
-          project_id,
-          entity_id: idOf(entity),
-          task_type_id: idOf(taskType),
-          task_status_id: idOf(status),
-          assignees: idsOf(assignees),
-          name,
-          assigner_id: optionalIdOf(assigner)
-        }),
+        withoutNil({ project_id, ...fields, task_status_id: idOf(status) }),
         { signal }
       )
     },
 
     /**
+     * Delete the task with its whole history: comments, previews, working
+     * and output files, time spent, notifications and subscriptions. Nothing
+     * brings them back.
      * @param {Model} task
      * @param {RequestOptions} [options]
      * @returns {Promise<null>}
@@ -881,7 +1056,8 @@ export const taskApi = http => {
 
     /**
      * Create a task type, or return the one that already has this name for
-     * this entity type.
+     * this entity type. Names are unique across entity types, whatever their
+     * case: a name another entity type uses is refused (ParameterError).
      * @param {string} name
      * @param {{color?: string, forEntity?: string, signal?: AbortSignal}}
      *   [options] color is hexadecimal with a leading # ("#00FF00").
@@ -936,7 +1112,9 @@ export const taskApi = http => {
         // Only the given keys, which Zou merges into the stored metadata
         // (Zou 1.0.58 and later). An empty data would clear them instead, so
         // none is sent without a key to set (JSON drops undefined values).
-        Object.values({ ...data }).some(value => value !== undefined)
+        Object.values({ ...metadataOf(data) }).some(
+          value => value !== undefined
+        )
           ? { data }
           : {},
         { signal }
@@ -985,7 +1163,8 @@ export const taskApi = http => {
     },
 
     /**
-     * Delete every task of a task type in a project.
+     * Delete every task of a task type in a project, each with its whole
+     * history, like removeTask. Reserved to studio admins.
      * @param {Model} project
      * @param {Model} taskType
      * @param {RequestOptions} [options]
@@ -999,10 +1178,13 @@ export const taskApi = http => {
       ),
 
     /**
+     * Delete tasks of the project, each with its whole history, like
+     * removeTask.
      * @param {Model} project
      * @param {Model[]} tasks
      * @param {RequestOptions} [options]
-     * @returns {Promise<string[]>} Ids of the deleted tasks.
+     * @returns {Promise<string[]>} The ids given, deleted or not: the tasks
+     *   of another project are skipped.
      */
     removeTasksBatch: async (project, tasks, { signal } = {}) =>
       http.post(
@@ -1013,7 +1195,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} shot
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the shot.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1022,7 +1205,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} asset
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the asset.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1031,7 +1215,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} edit
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the edit.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1040,7 +1225,8 @@ export const taskApi = http => {
 
     /**
      * @param {Model} concept
-     * @param {Model[]} taskTypes
+     * @param {Model[]} taskTypes At least one: Zou reads an empty list as
+     *   every task type of the concept.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created tasks, one per task type.
      */
@@ -1059,6 +1245,9 @@ export const taskApi = http => {
      * @returns {Promise<Entity>} The created comment.
      */
     startTask: async (task, { startedTaskStatus, person, signal } = {}) => {
+      // Checked before the lookup of the wip status.
+      idOf(task)
+      optionalIdOf(person)
       const status =
         startedTaskStatus || (await getTaskStatusByShortName('wip', { signal }))
       if (!status) {
@@ -1100,8 +1289,9 @@ export const taskApi = http => {
      * @param {Model} task
      * @param {{date?: Date|string, signal?: AbortSignal}} [options] date is a
      *   Date or "YYYY-MM-DD".
-     * @returns {Promise<Entity|null>} Time spent per person id, in minutes,
-     *   with the total. Null when the task does not exist.
+     * @returns {Promise<TaskTimeSpents|null>} The time spent entries of each
+     *   person id, and total, the sum of their durations in minutes. Null
+     *   when the task does not exist.
      */
     getTimeSpent: async (task, { date, signal } = {}) => {
       const path = `actions/tasks/${idOf(task)}/time-spents`
@@ -1114,7 +1304,9 @@ export const taskApi = http => {
      * @param {Model} task
      * @param {Date|string} date A Date or "YYYY-MM-DD".
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} Time spent on the task at this date.
+     * @returns {Promise<TaskTimeSpents|null>} The time spent entries of each
+     *   person id at this date, and total, the sum of their durations in
+     *   minutes. Null when the task does not exist.
      */
     getTaskTimeSpentForDate: async (task, date, { signal } = {}) =>
       orNull(
@@ -1355,18 +1547,33 @@ export const taskApi = http => {
     setMainPreview,
 
     /**
-     * Publish several comments in one request. Without task, every comment
-     * carries its own task_id.
-     * @param {object[]} [comments]
+     * Publish several comments in one request, as JSON: previews and
+     * attachments cannot go with them, addComment and addPreview can.
+     * @param {BatchComment[]} [comments] Without the task option, every
+     *   comment carries its own task_id.
      * @param {{task?: Model, signal?: AbortSignal}} [options]
      * @returns {Promise<Entity[]>} The created comments.
      */
-    batchComments: async (comments = [], { task, signal } = {}) =>
-      http.post(
-        `actions/tasks/${task ? `${optionalIdOf(task)}/` : ''}batch-comment`,
-        { comments },
+    batchComments: async (comments = [], { task, signal } = {}) => {
+      const taskId = optionalIdOf(task)
+      // Zou answers 500 to an entry without one of these keys.
+      const isComplete = entry =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        Boolean(entry.task_status_id) &&
+        typeof entry.text === 'string' &&
+        (taskId !== null || Boolean(entry.task_id))
+      if (!Array.isArray(comments) || !comments.every(isComplete)) {
+        throw new ParameterError(
+          'Missing parameter: every comment needs task_status_id, text and, without the task option, task_id'
+        )
+      }
+      return http.post(
+        `actions/tasks/${taskId === null ? '' : `${taskId}/`}batch-comment`,
+        { comments: comments.map(batchEntryOf) },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Comment several tasks of a project in one request. Each comment sets
@@ -1393,17 +1600,16 @@ export const taskApi = http => {
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} The created comments.
      */
-    addTasksBatchComments: async (tasks, commentsData, { signal } = {}) =>
-      http.post(
+    addTasksBatchComments: async (tasks, commentsData, { signal } = {}) => {
+      const data = batchEntryOf(commentsData)
+      return http.post(
         'actions/tasks/batch-comment',
         {
-          comments: idsOf(tasks).map(taskId => ({
-            ...commentsData,
-            task_id: taskId
-          }))
+          comments: idsOf(tasks).map(taskId => ({ ...data, task_id: taskId }))
         },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Move a comment to another task of the same entity. Reserved to
@@ -1433,19 +1639,33 @@ export const taskApi = http => {
       http.post(`${commentPath('data', task, comment)}/ack`, {}, { signal }),
 
     /**
+     * Reply to the comment. Sent as JSON, or as a multipart form when there
+     * are attachments.
      * @param {Model} task
      * @param {Model} comment
      * @param {string} text
-     * @param {RequestOptions} [options]
+     * @param {TransferOptions & {attachments?: Blob[]}} [options]
      * @returns {Promise<Entity>} The created reply, authored by the current
-     *   user.
+     *   user, with its attachment_files when there are attachments.
      */
-    replyToComment: async (task, comment, text, { signal } = {}) =>
-      http.post(
-        `${commentPath('data', task, comment)}/reply`,
-        { text },
-        { signal }
-      ),
+    replyToComment: async (
+      task,
+      comment,
+      text,
+      { attachments, fileName, onProgress, signal } = {}
+    ) => {
+      const path = `${commentPath('data', task, comment)}/reply`
+      if (!attachments || attachments.length === 0) {
+        return http.post(path, { text }, { signal })
+      }
+      return http.upload(path, {
+        file: attachments,
+        fields: { text },
+        fileName,
+        onProgress,
+        signal
+      })
+    },
 
     /**
      * @param {Model} task
@@ -1471,7 +1691,7 @@ export const taskApi = http => {
      * @param {Model} comment
      * @param {Model} reply
      * @param {RequestOptions} [options]
-     * @returns {Promise<null>}
+     * @returns {Promise<Entity>} The comment, without the reply.
      */
     deleteCommentReply: async (task, comment, reply, { signal } = {}) =>
       http.del(
@@ -1492,25 +1712,52 @@ export const taskApi = http => {
       http.del(timeSpentPath(task, person, date), undefined, { signal }),
 
     /**
-     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
-     *   filters holds the query as Zou reads it (project_id, task_status_id,
-     *   page, limit, relations...).
-     * @returns {Promise<Entity[]>} The tasks matching the filters.
+     * Every task the user can see, filtered on demand.
+     * @param {{project?: Model, taskType?: Model, taskStatus?: Model,
+     *   episode?: Model, relations?: boolean, signal?: AbortSignal}}
+     *   [options] episode keeps the tasks of the shots of the episode: the
+     *   asset tasks are left out. relations adds the assignees.
+     * @returns {Promise<Entity[]>} The tasks.
      */
-    allTasks: async ({ filters = {}, signal } = {}) =>
-      http.fetchAll('tasks', filters, { signal }),
+    allTasks: async ({
+      project,
+      taskType,
+      taskStatus,
+      episode,
+      relations = false,
+      signal,
+      ...others
+    } = {}) => {
+      refuseUnknownOptions(others)
+      return http.fetchAll(
+        'tasks',
+        {
+          project_id: optionalIdOf(project),
+          task_type_id: optionalIdOf(taskType),
+          task_status_id: optionalIdOf(taskStatus),
+          episode_id: optionalIdOf(episode),
+          relations: relations ? true : null
+        },
+        { signal }
+      )
+    },
 
     /**
-     * @param {{filters?: Record<string, any>, signal?: AbortSignal}} [options]
-     *   filters are the ones of the open tasks list: project_id,
-     *   task_type_id, task_status_id, person_id (ids joined by commas, or
-     *   "unassigned"), studio_id, department_id, start_date, due_date,
-     *   priority.
-     * @returns {Promise<Entity[]>} Burndown of the open tasks matching the
-     *   filters.
+     * Burndown of the open tasks that allOpenTasks lists with the same
+     * filters, as the Kitsu task list charts it. It takes the options of
+     * allOpenTasks: their page and limit are ignored.
+     * @param {OpenTasksFilters & {page?: number, limit?: number}} [options]
+     * @returns {Promise<OpenTasksBurndown>} The burndown of Zou.
      */
-    getOpenTasksBurndown: async ({ filters = {}, signal } = {}) =>
-      http.get('data/tasks/open-tasks/burndown', filters, { signal }),
+    getOpenTasksBurndown: async ({ signal, ...options } = {}) => {
+      // An undefined option is not given: the chart has no page.
+      const filters = { ...options, page: undefined, limit: undefined }
+      return http.get(
+        'data/tasks/open-tasks/burndown',
+        openTasksQuery(filters),
+        { signal }
+      )
+    },
 
     /**
      * Delete the comment through its task: the task status and the last
@@ -1529,27 +1776,37 @@ export const taskApi = http => {
      * @param {Model} taskType
      * @param {string} type Collection of the entities: "assets", "shots",
      *   "edits", "concepts", "episodes" or "sequences".
-     * @param {{entities?: Model[], entity?: Model,
-     *   signal?: AbortSignal}} [options] entities or a single entity to
-     *   target. Without them every entity of the collection gets a task.
+     * @param {{entities?: Model[], entity?: Model, all?: boolean,
+     *   signal?: AbortSignal}} options The entities to target, exactly one
+     *   of: entities, a non-empty list; entity, a single one; all: true,
+     *   every entity of the collection in the project.
      * @returns {Promise<Entity[]>} The created tasks.
      */
     createTasks: async (
       project,
       taskType,
       type,
-      { entities = [], entity, signal } = {}
+      { entities, entity, all = false, signal } = {}
     ) => {
       const path = createTasksPath(project, taskType, type)
-      const id = optionalIdOf(entity)
+      const isGiven = target => target !== null && target !== undefined
+      const targets = [isGiven(entities), isGiven(entity), all === true]
+      if (targets.filter(Boolean).length !== 1) {
+        throw new ParameterError(
+          'Missing parameter: exactly one of entities, entity or all: true is required'
+        )
+      }
+      // Zou reads an empty list as every entity of the collection: only
+      // all: true sends one.
+      if (all === true) return http.post(path, [], { signal })
+      if (isGiven(entities)) {
+        return http.post(path, selectionOf('entities', entities), { signal })
+      }
+      const id = idOf(entity)
       // Zou reads the id parameter on the collection routes only.
-      const inQuery = id !== null && COLLECTION_ROUTES.includes(type)
-      const ids = id === null || inQuery ? idsOf(entities) : [id]
-      return http.request('POST', path, {
-        body: inQuery ? {} : ids,
-        query: { id: inQuery ? id : null },
-        signal
-      })
+      return COLLECTION_ROUTES.includes(type)
+        ? http.request('POST', path, { body: {}, query: { id }, signal })
+        : http.post(path, [id], { signal })
     },
 
     /**
@@ -1608,7 +1865,8 @@ export const taskApi = http => {
      * @param {Blob} csvFile
      * @param {TransferOptions & {episode?: Model}} [options] episode is
      *   needed on a TV show: entity names are looked up inside it.
-     * @returns {Promise<Entity[]>} The updated tasks.
+     * @returns {Promise<null[]>} One null per imported row: Zou answers no
+     *   task.
      */
     importTaskTypeEstimationsWithCsv: async (
       project,
@@ -1625,9 +1883,17 @@ export const taskApi = http => {
     },
 
     /**
-     * @param {Entity} task The task object: its project_id is needed.
+     * @param {string|{id: string, project_id?: string}} task The task is
+     *   fetched when its project_id is not given: the URL needs it.
+     * @param {RequestOptions} [options]
      * @returns {Promise<string>} URL of the task page in the Kitsu web app.
      */
-    getTaskUrl: async task => urls.getTaskUrl(urls.webHostOf(http.host), task)
+    getTaskUrl: async (task, { signal } = {}) =>
+      urls.getTaskUrl(
+        urls.webHostOf(http.host),
+        task && typeof task === 'object' && task.project_id
+          ? task
+          : await http.get(`data/tasks/${idOf(task)}`, {}, { signal })
+      )
   }
 }

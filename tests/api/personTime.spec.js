@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotAllowedError, ParameterError } from '../../src/core/errors.js'
+import {
+  KitsuError,
+  NotAllowedError,
+  ParameterError
+} from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
 import { OTHER_ID, PERSON_ID } from '../helpers/ids.js'
 
@@ -40,6 +44,24 @@ describe('person namespace: time spents', () => {
     })
   })
 
+  // Without them, Zou answers an empty list, which reads as no time logged.
+  it('getTimeSpentsRange requires both days before any request', async () => {
+    const { person } = kitsu
+    await expect(person.getTimeSpentsRange(PERSON_ID)).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '', '2026-09-30')
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '2026-09-01', null)
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      person.getTimeSpentsRange(PERSON_ID, '2026-09-01', '30/09/2026')
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('getAllMonthTimeSpents reads the month of the given date', async () => {
     fake.reply(200, [{ duration: 60 }]).reply(200, [])
     expect(
@@ -74,6 +96,32 @@ describe('person namespace: time spents', () => {
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/persons/presence-logs/2026-03'
+    })
+  })
+
+  // A proxy or a portal can answer a 2xx page of its own. The core refuses
+  // an HTML one before the reader runs: plain text reaches the CSV check.
+  it('getPresenceLog refuses a page served instead of the table', async () => {
+    const page = 'Bad gateway'
+    fake.on(
+      'GET',
+      '/data/persons/presence-logs/2026-03',
+      () =>
+        new Response(page, {
+          status: 200,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        })
+    )
+    const err = await kitsu.person.getPresenceLog(2026, 3).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err.message).toBe(
+      'GET data/persons/presence-logs/2026-03 answered 200 without CSV'
+    )
+    expect(err).toMatchObject({
+      status: 200,
+      path: 'data/persons/presence-logs/2026-03',
+      method: 'GET',
+      body: page
     })
   })
 
@@ -291,6 +339,32 @@ describe('person namespace: day offs', () => {
       end_date: '2026-04-15',
       person_id: OTHER_ID
     })
+  })
+
+  // JSON would send a Date as its UTC instant: the day before east of
+  // Greenwich, and Zou would wipe the time spents of that day.
+  it('updateDayOff sends Date values as local days, without mutating', async () => {
+    fake.reply(200, { id: DAY_OFF_ID })
+    const dayOff = Object.freeze({
+      id: DAY_OFF_ID,
+      date: new Date(2026, 3, 10),
+      end_date: new Date(2026, 3, 12),
+      description: 'Holidays'
+    })
+    await kitsu.person.updateDayOff(dayOff)
+    expect(fake.calls[0].body).toEqual({
+      date: '2026-04-10',
+      end_date: '2026-04-12',
+      description: 'Holidays'
+    })
+    expect(dayOff.date).toEqual(new Date(2026, 3, 10))
+  })
+
+  it('updateDayOff rejects a day off given by its id alone', async () => {
+    await expect(kitsu.person.updateDayOff(DAY_OFF_ID)).rejects.toThrow(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeDayOff deletes the day off', async () => {

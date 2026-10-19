@@ -96,7 +96,67 @@ describe('project namespace: projects', () => {
     expect(fake.calls[0].query.get('name')).toBe('Sprite')
   })
 
-  it('newProject creates the project with the defaults of gazu', async () => {
+  // Zou matches with ILIKE: "_" and "%" are wildcards and the case is
+  // ignored, in no set order.
+  it('name lookups keep the row of that name, its exact case first', async () => {
+    fake
+      .reply(200, [
+        { id: OTHER_ID, name: 'Show-A' },
+        { id: PROJECT_ID, name: 'Show_A' }
+      ])
+      .reply(200, [
+        { id: OTHER_ID, name: 'sprite' },
+        { id: PROJECT_ID, name: 'Sprite' }
+      ])
+      .reply(200, [{ id: OTHER_ID, name: 'sprite' }])
+      .reply(200, [{ id: OTHER_ID, name: '100 days' }])
+      .reply(200, [{ id: STATUS_ID, name: 'Closed' }])
+    expect(await kitsu.project.getProjectByName('Show_A')).toMatchObject({
+      id: PROJECT_ID
+    })
+    expect(await kitsu.project.getProjectByName('Sprite')).toMatchObject({
+      id: PROJECT_ID
+    })
+    expect(await kitsu.project.getProjectByName('Sprite')).toMatchObject({
+      id: OTHER_ID
+    })
+    expect(await kitsu.project.getProjectByName('100%')).toBeNull()
+    expect(await kitsu.project.getProjectStatusByName('Clos_d')).toBeNull()
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups escape the backslash and the wildcards of LIKE', async () => {
+    const comp = { id: PROJECT_ID, name: 'Comp\\Paint' }
+    fake.reply(200, [comp]).reply(200, []).reply(200, [])
+    expect(await kitsu.project.getProjectByName('Comp\\Paint')).toEqual(comp)
+    expect(await kitsu.project.getProjectByName('Review\\')).toBeNull()
+    expect(await kitsu.project.getProjectStatusByName('WIP_100%')).toBeNull()
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'Comp\\\\Paint',
+      'Review\\\\',
+      'WIP\\_100\\%'
+    ])
+  })
+
+  it('newProject creates the project when only a look-alike exists', async () => {
+    fake
+      .reply(200, [{ id: OTHER_ID, name: 'Show-A' }])
+      .reply(201, { id: PROJECT_ID, name: 'Show_A' })
+    expect(await kitsu.project.newProject('Show_A')).toEqual({
+      id: PROJECT_ID,
+      name: 'Show_A'
+    })
+    expect(fake.calls[0].query.get('name')).toBe('Show\\_A')
+    expect(fake.calls[1]).toMatchObject({
+      method: 'POST',
+      path: '/data/projects',
+      body: { name: 'Show_A' }
+    })
+  })
+
+  // Zou defaults to the short and 2d3d of gazu.
+  it('newProject leaves the production type and style to Zou by default', async () => {
     fake.reply(200, []).reply(201, { id: PROJECT_ID, name: 'Sprite' })
     expect(await kitsu.project.newProject('Sprite')).toEqual({
       id: PROJECT_ID,
@@ -109,12 +169,26 @@ describe('project namespace: projects', () => {
     })
     expect(fake.calls[1].body).toEqual({
       name: 'Sprite',
-      production_type: 'short',
+      team: [],
+      asset_types: [],
+      task_statuses: [],
+      task_types: []
+    })
+  })
+
+  // Zou takes any production setting of the body over the template's one.
+  it('newProject leaves the production type and style to the template', async () => {
+    fake.reply(200, []).reply(201, { id: PROJECT_ID })
+    await kitsu.project.newProject('Sprite S2', {
+      projectTemplate: TEMPLATE_ID
+    })
+    expect(fake.calls[1].body).toEqual({
+      name: 'Sprite S2',
       team: [],
       asset_types: [],
       task_statuses: [],
       task_types: [],
-      production_style: '2d3d'
+      project_template_id: TEMPLATE_ID
     })
   })
 
@@ -148,6 +222,24 @@ describe('project namespace: projects', () => {
       name: 'Sprite'
     })
     expect(fake.calls).toHaveLength(1)
+  })
+
+  it('newProject rejects a malformed option before looking the name up', async () => {
+    fake.reply(200, [{ id: PROJECT_ID, name: 'Sprite' }])
+    const options = [
+      { team: ['jane@studio.com'] },
+      { assetTypes: ['Props'] },
+      { taskStatuses: [{ name: 'WIP' }] },
+      { taskTypes: ['Animation'] },
+      { projectTemplate: 'Feature' }
+    ]
+    const errors = await Promise.all(
+      options.map(option =>
+        kitsu.project.newProject('Sprite', option).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('removeProject deletes the project, forcing on demand', async () => {
@@ -223,6 +315,20 @@ describe('project namespace: projects', () => {
     expect(data).toEqual({ lut: 'rec709' })
   })
 
+  // JSON would drop the key, and Zou the stored metadata of that key.
+  it('updateProjectData keeps the metadata given as undefined', async () => {
+    fake
+      .reply(200, { id: PROJECT_ID, data: { lut: 'aces', ratio: '16:9' } })
+      .reply(200, {})
+    await kitsu.project.updateProjectData(PROJECT_ID, {
+      lut: 'rec709',
+      ratio: undefined
+    })
+    expect(fake.calls[1].body).toEqual({
+      data: { lut: 'rec709', ratio: '16:9' }
+    })
+  })
+
   it('updateProjectData starts from an empty object when data is null', async () => {
     fake.reply(200, { id: PROJECT_ID, data: null }).reply(200, {})
     await kitsu.project.updateProjectData(PROJECT_ID, { lut: 'aces' })
@@ -237,14 +343,21 @@ describe('project namespace: projects', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
-  it('closeProject sets the closed status on the project', async () => {
+  // A project read earlier would write back stale fields and links.
+  it('closeProject sends the closed status alone', async () => {
     fake
       .reply(200, [
         { id: OTHER_ID, name: 'Open' },
         { id: STATUS_ID, name: 'Closed' }
       ])
       .reply(200, { id: PROJECT_ID, project_status_id: STATUS_ID })
-    const project = { id: PROJECT_ID, name: 'Sprite' }
+    const project = {
+      id: PROJECT_ID,
+      name: 'Sprite',
+      fps: '24',
+      task_types: [TASK_TYPE_ID],
+      data: { lut: 'aces' }
+    }
     expect(await kitsu.project.closeProject(project)).toEqual({
       id: PROJECT_ID,
       project_status_id: STATUS_ID
@@ -254,17 +367,24 @@ describe('project namespace: projects', () => {
       method: 'PUT',
       path: `/data/projects/${PROJECT_ID}`
     })
-    expect(fake.calls[1].body).toEqual({
-      name: 'Sprite',
-      project_status_id: STATUS_ID
-    })
-    expect(project).toEqual({ id: PROJECT_ID, name: 'Sprite' })
+    expect(fake.calls[1].body).toEqual({ project_status_id: STATUS_ID })
+    expect(project.name).toBe('Sprite')
   })
 
   it('closeProject accepts an id', async () => {
     fake.reply(200, [{ id: STATUS_ID, name: 'closed' }]).reply(200, {})
     await kitsu.project.closeProject(PROJECT_ID)
     expect(fake.calls[1].body).toEqual({ project_status_id: STATUS_ID })
+  })
+
+  it('closeProject rejects a malformed project before any request', async () => {
+    await expect(
+      kitsu.project.closeProject({ name: 'Sprite' })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(kitsu.project.closeProject()).rejects.toBeInstanceOf(
+      ParameterError
+    )
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('closeProject rejects when no closed status exists', async () => {

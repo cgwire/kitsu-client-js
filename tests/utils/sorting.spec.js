@@ -607,6 +607,72 @@ describe('utils/sorting', () => {
       'missing'
     ])
   })
+
+  it('sortByPersonName reads the person dicts of the API', () => {
+    // Zou dicts carry no name: Kitsu builds it from these fields.
+    const persons = [
+      { id: 'person-1', first_name: 'Charlie', last_name: 'Doe' },
+      { id: 'person-2', first_name: 'Alice', last_name: 'Smith' },
+      { id: 'person-3', first_name: '', last_name: 'Bob' },
+      { id: 'person-4', first_name: '', last_name: '', email: 'aaron@a.com' },
+      { id: 'person-5', first_name: '', last_name: '' }
+    ]
+    const personMap = new Map(persons.map(person => [person.id, person]))
+    expect(sortByPersonName(idsOf([...persons].reverse()), personMap)).toEqual([
+      'person-4',
+      'person-2',
+      'person-3',
+      'person-1',
+      'person-5'
+    ])
+  })
+})
+
+const permutationsOf = entries =>
+  entries.length < 2
+    ? [entries]
+    : entries.flatMap((entry, index) =>
+        permutationsOf(entries.filter((_, other) => other !== index)).map(
+          rest => [entry, ...rest]
+        )
+      )
+
+// Zou writes an empty episode_name for an entity outside any episode, and
+// the tasks of several productions mix project names.
+describe('utils/sorting gives one order whatever the input order', () => {
+  const expectStable = (entries, sort, expected) => {
+    for (const permutation of permutationsOf(entries)) {
+      expect(idsOf(sort(permutation))).toEqual(expected)
+    }
+  }
+
+  it('sortEdits and sortSequences with an entry outside the episodes', () => {
+    const entries = [
+      { episode_name: 'E02', name: 'A', id: 3 },
+      { episode_name: '', name: 'Trailer', id: 1 },
+      { episode_name: 'E01', name: 'A', id: 2 }
+    ]
+    expectStable(entries, sortEdits, [1, 2, 3])
+    expectStable(entries, sortSequences, [1, 2, 3])
+  })
+
+  it('sortShots with a shot outside the episodes', () => {
+    const entries = [
+      { episode_name: 'E02', sequence_name: 'SE01', name: 'SH01', id: 3 },
+      { sequence_name: 'SE01', name: 'SH01', id: 1 },
+      { episode_name: 'E01', sequence_name: 'SE01', name: 'SH01', id: 2 }
+    ]
+    expectStable(entries, sortShots, [1, 2, 3])
+  })
+
+  it('sortTasks with a task without project name', () => {
+    const entries = [
+      { project_name: 'Cosmos', task_type_id: 'task-type-1', id: 3 },
+      { task_type_id: 'task-type-1', id: 1 },
+      { project_name: 'Agent 327', task_type_id: 'task-type-1', id: 2 }
+    ]
+    expectStable(entries, tasks => sortTasks(tasks, taskTypeMap), [1, 2, 3])
+  })
 })
 
 // Deliberate change from Kitsu, which sorts in place.

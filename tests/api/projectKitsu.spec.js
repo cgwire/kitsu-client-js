@@ -120,6 +120,42 @@ describe('project namespace: Kitsu store coverage', () => {
       ).rejects.toBeInstanceOf(ParameterError)
       expect(fake.calls).toHaveLength(0)
     })
+
+    it('uploadPreviewBackgroundFile sends a File under its own name', async () => {
+      fake.reply(201, { id: PREVIEW_BACKGROUND_FILE_ID })
+      await kitsu.project.uploadPreviewBackgroundFile(
+        PREVIEW_BACKGROUND_FILE_ID,
+        new File(['hdr'], 'Studio.HDR')
+      )
+      expect(fake.calls[0].body.get('file').name).toBe('Studio.HDR')
+    })
+
+    // Zou deletes the background and its stored files for any other name,
+    // "blob" for a bare Blob, before refusing the upload.
+    it('uploadPreviewBackgroundFile refuses a name that does not end in .hdr', async () => {
+      const uploads = [
+        [new Blob(['hdr'])],
+        [new File(['exr'], 'sky.exr')],
+        [new Blob(['exr']), { fileName: 'sky.exr' }],
+        [new File(['hdr'], 'sky.hdr'), { fileName: 'sky.hdr.png' }]
+      ]
+      const errors = await Promise.all(
+        uploads.map(([file, options]) =>
+          kitsu.project
+            .uploadPreviewBackgroundFile(
+              PREVIEW_BACKGROUND_FILE_ID,
+              file,
+              options
+            )
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => {
+        expect(err).toBeInstanceOf(ParameterError)
+        expect(err.message).toMatch(/\.hdr/)
+      })
+      expect(fake.calls).toHaveLength(0)
+    })
   })
 
   describe('status automations', () => {
@@ -302,6 +338,72 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls[0].body).toEqual({ archived: true })
     })
 
+    it('updateStatusAutomation saves a whole automation read before', async () => {
+      const fields = {
+        entity_type: 'shot',
+        in_task_type_id: TASK_TYPE_ID,
+        in_task_status_id: TASK_STATUS_ID,
+        out_field_type: 'status',
+        out_task_type_id: OTHER_ID,
+        out_task_status_id: TASK_STATUS_ID,
+        import_last_revision: false,
+        archived: true
+      }
+      fake.reply(200, { id: STATUS_AUTOMATION_ID, ...fields })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        ...fields
+      })
+      expect(fake.calls[0].body).toEqual(fields)
+    })
+
+    it('updateStatusAutomation leaves out the outputs given as undefined', async () => {
+      fake.reply(200, { id: STATUS_AUTOMATION_ID })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        archived: true,
+        out_field_type: undefined,
+        out_task_status_id: undefined,
+        entity_type: undefined
+      })
+      expect(fake.calls[0].body).toEqual({ archived: true })
+    })
+
+    // newStatusAutomation refuses them for the same reasons: Zou would store
+    // them, then fail on later reads or on the comments that trigger them.
+    it('updateStatusAutomation rejects an output newStatusAutomation refuses', async () => {
+      const outputs = [
+        { out_field_type: 'ready-for' },
+        { out_field_type: null },
+        { out_field_type: 'status' },
+        { out_field_type: 'status', out_task_status_id: null },
+        { out_task_status_id: null },
+        { out_field_type: 'ready_for', entity_type: 'shot' }
+      ]
+      const errors = await Promise.all(
+        outputs.map(output =>
+          kitsu.project
+            .updateStatusAutomation({ id: STATUS_AUTOMATION_ID, ...output })
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+      expect(fake.calls).toHaveLength(0)
+    })
+
+    it('updateStatusAutomation lets a ready_for output drop its status', async () => {
+      fake.reply(200, { id: STATUS_AUTOMATION_ID })
+      await kitsu.project.updateStatusAutomation({
+        id: STATUS_AUTOMATION_ID,
+        out_field_type: 'ready_for',
+        out_task_status_id: null
+      })
+      expect(fake.calls[0].body).toEqual({
+        out_field_type: 'ready_for',
+        out_task_status_id: null
+      })
+    })
+
     it('deleteStatusAutomation deletes the automation', async () => {
       fake.reply(204, '')
       await kitsu.project.deleteStatusAutomation({ id: STATUS_AUTOMATION_ID })
@@ -478,6 +580,23 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    // Zou would store the code, then fail on every read of the project.
+    it('updateTaskStatusLink rejects an unknown board role', async () => {
+      const roles = [['artist'], ['user', 'Manager'], 'user']
+      const errors = await Promise.all(
+        roles.map(rolesForBoard =>
+          kitsu.project
+            .updateTaskStatusLink(PROJECT_ID, TASK_STATUS_ID, 1, rolesForBoard)
+            .catch(err => err)
+        )
+      )
+      errors.forEach(err => {
+        expect(err).toBeInstanceOf(ParameterError)
+        expect(err.message).toMatch(/rolesForBoard/)
+      })
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('reorderTaskStatusLinks sends the ordered task status ids', async () => {
       fake.reply(200, [])
       await kitsu.project.reorderTaskStatusLinks({ id: PROJECT_ID }, [
@@ -601,6 +720,16 @@ describe('project namespace: Kitsu store coverage', () => {
       expect(fake.calls).toHaveLength(0)
     })
 
+    it('updateMetadataDescriptorOnAllProjects rejects a missing descriptor', async () => {
+      await expect(
+        kitsu.project.updateMetadataDescriptorOnAllProjects('difficulty')
+      ).rejects.toBeInstanceOf(ParameterError)
+      await expect(
+        kitsu.project.updateMetadataDescriptorOnAllProjects('difficulty', null)
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    })
+
     it('updateMetadataDescriptorOnAllProjects keeps the field name inside its path segment', async () => {
       fake.reply(200, [])
       await kitsu.project.updateMetadataDescriptorOnAllProjects('a/b', {
@@ -619,11 +748,13 @@ describe('project namespace: Kitsu store coverage', () => {
     })
 
     it('removeMetadataDescriptorOnAllProjects sends the entity type as a query', async () => {
-      fake.reply(204, '')
-      await kitsu.project.removeMetadataDescriptorOnAllProjects(
-        'difficulty',
-        'Asset'
-      )
+      fake.reply(200, [OTHER_ID])
+      expect(
+        await kitsu.project.removeMetadataDescriptorOnAllProjects(
+          'difficulty',
+          'Asset'
+        )
+      ).toEqual([OTHER_ID])
       expect(fake.calls[0]).toMatchObject({
         method: 'DELETE',
         path: '/data/metadata-descriptors/all-projects/difficulty'

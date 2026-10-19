@@ -3,13 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   KitsuError,
   NetworkError,
+  NotAuthenticatedError,
   NotFoundError,
+  ParameterError,
   ServerError,
   TimeoutError
 } from '../../src/core/errors.js'
 import { createHttp } from '../../src/core/http.js'
-import { createFakeFetch } from '../helpers/fakeFetch.js'
-import { HOST, TASK_ID } from '../helpers/ids.js'
+import { createCore } from '../../src/core/index.js'
+import { createSession } from '../../src/core/session.js'
+import { createFakeFetch, jsonResponse } from '../helpers/fakeFetch.js'
+import { HOST, PREVIEW_FILE_ID, TASK_ID } from '../helpers/ids.js'
 
 const stubSession = {
   generation: () => 0,
@@ -61,12 +65,27 @@ describe('http verbs', () => {
     expect(fake.calls[0].headers['Content-Type']).toBeUndefined()
   })
 
-  it('returns the Response untouched in raw mode', async () => {
-    const fake = createFakeFetch().reply(200, { ok: true })
-    const response = await makeHttp(fake).request('GET', 'data/tasks', {
-      raw: true
+  it('returns the Response in raw mode, with its url, redirected and type', async () => {
+    const url = `${HOST}/data/tasks`
+    const answer = Object.defineProperties(jsonResponse(200, { ok: true }), {
+      url: { value: url },
+      redirected: { value: true },
+      type: { value: 'cors' }
     })
+    const response = await makeHttp(async () => answer).request(
+      'GET',
+      'data/tasks',
+      { raw: true }
+    )
     expect(response).toBeInstanceOf(Response)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('application/json')
+    expect([response.url, response.redirected, response.type]).toEqual([
+      url,
+      true,
+      'cors'
+    ])
+    expect(await response.json()).toEqual({ ok: true })
   })
 })
 
@@ -81,7 +100,8 @@ describe('http errors', () => {
       status: 500,
       path: 'data/tasks',
       method: 'GET',
-      body: { message: 'boom' }
+      body: { message: 'boom' },
+      retryAfter: null
     })
   })
 
@@ -104,6 +124,99 @@ describe('http errors', () => {
     })
   })
 
+  it('refuses a page answered to a read of another type, such as a CSV export', async () => {
+    const html = '<!DOCTYPE html><html></html>'
+    const answers = [
+      new Response('name;frames\nSH010;24', {
+        headers: { 'Content-Type': 'text/csv; charset=utf-8' }
+      }),
+      new Response(html, { headers: { 'Content-Type': 'text/html' } })
+    ]
+    const http = makeHttp(async () => answers.shift())
+    const read = response => response.text()
+    const path = 'export/csv/projects/p/shots.csv'
+    expect(await http.get(path, {}, { read })).toBe('name;frames\nSH010;24')
+    const err = await http.get(path, {}, { read }).catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({ status: 200, path, method: 'GET', body: html })
+  })
+
+  it('refuses a successful answer announced as JSON that does not parse', async () => {
+    const text = '{"id": "66666666-6666'
+    const cut = async () =>
+      new Response(text, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    const err = await makeHttp(cut)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({
+      status: 200,
+      path: 'data/tasks',
+      method: 'GET',
+      body: text
+    })
+    expect(err.cause).toBeInstanceOf(SyntaxError)
+  })
+
+  it('keeps the text of an error body announced as JSON that does not parse', async () => {
+    const page = '<html>502 Bad Gateway</html>'
+    const proxy = async () =>
+      new Response(page, {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    const err = await makeHttp(proxy)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(ServerError)
+    expect(err.body).toBe(page)
+  })
+
+  it('refuses JSON that does not parse over XHR too', async () => {
+    const text = '{"id": "66666666-6666'
+    vi.stubGlobal(
+      'XMLHttpRequest',
+      class {
+        constructor() {
+          this.upload = {}
+        }
+        open() {}
+        setRequestHeader() {}
+        getResponseHeader(name) {
+          return name === 'Content-Type' ? 'application/json' : null
+        }
+        send() {
+          Object.assign(this, { status: 201, responseText: text })
+          queueMicrotask(() => this.onload())
+        }
+      }
+    )
+    try {
+      const http = createHttp(
+        {
+          host: HOST,
+          fetch: createFakeFetch(),
+          timeout: TIMEOUT,
+          xhrUploads: 'all'
+        },
+        stubSession
+      )
+      const err = await http
+        .upload(`data/tasks/${TASK_ID}/comments`, {
+          file: new Blob(['pixels']),
+          onProgress: () => {}
+        })
+        .catch(e => e)
+      expect(err).toBeInstanceOf(KitsuError)
+      expect(err).toMatchObject({ status: 201, body: text })
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('wraps a network failure', async () => {
     const failing = async () => {
       throw new TypeError('fetch failed')
@@ -111,6 +224,297 @@ describe('http errors', () => {
     await expect(makeHttp(failing).get('data/tasks')).rejects.toBeInstanceOf(
       NetworkError
     )
+  })
+
+  // undici always says "fetch failed": the reason is in its cause.
+  it('keeps the failure of the fetch, and the reason undici gives, in a network error', async () => {
+    const failure = Object.assign(new TypeError('fetch failed'), {
+      cause: new Error('self-signed certificate')
+    })
+    const failing = async () => {
+      throw failure
+    }
+    const err = await makeHttp(failing)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(NetworkError)
+    expect(err.cause).toBe(failure)
+    expect(err.message).toBe(
+      'GET data/tasks failed: fetch failed: self-signed certificate'
+    )
+  })
+
+  it('tells the reason of a fetch rejecting with a string, as the Tauri http plugin does', async () => {
+    const reason = `error sending request for url (${HOST}/data/tasks)`
+    const tauri = () => Promise.reject(reason)
+    const err = await makeHttp(tauri)
+      .get('data/tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(NetworkError)
+    expect(err.message).toBe(`GET data/tasks failed: ${reason}`)
+    expect(err.cause).toBe(reason)
+  })
+})
+
+describe('downloads', () => {
+  const PATH = `pictures/thumbnails/preview-files/${PREVIEW_FILE_ID}.png`
+
+  it('rejects a file Zou still builds, telling when to ask again', async () => {
+    const processing = {
+      status: 'processing',
+      preview_file_id: PREVIEW_FILE_ID
+    }
+    const fake = createFakeFetch().reply(202, processing, {
+      'Retry-After': '5'
+    })
+    const http = makeHttp(fake)
+    const err = await http.download(PATH).catch(e => e)
+    expect(err.constructor).toBe(KitsuError)
+    expect(err).toMatchObject({
+      status: 202,
+      path: PATH,
+      method: 'GET',
+      body: processing,
+      retryAfter: 5
+    })
+    // Zou tells "still processing" from "missing" to a JSON client only.
+    expect(fake.calls[0].headers.Accept).toBe('application/json')
+    http.abortAll()
+    expect(fake.calls[0].signal.aborted).toBe(false)
+  })
+
+  // Zou bounds the media requests it serves at once.
+  it('tells when to ask again a busy Zou', async () => {
+    const busy = {
+      error: true,
+      message: 'Too many media requests, retry later.'
+    }
+    const fake = createFakeFetch().reply(503, busy, { 'Retry-After': '5' })
+    const err = await makeHttp(fake)
+      .download(PATH)
+      .catch(e => e)
+    expect(err).toBeInstanceOf(ServerError)
+    expect(err).toMatchObject({ status: 503, body: busy, retryAfter: 5 })
+  })
+
+  it('reads a Retry-After given as a date', async () => {
+    const date = new Date(Date.now() + 30000).toUTCString()
+    const fake = createFakeFetch().reply(503, {}, { 'Retry-After': date })
+    const err = await makeHttp(fake)
+      .download(PATH)
+      .catch(e => e)
+    expect(err.retryAfter).toBeGreaterThanOrEqual(29)
+    expect(err.retryAfter).toBeLessThanOrEqual(30)
+  })
+})
+
+// The answers of flask-jwt-extended for a token it cannot decode, which Zou
+// keeps: 422, not 401.
+describe('a token Zou cannot decode', () => {
+  const formerKey = () =>
+    jsonResponse(422, { msg: 'Signature verification failed' })
+  const truncated = () => jsonResponse(422, { msg: 'Not enough segments' })
+
+  const setup = (fake, onUnauthorized = () => {}) => {
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' },
+      onUnauthorized
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    return { http, session }
+  }
+
+  it('refreshes the session and replays the request', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : truncated()
+      )
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const { http, session } = setup(fake)
+    expect(await http.get('data/persons')).toEqual([])
+    expect(session.getTokens().access_token).toBe('new')
+  })
+
+  it('reports a lost session when the refresh token is refused too', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', formerKey)
+      .on('GET', '/auth/refresh-token', formerKey)
+    const onUnauthorized = vi.fn()
+    const { http } = setup(fake, onUnauthorized)
+    const err = await http.get('data/persons').catch(e => e)
+    expect(err).toBeInstanceOf(NotAuthenticatedError)
+    expect(err).toMatchObject({
+      status: 422,
+      body: { msg: 'Signature verification failed' }
+    })
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes isAuthenticated answer false', async () => {
+    const fake = createFakeFetch().on('GET', '/auth/authenticated', formerKey)
+    const onUnauthorized = vi.fn()
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'old' },
+      onUnauthorized
+    })
+    expect(await kitsu.isAuthenticated()).toBe(false)
+    expect(onUnauthorized).not.toHaveBeenCalled()
+  })
+})
+
+describe('a caller abort while the token is refreshed', () => {
+  // What Zou answers for an expired token, access or refresh.
+  const expired = () =>
+    jsonResponse(401, { error: true, message: 'Signature has expired' })
+
+  // Two requests hit the expired access token and wait for one refresh,
+  // parked until the test answers it. The first one can be aborted.
+  const parkedRefresh = (onUnauthorized = () => {}) => {
+    let answer
+    const refreshAnswer = new Promise(resolve => {
+      answer = resolve
+    })
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : expired()
+      )
+      .on('GET', '/auth/refresh-token', () => refreshAnswer)
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' },
+      onUnauthorized
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const caller = new AbortController()
+    const aborted = http
+      .get('data/persons', {}, { signal: caller.signal })
+      .catch(e => e)
+    const other = http.get('data/persons').catch(e => e)
+    const refreshSent = () =>
+      vi.waitFor(() =>
+        expect(fake.calls.map(call => call.path)).toContain(
+          '/auth/refresh-token'
+        )
+      )
+    return { fake, caller, aborted, other, answer, refreshSent }
+  }
+
+  const within50ms = promise =>
+    Promise.race([
+      promise,
+      new Promise(resolve => setTimeout(() => resolve('pending'), 50))
+    ])
+
+  it('rejects at once with AbortError and lets the refresh serve the others', async () => {
+    const { fake, caller, aborted, other, answer, refreshSent } =
+      parkedRefresh()
+    await refreshSent()
+    caller.abort()
+    expect((await within50ms(aborted)).name).toBe('AbortError')
+    answer(jsonResponse(200, { access_token: 'new' }))
+    expect(await other).toEqual([])
+    expect(
+      fake.calls.filter(call => call.path === '/data/persons')
+    ).toHaveLength(3)
+  })
+
+  it('lets go of the caller signal once the refresh is over', async () => {
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call =>
+        call.headers.Authorization === 'Bearer new'
+          ? jsonResponse(200, [])
+          : expired()
+      )
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const caller = new AbortController()
+    const added = vi.spyOn(caller.signal, 'addEventListener')
+    const removed = vi.spyOn(caller.signal, 'removeEventListener')
+
+    expect(
+      await http.get('data/persons', {}, { signal: caller.signal })
+    ).toEqual([])
+
+    // The two attempts and the wait for the refresh each listened.
+    const listenersOf = spy => spy.mock.calls.map(([, listener]) => listener)
+    expect(listenersOf(added)).toHaveLength(3)
+    expect(listenersOf(removed)).toEqual(
+      expect.arrayContaining(listenersOf(added))
+    )
+  })
+
+  // The refresh is answered, then the caller gives up before its replay:
+  // here the replay of another request, which resumes first, aborts it.
+  it('replays nothing for a caller who aborted as the new token came in', async () => {
+    const caller = new AbortController()
+    const fake = createFakeFetch()
+      .on('GET', '/data/persons', call => {
+        if (call.headers.Authorization !== 'Bearer new') return expired()
+        caller.abort()
+        return jsonResponse(200, [])
+      })
+      .on('GET', '/auth/refresh-token', () =>
+        jsonResponse(200, { access_token: 'new' })
+      )
+    const session = createSession({
+      auth: 'bearer',
+      tokens: { access_token: 'old', refresh_token: 'refresh' }
+    })
+    const http = createHttp(
+      { host: HOST, fetch: fake, timeout: TIMEOUT },
+      session
+    )
+    const aborted = http
+      .get('data/persons', {}, { signal: caller.signal })
+      .catch(e => e)
+    const other = http.get('data/persons')
+
+    expect(await other).toEqual([])
+    expect((await aborted).name).toBe('AbortError')
+    expect(
+      fake.calls.map(call => [call.path, call.headers.Authorization])
+    ).toEqual([
+      ['/data/persons', 'Bearer old'],
+      ['/data/persons', 'Bearer old'],
+      ['/auth/refresh-token', 'Bearer refresh'],
+      ['/data/persons', 'Bearer new']
+    ])
+  })
+
+  it('reports the abort, not the refused refresh, to the caller who aborted', async () => {
+    const onUnauthorized = vi.fn()
+    const { caller, aborted, other, answer, refreshSent } =
+      parkedRefresh(onUnauthorized)
+    await refreshSent()
+    caller.abort()
+    answer(expired())
+    expect((await aborted).name).toBe('AbortError')
+    expect(await other).toBeInstanceOf(NotAuthenticatedError)
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -176,6 +580,18 @@ describe('gazu helpers', () => {
     expect(task).toEqual({ id: TASK_ID, priority: 2 })
   })
 
+  // An id given in place of the entity would be sent as a meaningless body.
+  it.each([[TASK_ID], [null], [undefined], [[{ priority: 2 }]]])(
+    'update refuses %o as its fields, before any request',
+    async data => {
+      const fake = createFakeFetch()
+      await expect(
+        makeHttp(fake).update('tasks', TASK_ID, data)
+      ).rejects.toBeInstanceOf(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
   it('does not swallow a 404 outside get helpers', async () => {
     const fake = createFakeFetch().reply(404, {})
     await expect(makeHttp(fake).get('data/tasks')).rejects.toBeInstanceOf(
@@ -235,14 +651,14 @@ describe('timeouts and cancellation', () => {
   })
 
   it('reports a caller abort as AbortError whatever the injected fetch rejects with', async () => {
-    const cancelling = (url, init) =>
+    const canceling = (url, init) =>
       new Promise((resolve, reject) => {
         init.signal.addEventListener('abort', () =>
-          reject(new Error('Request cancelled'))
+          reject(new Error('Request canceled'))
         )
       })
     const controller = new AbortController()
-    const pending = makeHttp(cancelling)
+    const pending = makeHttp(canceling)
       .get('data/tasks', {}, { signal: controller.signal })
       .catch(e => e)
     controller.abort()
@@ -308,6 +724,57 @@ describe('timeouts and cancellation', () => {
     })
     const response = await http.request('GET', 'data/tasks', { raw: true })
     expect(await response.text()).toBe('movie')
+    http.abortAll()
+    expect(signals[0].aborted).toBe(false)
+  })
+
+  it('releases a raw response whose body is canceled', async () => {
+    const signals = []
+    const canceled = vi.fn()
+    const http = makeHttp(async (url, init) => {
+      signals.push(init.signal)
+      const body = new ReadableStream({
+        pull: stream => stream.enqueue(new Uint8Array(1024)),
+        cancel: canceled
+      })
+      return new Response(body, { status: 200 })
+    })
+    const caller = new AbortController()
+    const removed = vi.spyOn(caller.signal, 'removeEventListener')
+    const response = await http.request('GET', 'data/tasks', {
+      raw: true,
+      signal: caller.signal
+    })
+    await response.body.cancel()
+    // The connection is released, and the caller signal let go.
+    expect(canceled).toHaveBeenCalledTimes(1)
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
+    http.abortAll()
+    expect(signals[0].aborted).toBe(false)
+  })
+
+  // undici cancels the body of a response garbage collected unread, unless
+  // something locked it.
+  it('leaves the body of an unread download unlocked', async () => {
+    const answer = new Response('movie', { status: 200 })
+    const http = makeHttp(async () => answer)
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    expect(answer.body.locked).toBe(false)
+    expect(await response.text()).toBe('movie')
+  })
+
+  it('releases a raw response whose body fails midway', async () => {
+    const signals = []
+    const http = makeHttp(async (url, init) => {
+      signals.push(init.signal)
+      // undici when the connection drops in the middle of the body.
+      const body = new ReadableStream({
+        pull: stream => stream.error(new TypeError('terminated'))
+      })
+      return new Response(body, { status: 200 })
+    })
+    const response = await http.request('GET', 'data/tasks', { raw: true })
+    await expect(response.arrayBuffer()).rejects.toThrow('terminated')
     http.abortAll()
     expect(signals[0].aborted).toBe(false)
   })

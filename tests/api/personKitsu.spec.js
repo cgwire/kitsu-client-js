@@ -6,6 +6,7 @@ import {
   OTHER_ID,
   PERSON_ID,
   PROJECT_ID,
+  SHOT_ID,
   STUDIO_ID,
   TASK_TYPE_ID
 } from '../helpers/ids.js'
@@ -35,10 +36,11 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it('generateResetPasswordLink posts without a body', async () => {
-    fake.reply(200, { reset_url: 'http://kitsu.test/reset' })
+    const link = 'http://kitsu.test/reset-change-password?token=abc'
+    fake.reply(200, { reset_password_link: link })
     expect(
       await kitsu.person.generateResetPasswordLink({ id: PERSON_ID })
-    ).toEqual({ reset_url: 'http://kitsu.test/reset' })
+    ).toEqual({ reset_password_link: link })
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/persons/${PERSON_ID}/reset-password-link`
@@ -97,10 +99,18 @@ describe('person namespace, Kitsu store coverage', () => {
     })
   })
 
-  it('allDayOffs rejects a year without a month', async () => {
-    await expect(kitsu.person.allDayOffs({ year: 2026 })).rejects.toThrow(
-      ParameterError
-    )
+  it('allDayOffs narrows the day offs to a year', async () => {
+    fake.reply(200, [{ id: OTHER_ID }])
+    expect(await kitsu.person.allDayOffs({ year: 2026 })).toEqual([
+      { id: OTHER_ID }
+    ])
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/persons/day-offs/2026'
+    })
+  })
+
+  it('allDayOffs rejects a month without a year', async () => {
     await expect(kitsu.person.allDayOffs({ month: 9 })).rejects.toThrow(
       ParameterError
     )
@@ -108,14 +118,31 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it('getDayOffByDate reads the day off of a person on a day', async () => {
-    fake.reply(200, { id: OTHER_ID })
+    const dayOff = {
+      id: OTHER_ID,
+      date: '2026-09-18',
+      end_date: '2026-09-21',
+      person_id: PERSON_ID
+    }
+    fake.reply(200, dayOff)
     expect(
       await kitsu.person.getDayOffByDate({ id: PERSON_ID }, '2026-09-19')
-    ).toEqual({ id: OTHER_ID })
+    ).toEqual(dayOff)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/${PERSON_ID}/day-offs/2026-09-19`
     })
+  })
+
+  // Zou answers an empty object when no day off covers the day.
+  it('getDayOffByDate returns null when no day off covers the day', async () => {
+    fake.reply(200, {})
+    expect(
+      await kitsu.person.getDayOffByDate(PERSON_ID, '2026-09-22')
+    ).toBeNull()
+    expect(fake.calls[0].path).toBe(
+      `/data/persons/${PERSON_ID}/day-offs/2026-09-22`
+    )
   })
 
   it('getDayOffByDate returns null when the person does not exist', async () => {
@@ -129,13 +156,15 @@ describe('person namespace, Kitsu store coverage', () => {
   })
 
   it.each([
-    ['getTimeSpentsDayTable', [2026, 9], 'day-table/2026/9'],
-    ['getTimeSpentsWeekTable', [2026], 'week-table/2026'],
-    ['getTimeSpentsMonthTable', [2026], 'month-table/2026'],
-    ['getTimeSpentsYearTable', [], 'year-table']
-  ])('%s reads the table, narrowed or not', async (name, args, suffix) => {
-    fake.reply(200, { 9: {} }).reply(200, { 9: {} })
-    expect(await kitsu.person[name](...args)).toEqual({ 9: {} })
+    ['getTimeSpentsDayTable', [2026, 9], 'day-table/2026/9', '19'],
+    ['getTimeSpentsWeekTable', [2026], 'week-table/2026', '38'],
+    ['getTimeSpentsMonthTable', [2026], 'month-table/2026', '9'],
+    ['getTimeSpentsYearTable', [], 'year-table', '2026']
+  ])('%s reads the table, narrowed or not', async (name, args, suffix, key) => {
+    // Minutes keyed by period, then by person id.
+    const table = { [key]: { [PERSON_ID]: 480, [OTHER_ID]: 240 } }
+    fake.reply(200, table).reply(200, {})
+    expect(await kitsu.person[name](...args)).toEqual(table)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/time-spents/${suffix}`
@@ -158,10 +187,22 @@ describe('person namespace, Kitsu store coverage', () => {
     ['getWeekTimeSpents', [2026, 38], 'week/2026/38'],
     ['getDayTimeSpents', [2026, 9, 19], 'day/2026/9/19']
   ])('%s reads the aggregate, narrowed or not', async (name, args, suffix) => {
-    fake.reply(200, [{ duration: 60 }]).reply(200, [])
-    expect(await kitsu.person[name]({ id: PERSON_ID }, ...args)).toEqual([
-      { duration: 60 }
-    ])
+    // One total per task, without id or date: not time spent rows.
+    const totals = [
+      {
+        task_id: OTHER_ID,
+        task_type_id: TASK_TYPE_ID,
+        project_id: PROJECT_ID,
+        project_name: 'Agent 327',
+        entity_name: 'SH010',
+        entity_type_name: 'Shot',
+        sequence_name: 'SQ01',
+        episode_name: null,
+        duration: 60
+      }
+    ]
+    fake.reply(200, totals).reply(200, [])
+    expect(await kitsu.person[name]({ id: PERSON_ID }, ...args)).toEqual(totals)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/${PERSON_ID}/time-spents/${suffix}`
@@ -175,19 +216,26 @@ describe('person namespace, Kitsu store coverage', () => {
     ['getMonthQuotaShots', [2026, 9], 'month/2026/9'],
     ['getWeekQuotaShots', [2026, 38], 'week/2026/38'],
     ['getDayQuotaShots', [2026, 9, 19], 'day/2026/9/19']
-  ])('%s reads the quotas, narrowed or not', async (name, args, suffix) => {
-    fake.reply(200, [{ id: OTHER_ID }]).reply(200, [])
-    expect(await kitsu.person[name]({ id: PERSON_ID }, ...args)).toEqual([
-      { id: OTHER_ID }
-    ])
+  ])('%s reads the quotas of a task type', async (name, period, suffix) => {
+    const shots = [{ id: SHOT_ID, full_name: 'SQ01 / SH010', weight: 0.5 }]
+    fake.reply(200, shots).reply(200, [])
+    expect(
+      await kitsu.person[name](
+        { id: PERSON_ID },
+        { id: PROJECT_ID },
+        TASK_TYPE_ID,
+        ...period
+      )
+    ).toEqual(shots)
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/persons/${PERSON_ID}/quota-shots/${suffix}`
     })
-    expect(queryOf(fake.calls[0])).toEqual({})
-    await kitsu.person[name](PERSON_ID, ...args, {
-      project: { id: PROJECT_ID },
-      taskType: TASK_TYPE_ID,
+    expect(queryOf(fake.calls[0])).toEqual({
+      project_id: PROJECT_ID,
+      task_type_id: TASK_TYPE_ID
+    })
+    await kitsu.person[name](PERSON_ID, PROJECT_ID, TASK_TYPE_ID, ...period, {
       countMode: 'weighteddone'
     })
     expect(queryOf(fake.calls[1])).toEqual({
@@ -197,12 +245,38 @@ describe('person namespace, Kitsu store coverage', () => {
     })
   })
 
+  // Zou filters on both even when they are missing, and answers nothing.
+  it.each([
+    ['getMonthQuotaShots', [2026, 9]],
+    ['getWeekQuotaShots', [2026, 38]],
+    ['getDayQuotaShots', [2026, 9, 19]]
+  ])(
+    '%s requires the project and the task type before any request',
+    async (name, period) => {
+      const { person } = kitsu
+      await expect(
+        person[name](PERSON_ID, null, TASK_TYPE_ID, ...period)
+      ).rejects.toThrow(ParameterError)
+      await expect(
+        person[name](PERSON_ID, PROJECT_ID, undefined, ...period)
+      ).rejects.toThrow(ParameterError)
+      // The 0.2.0 call, the period first and both ids in the options.
+      await expect(
+        person[name](PERSON_ID, ...period, {
+          project: PROJECT_ID,
+          taskType: TASK_TYPE_ID
+        })
+      ).rejects.toThrow(ParameterError)
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
   it.each([
     ['getMonthTimeSpents', [PERSON_ID, 2026, 9]],
     ['getDayTimeSpents', [PERSON_ID, 2026, 9, 19]],
-    ['getMonthQuotaShots', [PERSON_ID, 2026, 9]],
-    ['getWeekQuotaShots', [PERSON_ID, 2026, 38]],
-    ['getDayQuotaShots', [PERSON_ID, 2026, 9, 19]]
+    ['getMonthQuotaShots', [PERSON_ID, PROJECT_ID, TASK_TYPE_ID, 2026, 9]],
+    ['getWeekQuotaShots', [PERSON_ID, PROJECT_ID, TASK_TYPE_ID, 2026, 38]],
+    ['getDayQuotaShots', [PERSON_ID, PROJECT_ID, TASK_TYPE_ID, 2026, 9, 19]]
   ])('%s returns null when the person does not exist', async (name, args) => {
     fake.reply(404, {})
     expect(await kitsu.person[name](...args)).toBeNull()
@@ -223,11 +297,20 @@ describe('person namespace, Kitsu store coverage', () => {
       person.getDayTimeSpents(PERSON_ID, 2026, 9, '19/..')
     ).rejects.toThrow(ParameterError)
     await expect(
-      person.getMonthQuotaShots(PERSON_ID, 2026, '9?x=1')
+      person.getMonthQuotaShots(
+        PERSON_ID,
+        PROJECT_ID,
+        TASK_TYPE_ID,
+        2026,
+        '9?x=1'
+      )
     ).rejects.toThrow(ParameterError)
     await expect(
       person.allDayOffs({ year: 2026, month: '../9' })
     ).rejects.toThrow(ParameterError)
+    await expect(person.allDayOffs({ year: '2026/..' })).rejects.toThrow(
+      ParameterError
+    )
     expect(fake.calls).toHaveLength(0)
   })
 
@@ -256,5 +339,21 @@ describe('person namespace, Kitsu store coverage', () => {
       path: `/data/salary-scales/${OTHER_ID}`,
       body: { salary: 3200 }
     })
+  })
+
+  // Zou would answer the empty body as a success.
+  it('updateSalaryScale refuses a scale without its salary', async () => {
+    const scales = [
+      OTHER_ID,
+      { id: OTHER_ID },
+      { id: OTHER_ID, salary: undefined }
+    ]
+    const errors = await Promise.all(
+      scales.map(scale =>
+        kitsu.person.updateSalaryScale(scale).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 })

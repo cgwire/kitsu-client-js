@@ -1,7 +1,11 @@
 import {
   idOf,
+  likeLiteralOf,
+  metadataOf,
   optionalIdOf,
+  orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -11,15 +15,29 @@ import { getEditUrl, webHostOf } from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ * @typedef {import('../core/params.js').TransferOptions} TransferOptions
  */
 
+const idKey = id => (id ? String(id).toLowerCase() : null)
+
 export const editApi = http => {
-  const editByName = (project, name, signal) =>
-    http.fetchFirst(
-      'edits/all',
-      { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+  // Before creating an edit, Zou looks for the same name in the same
+  // episode, or outside any episode: the lookup keeps that parent.
+  const editByName = async (project, name, episode, signal) => {
+    const episodeId = optionalIdOf(episode)
+    const entries = await orNull(
+      http.fetchAll(
+        'edits/all',
+        { project_id: idOf(project), name: likeLiteralOf(name) },
+        { signal }
+      )
     )
+    const inEpisode = entry => idKey(entry.parent_id) === idKey(episodeId)
+    return sameNameOf(
+      Array.isArray(entries) ? entries.filter(inEpisode) : [],
+      name
+    )
+  }
 
   // A plain get, not fetchOne: a missing edit must raise instead of giving
   // a broken URL.
@@ -50,11 +68,14 @@ export const editApi = http => {
     /**
      * @param {Model} project
      * @param {string} editName
-     * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The edit of the project with that name.
+     * @param {{episode?: Model, signal?: AbortSignal}} [options] With an
+     *   episode, the lookup is scoped to it. Without one, only an edit of the
+     *   project outside any episode matches.
+     * @returns {Promise<Entity|null>} The edit with that name (the case
+     *   ignored, an exact match first), null when there is none.
      */
-    getEditByName: async (project, editName, { signal } = {}) =>
-      editByName(project, editName, signal),
+    getEditByName: async (project, editName, { episode, signal } = {}) =>
+      editByName(project, editName, episode, signal),
 
     /**
      * @param {Model} edit
@@ -93,8 +114,8 @@ export const editApi = http => {
     /**
      * @param {Model} edit
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The data history of the edit: one entry
-     *   per saved version of its metadata.
+     * @returns {Promise<Entity[]>} The data history of the edit. Zou records
+     *   versions for the shots only: the list of an edit stays empty.
      */
     allVersionsForEdit: async (edit, { signal } = {}) =>
       http.get(`data/edits/${idOf(edit)}/versions`, {}, { signal }),
@@ -102,13 +123,15 @@ export const editApi = http => {
     /**
      * @param {Model} edit
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the edit.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   edit: task type ids as keys, revisions as values.
      */
     allPreviewsForEdit: async (edit, { signal } = {}) =>
       http.fetchAll(`edits/${idOf(edit)}/preview-files`, {}, { signal }),
 
     /**
-     * Create an edit, unless one already has that name in the project: the
+     * Create an edit, unless the episode, or the project outside any episode,
+     * already has one with that name, as getEditByName finds it: the
      * existing edit is then returned.
      * @param {Model} project
      * @param {string} name
@@ -134,7 +157,7 @@ export const editApi = http => {
         })
       }
       const path = `data/projects/${idOf(project)}/edits`
-      const existing = await editByName(project, name, signal)
+      const existing = await editByName(project, name, episode, signal)
       return existing || http.post(path, body, { signal })
     },
 
@@ -142,17 +165,12 @@ export const editApi = http => {
      * Import the edits of a CSV file into the project.
      * @param {Model} project
      * @param {Blob} csvFile The CSV data, as a Blob or a File.
-     * @param {{
-     *   update?: boolean,
-     *   fileName?: string,
-     *   onProgress?: (progress: {loaded: number, total: number}) => void,
-     *   signal?: AbortSignal
-     * }} [options] update also updates the edits that already exist.
-     *   fileName names the uploaded file when it is a plain Blob. onProgress
-     *   needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
-     *   client given its own fetch (Tauri) uploads through it and never calls
-     *   onProgress.
-     * @returns {Promise<Entity[]>} The edits created or updated by the import.
+     * @param {TransferOptions & {update?: boolean}} [options] update also
+     *   updates the edits that already exist.
+     * @returns {Promise<Entity[]>} The edit of each imported row: created,
+     *   updated or left as it was. Each row is saved on its own: a failing
+     *   row rejects with a ParameterError whose body gives its line_number
+     *   and the count of imported_rows, which stay imported.
      */
     importEditsWithCsv: async (
       project,
@@ -200,6 +218,11 @@ export const editApi = http => {
      */
     updateEditData: async (edit, data = {}, { signal } = {}) =>
       // Only the given keys: Zou merges them into the stored metadata.
-      http.update('entities', idOf(edit), { data: { ...data } }, { signal })
+      http.update(
+        'entities',
+        idOf(edit),
+        { data: { ...metadataOf(data) } },
+        { signal }
+      )
   }
 }

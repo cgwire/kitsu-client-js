@@ -1,10 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { NotFoundError } from '../../src/core/errors.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import { DEPARTMENT_ID, PERSON_ID, PROJECT_ID } from '../helpers/ids.js'
 
 const BUDGET_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const ENTRY_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+
+// A budget entry as Zou serializes it.
+const ENTRY = {
+  id: ENTRY_ID,
+  budget_id: BUDGET_ID,
+  department_id: DEPARTMENT_ID,
+  person_id: null,
+  start_date: '2026-03-01',
+  months_duration: 3,
+  daily_salary: 400,
+  position: 'artist',
+  seniority: 'mid',
+  exceptions: {},
+  created_at: '2026-02-20T10:00:00',
+  updated_at: '2026-02-20T10:00:00',
+  type: 'BudgetEntry'
+}
 
 describe('project namespace: budgets', () => {
   let kitsu, fake
@@ -93,36 +112,40 @@ describe('project namespace: budgets', () => {
     })
   })
 
-  it('createBudgetEntry sends the department alone by default', async () => {
-    fake.reply(201, { id: ENTRY_ID })
+  it('createBudgetEntry sends the values Zou requires', async () => {
+    fake.reply(201, ENTRY)
     expect(
       await kitsu.project.createBudgetEntry(
         PROJECT_ID,
         BUDGET_ID,
-        DEPARTMENT_ID
+        DEPARTMENT_ID,
+        '2026-03-01',
+        3,
+        400
       )
-    ).toEqual({ id: ENTRY_ID })
+    ).toEqual(ENTRY)
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries`
     })
-    expect(fake.calls[0].body).toEqual({ department_id: DEPARTMENT_ID })
+    expect(fake.calls[0].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 400
+    })
   })
 
   it('createBudgetEntry sends every option on the wire', async () => {
-    fake.reply(201, { id: ENTRY_ID })
+    fake.reply(201, ENTRY)
     await kitsu.project.createBudgetEntry(
       { id: PROJECT_ID },
       { id: BUDGET_ID },
       { id: DEPARTMENT_ID },
-      {
-        person: { id: PERSON_ID },
-        position: 'artist',
-        seniority: 'senior',
-        startDate: new Date(2026, 2, 1),
-        monthsDuration: 3,
-        dailySalary: 400
-      }
+      new Date(2026, 2, 1),
+      3,
+      400,
+      { person: { id: PERSON_ID }, position: 'artist', seniority: 'senior' }
     )
     expect(fake.calls[0].body).toEqual({
       department_id: DEPARTMENT_ID,
@@ -139,6 +162,60 @@ describe('project namespace: budgets', () => {
     await expect(
       kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID)
     ).rejects.toThrow('Wrong format')
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou cannot store an entry without them, and answers 500.
+  it('createBudgetEntry rejects a missing start date, duration or salary', async () => {
+    const calls = [
+      [undefined, 3, 400],
+      ['2026-03-01', undefined, 400],
+      ['2026-03-01', 3, null]
+    ]
+    const errors = await Promise.all(
+      calls.map(values =>
+        kitsu.project
+          .createBudgetEntry(PROJECT_ID, BUDGET_ID, DEPARTMENT_ID, ...values)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('createBudgetEntry rejects the options object of 0.2.0', async () => {
+    await expect(
+      kitsu.project.createBudgetEntry(PROJECT_ID, BUDGET_ID, DEPARTMENT_ID, {
+        startDate: '2026-03-01',
+        monthsDuration: 3,
+        dailySalary: 400
+      })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou would store the code, then fail on every read of the entry.
+  it('createBudgetEntry rejects an unknown position or seniority', async () => {
+    const options = [{ position: 'Artist' }, { seniority: 'medior' }]
+    const errors = await Promise.all(
+      options.map(option =>
+        kitsu.project
+          .createBudgetEntry(
+            PROJECT_ID,
+            BUDGET_ID,
+            DEPARTMENT_ID,
+            '2026-03-01',
+            3,
+            400,
+            option
+          )
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => {
+      expect(err).toBeInstanceOf(ParameterError)
+      expect(err.message).toMatch(/must be one of/)
+    })
     expect(fake.calls).toHaveLength(0)
   })
 
@@ -162,18 +239,128 @@ describe('project namespace: budgets', () => {
     })
   })
 
-  it('updateBudgetEntry saves the given payload', async () => {
-    fake.reply(200, { id: ENTRY_ID, amount: 500 })
+  // Zou writes every field of the entry, null for a missing one.
+  it('updateBudgetEntry merges the given fields into the entry', async () => {
+    const stored = {
+      ...ENTRY,
+      person_id: PERSON_ID,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    }
+    fake.reply(200, stored).reply(200, { ...stored, daily_salary: 450 })
+    const data = { daily_salary: 450 }
     expect(
-      await kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
-        amount: 500
-      })
-    ).toEqual({ id: ENTRY_ID, amount: 500 })
-    expect(fake.calls[0]).toMatchObject({
-      method: 'PUT',
-      path: `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries/${ENTRY_ID}`
+      await kitsu.project.updateBudgetEntry(
+        PROJECT_ID,
+        BUDGET_ID,
+        ENTRY_ID,
+        data
+      )
+    ).toEqual({ ...stored, daily_salary: 450 })
+    const path = `/data/projects/${PROJECT_ID}/budgets/${BUDGET_ID}/entries/${ENTRY_ID}`
+    expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
+    expect(fake.calls[1]).toMatchObject({ method: 'PUT', path })
+    expect(fake.calls[1].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      person_id: PERSON_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 450,
+      position: 'artist',
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
     })
-    expect(fake.calls[0].body).toEqual({ amount: 500 })
+    expect(data).toEqual({ daily_salary: 450 })
+  })
+
+  it('updateBudgetEntry sends a Date start date as a day', async () => {
+    fake.reply(200, ENTRY).reply(200, ENTRY)
+    await kitsu.project.updateBudgetEntry(
+      { id: PROJECT_ID },
+      { id: BUDGET_ID },
+      { id: ENTRY_ID },
+      { start_date: new Date(2026, 4, 4), person_id: null }
+    )
+    expect(fake.calls[1].body).toMatchObject({
+      start_date: '2026-05-04',
+      person_id: null
+    })
+  })
+
+  // A form gives its untouched fields as undefined: JSON would drop them and
+  // Zou clear them. A null still clears its field.
+  it('updateBudgetEntry keeps the fields given as undefined', async () => {
+    const stored = {
+      ...ENTRY,
+      person_id: PERSON_ID,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    }
+    fake.reply(200, stored).reply(200, stored)
+    await kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
+      daily_salary: 450,
+      person_id: undefined,
+      seniority: undefined,
+      exceptions: undefined,
+      position: null
+    })
+    expect(fake.calls[1].body).toEqual({
+      department_id: DEPARTMENT_ID,
+      person_id: PERSON_ID,
+      start_date: '2026-03-01',
+      months_duration: 3,
+      daily_salary: 450,
+      position: null,
+      seniority: 'senior',
+      exceptions: { '2026-04': 15 }
+    })
+  })
+
+  it('updateBudgetEntry rejects an unknown position or seniority', async () => {
+    const changes = [{ position: 'Lead' }, { seniority: 'intern' }]
+    const errors = await Promise.all(
+      changes.map(data =>
+        kitsu.project
+          .updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, data)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou answers 500 to a cleared required field, and would save the others
+  // after the read.
+  it('updateBudgetEntry refuses a field it cannot save before any request', async () => {
+    const changes = [
+      'abc',
+      { dailySalary: 450 },
+      { daily_salary: null },
+      { department_id: null, months_duration: null },
+      { start_date: null },
+      { start_date: '03/01/2026' },
+      { start_date: new Date('not a date') }
+    ]
+    const errors = await Promise.all(
+      changes.map(data =>
+        kitsu.project
+          .updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, data)
+          .catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(errors[3].message).toMatch(/department_id, months_duration/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('updateBudgetEntry rejects when the entry does not exist', async () => {
+    fake.reply(404, { message: 'Budget entry not found' })
+    await expect(
+      kitsu.project.updateBudgetEntry(PROJECT_ID, BUDGET_ID, ENTRY_ID, {
+        daily_salary: 450
+      })
+    ).rejects.toBeInstanceOf(NotFoundError)
+    expect(fake.calls).toHaveLength(1)
   })
 
   it('removeBudgetEntry deletes the entry', async () => {

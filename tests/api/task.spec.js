@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotFoundError } from '../../src/index.js'
+import { NotFoundError, ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
@@ -52,9 +52,7 @@ describe('task namespace: tasks, types and statuses', () => {
       SEQUENCE_ID,
       `/data/sequences/${SEQUENCE_ID}/tasks`
     ],
-    ['allTasksForScene', SCENE_ID, `/data/scenes/${SCENE_ID}/tasks`],
     ['allTasksForAsset', ASSET_ID, `/data/assets/${ASSET_ID}/tasks`],
-    ['allTasksForEpisode', EPISODE_ID, `/data/episodes/${EPISODE_ID}/tasks`],
     [
       'allShotTasksForSequence',
       SEQUENCE_ID,
@@ -82,6 +80,21 @@ describe('task namespace: tasks, types and statuses', () => {
       expect(fake.calls[1].query.get('relations')).toBe('true')
     }
   )
+
+  // Zou reads no relations parameter on these two routes.
+  it.each([
+    ['allTasksForScene', SCENE_ID, `/data/scenes/${SCENE_ID}/tasks`],
+    ['allTasksForEpisode', EPISODE_ID, `/data/episodes/${EPISODE_ID}/tasks`]
+  ])('%s lists sorted tasks, without relations', async (name, id, path) => {
+    fake.reply(200, UNSORTED).reply(200, [])
+    const tasks = await kitsu.task[name]({ id })
+    await kitsu.task[name](id, { relations: true })
+    expect(tasks.map(task => task.name)).toEqual(SORTED_NAMES)
+    fake.calls.forEach(call => {
+      expect(call).toMatchObject({ method: 'GET', path })
+      expect([...call.query.keys()]).toEqual([])
+    })
+  })
 
   it('allTasksForShot sorts the tasks by name', async () => {
     fake.reply(200, UNSORTED)
@@ -228,7 +241,18 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('allOpenTasks returns the page of Zou, filtered', async () => {
-    const page = { data: [{ id: TASK_ID }], is_more: false, page: 1 }
+    const page = {
+      data: [{ id: TASK_ID }],
+      stats: {
+        total_duration: 120,
+        total_estimation: 480,
+        total: 1,
+        status: [{ task_status_id: TASK_STATUS_ID, amount: 1 }]
+      },
+      limit: 100,
+      is_more: false,
+      page: 1
+    }
     fake.reply(200, page).reply(200, page).reply(200, page)
     expect(await kitsu.task.allOpenTasks()).toEqual(page)
     expect(fake.calls[0]).toMatchObject({
@@ -268,21 +292,62 @@ describe('task namespace: tasks, types and statuses', () => {
     })
   })
 
-  it.each([
-    ['getOpenTasksStats', '/data/tasks/open-tasks/stats'],
-    ['getPersonsTasksDates', '/data/persons/task-dates']
-  ])('%s returns the payload, null on 404', async (name, path) => {
-    fake.reply(200, { total: 3 }).reply(404, {})
-    expect(await kitsu.task[name]()).toEqual({ total: 3 })
-    expect(await kitsu.task[name]()).toBeNull()
-    expect(fake.calls[0]).toMatchObject({ method: 'GET', path })
+  it('getOpenTasksStats returns the statistics of each production', async () => {
+    const counts = {
+      amount: 3,
+      amount_done: 1,
+      total_duration: 120,
+      total_estimation: 960
+    }
+    const stats = {
+      [PROJECT_ID]: {
+        ...counts,
+        task_types: [
+          {
+            ...counts,
+            task_type_id: TASK_TYPE_ID,
+            task_status_id: TASK_STATUS_ID,
+            project_id: PROJECT_ID
+          }
+        ]
+      }
+    }
+    fake.reply(200, stats)
+    expect(await kitsu.task.getOpenTasksStats()).toEqual(stats)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/tasks/open-tasks/stats'
+    })
+  })
+
+  it('getPersonsTasksDates returns the list of Zou', async () => {
+    const dates = [
+      {
+        person_id: PERSON_ID,
+        min_date: '2026-09-01T00:00:00',
+        max_date: '2026-09-30T00:00:00',
+        busy_periods: []
+      },
+      {
+        person_id: OTHER_ID,
+        min_date: null,
+        max_date: null,
+        busy_periods: [{ start_date: '2026-10-01', end_date: '2026-10-09' }]
+      }
+    ]
+    fake.reply(200, dates)
+    expect(await kitsu.task.getPersonsTasksDates()).toEqual(dates)
+    expect(fake.calls[0]).toMatchObject({
+      method: 'GET',
+      path: '/data/persons/task-dates'
+    })
   })
 
   it('getTaskByEntity looks a task up by entity, type and name', async () => {
-    fake.reply(200, [{ id: TASK_ID }]).reply(200, [])
+    fake.reply(200, [{ id: TASK_ID, name: 'main' }]).reply(200, [])
     expect(
       await kitsu.task.getTaskByEntity({ id: ENTITY_ID }, TASK_TYPE_ID)
-    ).toEqual({ id: TASK_ID })
+    ).toEqual({ id: TASK_ID, name: 'main' })
     expect(
       await kitsu.task.getTaskByEntity(
         ENTITY_ID,
@@ -317,10 +382,11 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('newTask returns the existing task of the entity', async () => {
-    fake.reply(200, [{ id: TASK_ID }])
+    fake.reply(200, [{ id: TASK_ID, name: 'main' }])
     const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
     expect(await kitsu.task.newTask(entity, TASK_TYPE_ID)).toEqual({
-      id: TASK_ID
+      id: TASK_ID,
+      name: 'main'
     })
     expect(fake.calls).toHaveLength(1)
     expect(Object.fromEntries(fake.calls[0].query)).toEqual({
@@ -328,6 +394,18 @@ describe('task namespace: tasks, types and statuses', () => {
       task_type_id: TASK_TYPE_ID,
       entity_id: ENTITY_ID
     })
+  })
+
+  // Zou keeps "MAIN" and "main" apart, and its ILIKE filter finds both.
+  it('newTask returns the task of that exact name before another case', async () => {
+    const tasks = [
+      { id: OTHER_ID, name: 'MAIN' },
+      { id: TASK_ID, name: 'main' }
+    ]
+    fake.reply(200, tasks)
+    const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
+    expect(await kitsu.task.newTask(entity, TASK_TYPE_ID)).toEqual(tasks[1])
+    expect(fake.calls).toHaveLength(1)
   })
 
   it('newTask creates the task with the default status', async () => {
@@ -340,7 +418,10 @@ describe('task namespace: tasks, types and statuses', () => {
       id: TASK_ID
     })
     expect(fake.calls[1].path).toBe('/data/task-status')
-    expect(fake.calls[1].query.get('is_default')).toBe('true')
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({
+      is_default: 'true',
+      for_concept: 'false'
+    })
     expect(fake.calls[2]).toMatchObject({ method: 'POST', path: '/data/tasks' })
     expect(fake.calls[2].body).toEqual({
       project_id: PROJECT_ID,
@@ -388,6 +469,33 @@ describe('task namespace: tasks, types and statuses', () => {
     })
     expect(fake.calls[1].path).toBe(`/data/entities/${ENTITY_ID}`)
     expect(fake.calls[2].body.project_id).toBe(PROJECT_ID)
+  })
+
+  it('newTask checks every id before any request', async () => {
+    // Even for a task that exists: its lookup would answer it.
+    fake.reply(200, [{ id: TASK_ID }])
+    const entity = { id: ENTITY_ID, project_id: PROJECT_ID }
+    const errors = await Promise.all(
+      [
+        { taskStatus: 'wip' },
+        { assigner: 'jane' },
+        { assignees: ['jane'] }
+      ].map(options =>
+        kitsu.task.newTask(entity, TASK_TYPE_ID, options).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('newTask takes null assignees as nobody, like gazu', async () => {
+    fake.reply(200, []).reply(201, { id: TASK_ID })
+    await kitsu.task.newTask(
+      { id: ENTITY_ID, project_id: PROJECT_ID },
+      TASK_TYPE_ID,
+      { taskStatus: TASK_STATUS_ID, assignees: null }
+    )
+    expect(fake.calls[1].body.assignees).toEqual([])
   })
 
   it('newTask fails without any default status', async () => {
@@ -447,6 +555,27 @@ describe('task namespace: tasks, types and statuses', () => {
     await kitsu.task.updateTask({ id: TASK_ID, assignees: null })
     expect(fake.calls[0].body).toEqual({ assignees: [] })
   })
+
+  it('updateTask leaves the assignees alone when they are undefined', async () => {
+    // An empty list would unassign everybody.
+    fake.reply(200, { id: TASK_ID })
+    await kitsu.task.updateTask({
+      id: TASK_ID,
+      priority: 2,
+      assignees: undefined
+    })
+    expect(fake.calls[0].body).toEqual({ priority: 2 })
+  })
+
+  it.each([[TASK_ID], [null], [undefined]])(
+    'updateTask rejects %s without any request',
+    async task => {
+      await expect(kitsu.task.updateTask(task)).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
 
   it('updateTaskData sends only the given keys, Zou merges them', async () => {
     fake.reply(200, { id: TASK_ID, data: { a: 1, b: 3 } })
@@ -529,9 +658,13 @@ describe('task namespace: tasks, types and statuses', () => {
   })
 
   it('removeTasksBatch deletes a batch of tasks of a project', async () => {
+    // Zou answers the ids it was given, whether it deleted them or not.
     fake.reply(200, [TASK_ID, OTHER_ID])
     const tasks = [{ id: TASK_ID }, OTHER_ID]
-    await kitsu.task.removeTasksBatch(PROJECT_ID, tasks)
+    expect(await kitsu.task.removeTasksBatch(PROJECT_ID, tasks)).toEqual([
+      TASK_ID,
+      OTHER_ID
+    ])
     expect(fake.calls[0]).toMatchObject({
       method: 'POST',
       path: `/actions/projects/${PROJECT_ID}/delete-tasks`,
@@ -556,5 +689,22 @@ describe('task namespace: tasks, types and statuses', () => {
       path: `/data/entities/${id}/tasks`,
       body: { task_type_ids: [TASK_TYPE_ID, OTHER_ID] }
     })
+  })
+
+  it.each([
+    ['createShotTasks', SHOT_ID],
+    ['createAssetTasks', ASSET_ID],
+    ['createEditTasks', EDIT_ID],
+    ['createConceptTasks', CONCEPT_ID],
+    ['createEntityTasks', ENTITY_ID]
+  ])('%s creates nothing without a task type', async (name, id) => {
+    // Zou would create every task type of the entity.
+    const errors = await Promise.all(
+      [[], undefined, null].map(taskTypes =>
+        kitsu.task[name](id, taskTypes).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 })

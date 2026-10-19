@@ -11,8 +11,8 @@ import { NotFoundError, ParameterError } from './errors.js'
  * @property {string} [fileName] Name sent with the file: a bare Blob has none.
  * @property {(progress: {loaded: number, total: number}) => void} [onProgress]
  *   Needs XMLHttpRequest (browsers, webviews): fetch cannot report it. A
- *   client given its own fetch (Tauri) uploads through it and never calls
- *   onProgress.
+ *   client given its own fetch (Tauri) calls it only with xhrUploads: true,
+ *   and a bearer client never for an upload to the origin of its page.
  * @property {AbortSignal} [signal]
  */
 
@@ -26,11 +26,12 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/
  * is not a UUID keeps caller input, and a missing entity, out of request
  * paths. Optional filters go through optionalIdOf.
  * @param {Model} model
- * @returns {string}
+ * @returns {string} The id in lowercase, as Zou writes it: some routes
+ *   compare the id of their path with the ids of the database as strings.
  */
 export const idOf = model => {
   const id = model && typeof model === 'object' ? model.id : model
-  if (typeof id === 'string' && UUID.test(id)) return id
+  if (typeof id === 'string' && UUID.test(id)) return id.toLowerCase()
   throw new ParameterError(
     'Wrong format: expected an id string or an entity object'
   )
@@ -49,7 +50,12 @@ export const optionalIdOf = model =>
  * @param {Model[]} [models]
  * @returns {string[]}
  */
-export const idsOf = (models = []) => models.map(idOf)
+export const idsOf = (models = []) => {
+  if (!Array.isArray(models)) {
+    throw new ParameterError('Wrong format: expected a list of ids or entities')
+  }
+  return models.map(idOf)
+}
 
 /**
  * Guard a required value used as a filter. buildQuery drops empty values: a
@@ -66,6 +72,18 @@ export const requiredOf = (label, value) => {
 }
 
 /**
+ * An update needs the object to save: its id alone holds nothing to send,
+ * and a string would reach the body as one key per character.
+ * @template {object} T
+ * @param {T} entity
+ * @returns {T}
+ */
+export const fieldsOf = entity => {
+  if (entity && typeof entity === 'object') return entity
+  throw new ParameterError('Wrong format: expected the object to save')
+}
+
+/**
  * Same as gazu's "if value is not None": an unset optional key never reaches
  * Zou.
  * @param {Record<string, any>} data
@@ -77,6 +95,59 @@ export const withoutNil = data =>
       ([, value]) => value !== null && value !== undefined
     )
   )
+
+/**
+ * The keys left unset, the way JSON drops them. A null stays: it clears a
+ * field.
+ * @param {Record<string, any>} data
+ * @returns {Record<string, any>} A copy without the undefined values.
+ */
+export const withoutUndefined = data =>
+  Object.fromEntries(
+    Object.entries(data).filter(([, value]) => value !== undefined)
+  )
+
+/**
+ * A filter under a name the function does not read would be dropped without
+ * a word, and the answer would widen to everything in scope: the snake_case
+ * keys of Zou, or the filters object of 0.2.
+ * @param {Record<string, any>} others The options left once the known ones
+ *   are read. An undefined one is not given.
+ */
+export const refuseUnknownOptions = others => {
+  const names = Object.keys(others).filter(name => others[name] !== undefined)
+  if (names.length === 0) return
+  const fromZou = names.some(name => name === 'filters' || name.includes('_'))
+  const hint = fromZou ? ', the filters are named options in camelCase' : ''
+  throw new ParameterError(
+    `Wrong format: unknown option ${names.join(', ')}${hint}`
+  )
+}
+
+/**
+ * The metadata to merge. A string would reach Zou as one key per character.
+ * @param {Record<string, any>|null|undefined} data
+ * @returns {Record<string, any>|null|undefined}
+ */
+export const metadataOf = data =>
+  data === null || data === undefined ? data : fieldsOf(data)
+
+/**
+ * The body of an update. An object holding none of the fields the function
+ * saves would send an empty one, that Zou answers as a success: it is
+ * refused instead.
+ * @param {Record<string, any>} fields Each field the function saves.
+ * @param {(data: Record<string, any>) => Record<string, any>} [keep] Leaves
+ *   out the fields not given: the undefined ones by default.
+ * @returns {Record<string, any>}
+ */
+export const changesOf = (fields, keep = withoutUndefined) => {
+  const changes = keep(fields)
+  if (Object.keys(changes).length > 0) return changes
+  throw new ParameterError(
+    `Missing parameter: nothing to save, give one of ${Object.keys(fields).join(', ')}`
+  )
+}
 
 /**
  * Some reads write a missing id as a placeholder string ('' or 'None') that
@@ -118,6 +189,39 @@ export const sortedByName = entries =>
     if (keyA < keyB) return -1
     return keyA > keyB ? 1 : 0
   })
+
+/**
+ * Zou filters a name with ILIKE, where "%" and "_" match any character and
+ * the backslash escapes the next one: escaped, a name only matches itself,
+ * whatever its case. A blank name is refused: buildQuery would drop the
+ * filter, and the lookup would list every row.
+ * @param {string} name
+ * @returns {string} The name filter to send.
+ */
+export const likeLiteralOf = name =>
+  String(requiredOf('name', name)).replace(/[\\%_]/g, '\\$&')
+
+/**
+ * The row of that name, among rows matched whatever their case: the exact
+ * spelling first, Zou keeping "Props" and "props" apart, then the same name
+ * in another case.
+ * @param {Entity[]|null|undefined} entries
+ * @param {string} name
+ * @returns {Entity|null} null when no row has that name.
+ */
+export const sameNameOf = (entries, name) => {
+  const rows = Array.isArray(entries) ? entries : []
+  const wanted = String(name)
+  const lower = wanted.toLowerCase()
+  return (
+    rows.find(entry => entry.name === wanted) ||
+    rows.find(
+      entry =>
+        typeof entry.name === 'string' && entry.name.toLowerCase() === lower
+    ) ||
+    null
+  )
+}
 
 const twoDigits = value => String(value).padStart(2, '0')
 

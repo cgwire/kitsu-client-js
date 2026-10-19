@@ -1,8 +1,12 @@
+import { ParameterError } from '../core/errors.js'
 import {
+  fieldsOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -12,6 +16,39 @@ import {
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
  */
+
+// The link lists of a template read with its relations. Zou ignores them on
+// an update, but for preview_background_files, which it takes as the whole
+// list: a template read earlier would undo the links made since.
+const LINK_FIELDS = [
+  'task_types',
+  'task_statuses',
+  'asset_types',
+  'status_automations',
+  'preview_background_files'
+]
+
+const withoutLinks = template =>
+  Object.fromEntries(
+    Object.entries(template).filter(([key]) => !LINK_FIELDS.includes(key))
+  )
+
+// The choices of the board roles of a task status link. Zou stores any
+// string there, then fails on every later read of the link.
+const ROLES = ['user', 'admin', 'supervisor', 'manager', 'client', 'vendor']
+
+const boardRolesOf = roles => {
+  if (
+    roles === null ||
+    roles === undefined ||
+    (Array.isArray(roles) && roles.every(role => ROLES.includes(role)))
+  ) {
+    return roles
+  }
+  throw new ParameterError(
+    `Wrong format: rolesForBoard must be a list of ${ROLES.join(', ')}`
+  )
+}
 
 export const projectTemplateApi = http => {
   const templatePath = projectTemplate =>
@@ -56,18 +93,23 @@ export const projectTemplateApi = http => {
     /**
      * @param {string} name
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The project template matching the name,
-     *   null when missing.
+     * @returns {Promise<Entity|null>} The project template of that name, the
+     *   case ignored but an exact match first, null when none.
      */
     getProjectTemplateByName: async (name, { signal } = {}) =>
-      http.fetchFirst(
-        'project-templates',
-        { name: requiredOf('name', name) },
-        { signal }
-      ),
+      http
+        .fetchAll(
+          'project-templates',
+          { name: likeLiteralOf(name) },
+          { signal }
+        )
+        .then(entries => sameNameOf(entries, name)),
 
     /**
-     * Create an empty project template.
+     * Create a project template without any link. The production settings
+     * it is not given take the defaults of Zou (25 fps, 16:9, 1920x1080,
+     * short, 2d3d, no retake limit, the assets homepage, every flag off),
+     * which applyProjectTemplate writes to a project like the given ones.
      * @param {string} name Must be unique.
      * @param {{
      *   description?: string,
@@ -95,7 +137,7 @@ export const projectTemplateApi = http => {
       http.post(
         'data/project-templates',
         {
-          name,
+          name: requiredOf('name', name),
           description,
           ...withoutNil({
             fps,
@@ -109,14 +151,19 @@ export const projectTemplateApi = http => {
       ),
 
     /**
+     * Save the template. Its link lists are not sent: the add and remove
+     * functions of each link change them.
      * @param {Entity} projectTemplate
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */
     updateProjectTemplate: async (projectTemplate, { signal } = {}) =>
-      http.update('project-templates', idOf(projectTemplate), projectTemplate, {
-        signal
-      }),
+      http.update(
+        'project-templates',
+        idOf(projectTemplate),
+        withoutLinks(fieldsOf(projectTemplate)),
+        { signal }
+      ),
 
     /**
      * @param {Model} projectTemplate
@@ -127,9 +174,12 @@ export const projectTemplateApi = http => {
       http.del(templatePath(projectTemplate), undefined, { signal }),
 
     /**
-     * Snapshot the configuration of a project (task types, task statuses,
-     * asset types, status automations, metadata descriptors and production
-     * settings) into a new template. Production data is not copied.
+     * Snapshot the configuration of a project into a new template: its
+     * production settings, its file tree, its data (the values of its Project
+     * metadata), its metadata descriptors, its default preview background
+     * and its links to task types, task statuses, asset types, status
+     * automations and preview backgrounds. The team, the dates and the
+     * production data (assets, shots, tasks) are not copied.
      * @param {Model} project
      * @param {string} name
      * @param {{description?: string, signal?: AbortSignal}} [options]
@@ -142,13 +192,18 @@ export const projectTemplateApi = http => {
     ) =>
       http.post(
         `data/project-templates/from-project/${idOf(project)}`,
-        { name, description },
+        { name: requiredOf('name', name), description },
         { signal }
       ),
 
     /**
-     * Apply the template to an existing project. Existing links are kept and
-     * duplicates are skipped.
+     * Apply the template to an existing project. Every production setting
+     * the template has (fps, ratio, resolution, production type and style,
+     * max retakes, homepage, client, preview and publish flags, movie
+     * bitrates) overwrites the one of the project, and its file tree and
+     * data, when it has them, replace the project's. Links and metadata
+     * descriptors are only added, the existing ones are kept, and the
+     * default background is set only when the project has none.
      * @param {Model} project
      * @param {Model} projectTemplate
      * @param {RequestOptions} [options]
@@ -174,11 +229,13 @@ export const projectTemplateApi = http => {
      * @param {Model} taskType
      * @param {{
      *   priority?: number,
-     *   hdBitrateCompression?: number,
-     *   ldBitrateCompression?: number,
+     *   hdBitrateCompression?: number|null,
+     *   ldBitrateCompression?: number|null,
      *   signal?: AbortSignal
      * }} [options] Bitrates are movie bitrates in Mbit/s for that task type.
-     * @returns {Promise<Entity>} The created link.
+     *   Zou writes both as soon as one is given: a missing one goes back to
+     *   null, which inherits the bitrate of the project. null resets one.
+     * @returns {Promise<Entity>} The link, created or updated.
      */
     addTaskTypeToProjectTemplate: async (
       projectTemplate,
@@ -188,12 +245,12 @@ export const projectTemplateApi = http => {
       addLink(
         projectTemplate,
         'task-types',
-        withoutNil({
-          task_type_id: idOf(taskType),
-          priority,
+        {
+          ...withoutNil({ task_type_id: idOf(taskType), priority }),
+          // JSON leaves an undefined bitrate out, and sends a null one.
           hd_bitrate_compression: hdBitrateCompression,
           ld_bitrate_compression: ldBitrateCompression
-        }),
+        },
         signal
       ),
 
@@ -227,8 +284,8 @@ export const projectTemplateApi = http => {
      *   rolesForBoard?: string[],
      *   signal?: AbortSignal
      * }} [options] rolesForBoard lists the roles allowed to see the status on
-     *   the board.
-     * @returns {Promise<Entity>} The created link.
+     *   the board, among user, admin, supervisor, manager, client and vendor.
+     * @returns {Promise<Entity>} The link, created or updated.
      */
     addTaskStatusToProjectTemplate: async (
       projectTemplate,
@@ -241,7 +298,7 @@ export const projectTemplateApi = http => {
         withoutNil({
           task_status_id: idOf(taskStatus),
           priority,
-          roles_for_board: rolesForBoard
+          roles_for_board: boardRolesOf(rolesForBoard)
         }),
         signal
       ),
@@ -267,10 +324,11 @@ export const projectTemplateApi = http => {
       allLinks(projectTemplate, 'asset-types', signal),
 
     /**
+     * Link an asset type to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} assetType
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The asset type, with its id and name only.
      */
     addAssetTypeToProjectTemplate: async (
       projectTemplate,
@@ -308,10 +366,11 @@ export const projectTemplateApi = http => {
     ) => allLinks(projectTemplate, 'status-automations', signal),
 
     /**
+     * Link a status automation to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} statusAutomation
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The status automation.
      */
     addStatusAutomationToProjectTemplate: async (
       projectTemplate,
@@ -355,10 +414,12 @@ export const projectTemplateApi = http => {
     ) => allLinks(projectTemplate, 'preview-background-files', signal),
 
     /**
+     * Link a preview background file to the template, unless it already is.
      * @param {Model} projectTemplate
      * @param {Model} previewBackgroundFile
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity>} The created link.
+     * @returns {Promise<Entity>} The background, with its id, name and
+     *   is_default only.
      */
     addPreviewBackgroundFileToProjectTemplate: async (
       projectTemplate,
@@ -400,8 +461,14 @@ export const projectTemplateApi = http => {
       projectTemplate,
       previewBackgroundFile,
       { signal } = {}
-    ) =>
-      http.put(
+    ) => {
+      // Zou takes a missing background for null, which clears the default.
+      if (previewBackgroundFile === undefined) {
+        throw new ParameterError(
+          'Missing parameter: previewBackgroundFile is required, null clears the default'
+        )
+      }
+      return http.put(
         `${templatePath(projectTemplate)}/default-preview-background-file`,
         {
           default_preview_background_file_id: optionalIdOf(
@@ -409,15 +476,18 @@ export const projectTemplateApi = http => {
           )
         },
         { signal }
-      ),
+      )
+    },
 
     /**
      * Replace the metadata descriptor snapshot of the template: the previous
-     * one is not merged. Each descriptor has the shape materialized when the
-     * template is applied: name, entity_type, data_type, choices, for_client,
-     * departments, position.
+     * one is not merged. Applying the template adds to the project each
+     * descriptor it lacks, from the name, entity_type, task_type_id (a Task
+     * entry without it is skipped), data_type, choices, for_client and
+     * departments (ids) of the entry. position is kept in the snapshot only,
+     * and the field name always comes from the name.
      * @param {Model} projectTemplate
-     * @param {object[]} descriptors
+     * @param {object[]} descriptors An empty list clears the snapshot.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated project template.
      */
@@ -425,16 +495,23 @@ export const projectTemplateApi = http => {
       projectTemplate,
       descriptors,
       { signal } = {}
-    ) =>
-      http.put(
+    ) => {
+      // Zou takes a missing list for an empty one, which erases the snapshot.
+      if (!Array.isArray(requiredOf('descriptors', descriptors))) {
+        throw new ParameterError('Wrong format: descriptors must be a list')
+      }
+      return http.put(
         `${templatePath(projectTemplate)}/metadata-descriptors`,
         { metadata_descriptors: descriptors },
         { signal }
-      ),
+      )
+    },
 
     /**
-     * Set the priority of every task type link of the template from the order
-     * of the list, in one request.
+     * Give the listed task types their priority on the template from the
+     * order of the list. A task type missing from the template is linked
+     * too, at its position. Zou saves the links one by one: an unknown id
+     * fails the call once the links before it are saved.
      * @param {Model} projectTemplate
      * @param {Model[]} taskTypes Task types or ids, in their new order.
      * @param {RequestOptions} [options]
@@ -454,8 +531,11 @@ export const projectTemplateApi = http => {
       ),
 
     /**
-     * Set the priority of every task status link of the template from the
-     * order of the list, in one request.
+     * Give the listed task statuses their priority on the template from the
+     * order of the list, their board roles unchanged. A task status missing
+     * from the template is linked too, at its position. Zou saves the links
+     * one by one: an unknown id fails the call once the links before it are
+     * saved.
      * @param {Model} projectTemplate
      * @param {Model[]} taskStatuses Task statuses or ids, in their new order.
      * @param {RequestOptions} [options]

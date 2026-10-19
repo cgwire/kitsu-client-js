@@ -1,7 +1,9 @@
 import {
   idOf,
   idsOf,
-  requiredOf,
+  likeLiteralOf,
+  orNull,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -13,15 +15,22 @@ import {
  */
 
 export const conceptApi = http => {
-  const conceptByName = (project, name, signal) =>
-    http.fetchFirst(
-      'concepts',
-      { project_id: idOf(project), name: requiredOf('name', name) },
-      { signal }
+  const conceptByName = async (project, name, signal) => {
+    const concepts = await orNull(
+      http.fetchAll(
+        'concepts',
+        { project_id: idOf(project), name: likeLiteralOf(name) },
+        { signal }
+      )
     )
+    return sameNameOf(concepts, name)
+  }
 
   return {
     /**
+     * Zou lists every concept to an admin only: anyone else gets a
+     * NotAllowedError and reads the concepts of a project with
+     * allConceptsForProject.
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity[]>} Every concept, sorted by name.
      */
@@ -54,7 +63,8 @@ export const conceptApi = http => {
     /**
      * @param {Model} concept
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The preview files of the concept.
+     * @returns {Promise<Record<string, Entity[]>>} The preview files of the
+     *   concept: task type ids as keys, revisions as values.
      */
     allPreviewsForConcept: async (concept, { signal } = {}) =>
       http.fetchAll(`concepts/${idOf(concept)}/preview-files`, {}, { signal }),
@@ -87,13 +97,16 @@ export const conceptApi = http => {
      * @param {Model} project
      * @param {string} conceptName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The concept of the project with that name.
+     * @returns {Promise<Entity|null>} The concept of the project with that
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
     getConceptByName: async (project, conceptName, { signal } = {}) =>
       conceptByName(project, conceptName, signal),
 
     /**
-     * Create a concept in the project, unless one already has that name.
+     * Create a concept in the project, unless one already has that name, as
+     * getConceptByName finds it.
      * @param {Model} project
      * @param {string} name
      * @param {{
@@ -112,7 +125,11 @@ export const conceptApi = http => {
       const body = {
         name,
         data: { ...data },
-        entity_concept_links: idsOf(entityConceptLinks || []),
+        // Zou validates the links as dicts and reads the id of each: a list
+        // of id strings is refused (400) and the concept is not created.
+        entity_concept_links: idsOf(entityConceptLinks || []).map(id => ({
+          id
+        })),
         ...withoutNil({ description })
       }
       const path = `data/projects/${idOf(project)}/concepts`

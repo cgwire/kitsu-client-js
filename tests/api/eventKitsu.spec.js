@@ -55,6 +55,50 @@ describe('event namespace: Kitsu logs', () => {
     expect(fake.calls[0].query.has('only_files')).toBe(false)
   })
 
+  it('allLastEvents takes null persons as no filter', async () => {
+    fake.reply(200, [])
+    await kitsu.event.allLastEvents({ persons: null })
+    expect(fake.calls[0].query.has('person_ids')).toBe(false)
+  })
+
+  // Dropped, they would list every event.
+  it('the last events and logins refuse what they do not read', async () => {
+    const calls = [
+      ['allLastEvents', { namePrefixes: [] }],
+      ['allLastEvents', { nameSuffixes: [] }],
+      ['allLastEvents', { project_id: PROJECT_ID }],
+      ['allLastLoginLogs', { person_ids: [PERSON_ID] }]
+    ]
+    const errors = await Promise.all(
+      calls.map(([name, options]) =>
+        kitsu.event[name](options).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // Zou reads an empty list as no filter: the events of every person.
+  it.each(['allLastEvents', 'allLastLoginLogs'])(
+    '%s refuses an empty persons list before any request',
+    async name => {
+      await expect(kitsu.event[name]({ persons: [] })).rejects.toBeInstanceOf(
+        ParameterError
+      )
+      expect(fake.calls).toHaveLength(0)
+    }
+  )
+
+  it('allLastEvents rejects a person given in place of a list', async () => {
+    await expect(
+      kitsu.event.allLastEvents({ persons: { id: PERSON_ID } })
+    ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.event.allLastEvents({ persons: PERSON_ID })
+    ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
   it('allLastEvents rejects a malformed project', async () => {
     await expect(
       kitsu.event.allLastEvents({ project: 'not-an-id' })
@@ -107,6 +151,15 @@ describe('event namespace: Kitsu logs', () => {
     await expect(
       kitsu.event.allLastLoginLogs({ persons: ['nope'] })
     ).rejects.toBeInstanceOf(ParameterError)
+    await expect(
+      kitsu.event.allLastLoginLogs({ persons: PERSON_ID })
+    ).rejects.toBeInstanceOf(ParameterError)
     expect(fake.calls).toHaveLength(0)
+  })
+
+  it('allLastLoginLogs takes null persons as no filter', async () => {
+    fake.reply(200, [])
+    await kitsu.event.allLastLoginLogs({ persons: null })
+    expect(fake.calls[0].query.has('person_ids')).toBe(false)
   })
 })

@@ -29,11 +29,15 @@ const byCollated = key => (a, b) => collator.compare(a[key], b[key])
 
 const byName = byCollated('name')
 
-const byEpisode = (a, b) =>
-  a.episode_name ? collator.compare(a.episode_name, b.episode_name) : 0
+// Kitsu skips these names when the first entry has none: that comparator is
+// not consistent, and the order then depends on the input order. A missing
+// name compares as an empty one, before any other.
+const byOptionalName = key => (a, b) =>
+  collator.compare(a[key] || '', b[key] || '')
 
-const byProject = (a, b) =>
-  a.project_name ? collator.compare(a.project_name, b.project_name) : 0
+const byEpisode = byOptionalName('episode_name')
+
+const byProject = byOptionalName('project_name')
 
 const byTaskTypeName = taskTypeMap => (a, b) =>
   collator.compare(
@@ -102,7 +106,10 @@ const personComparator = compareBy(
 
 /**
  * Sort assets: canceled last, then by asset type name, shared assets after
- * the project ones, then by name.
+ * the project ones, then by name. The asset type name comes with getAsset and
+ * allAssetsWithTasks, not with the plain listings. `shared` is not a field of
+ * the API: Kitsu sets it on the assets of other projects, such as those of
+ * allSharedAssetsUsedInProject, to sort them last.
  * @template T
  * @param {T[]} assets
  * @returns {T[]} A new sorted array.
@@ -147,7 +154,8 @@ export const sortProductions = productions =>
  * Sort tasks by task type name, then by entity name.
  * @template T
  * @param {T[]} tasks
- * @param {Map<string, {name?: string}>} taskTypeMap Task types indexed by id.
+ * @param {Map<string, {name?: string, [field: string]: any}>} taskTypeMap
+ *   Task types indexed by id.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskNames = (tasks, taskTypeMap) =>
@@ -158,7 +166,8 @@ export const sortTaskNames = (tasks, taskTypeMap) =>
  * and entity name.
  * @template T
  * @param {T[]} tasks
- * @param {Map<string, {name?: string}>} taskTypeMap Task types indexed by id.
+ * @param {Map<string, {name?: string, [field: string]: any}>} taskTypeMap
+ *   Task types indexed by id.
  * @returns {T[]} A new sorted array.
  */
 export const sortTasks = (tasks, taskTypeMap) =>
@@ -193,8 +202,8 @@ export const sortRevisionPreviewFiles = previewFiles =>
  * status own priority, then by name.
  * @template T
  * @param {T[]} taskStatuses
- * @param {Record<string, any>} [production] The project dict, read for its
- *   `task_statuses_link` overrides.
+ * @param {Record<string, any>|null} [production] The project dict, read for
+ *   its `task_statuses_link` overrides.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskStatuses = (taskStatuses, production) =>
@@ -207,8 +216,8 @@ export const sortTaskStatuses = (taskStatuses, production) =>
  * winning over the task type own priority, then by name.
  * @template T
  * @param {T[]} taskTypes
- * @param {Record<string, any>} [production] The project dict, read for its
- *   `task_types_priority` overrides.
+ * @param {Record<string, any>|null} [production] The project dict, read for
+ *   its `task_types_priority` overrides.
  * @returns {T[]} A new sorted array.
  */
 export const sortTaskTypes = (taskTypes, production) =>
@@ -236,19 +245,33 @@ export const sortPeople = people => [...people].sort(personComparator)
  */
 export const sortByName = entries => [...entries].sort(byName)
 
+// Kitsu sorts on the name its store adds to each person, which the dicts of
+// the API do not carry: build it the same way.
+const personNameOf = person =>
+  person?.name ||
+  [person?.first_name, person?.last_name].filter(Boolean).join(' ') ||
+  person?.email ||
+  ''
+
 /**
- * Sort person ids alphabetically by the person's name. Ids missing from a
+ * Sort person ids alphabetically by the person's name: first and last names,
+ * or the email when both are empty, as Kitsu displays it. Ids missing from a
  * partially loaded map sink to the end rather than throwing: callers read the
  * first id as "the" assignee, so a hole must never displace a person who did
  * resolve.
  * @param {string[]} personIds
- * @param {Map<string, {name?: string}>} personMap People indexed by id.
+ * @param {Map<string, {
+ *   first_name?: string,
+ *   last_name?: string,
+ *   [field: string]: any
+ * }>} personMap People indexed by id: the dicts of the API, or the people of
+ *   the Kitsu store, whose name field wins.
  * @returns {string[]} A new sorted array.
  */
 export const sortByPersonName = (personIds, personMap) =>
   [...personIds].sort((a, b) => {
-    const nameA = personMap.get(a)?.name
-    const nameB = personMap.get(b)?.name
+    const nameA = personNameOf(personMap.get(a))
+    const nameB = personNameOf(personMap.get(b))
     if (!nameA) return nameB ? 1 : 0
     if (!nameB) return -1
     return nameA.localeCompare(nameB)

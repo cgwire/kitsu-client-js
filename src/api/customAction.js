@@ -1,4 +1,11 @@
-import { idOf, requiredOf, sortedByName, withoutNil } from '../core/params.js'
+import { ParameterError } from '../core/errors.js'
+import {
+  changesOf,
+  idOf,
+  requiredOf,
+  sortedByName,
+  withoutNil
+} from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -50,11 +57,17 @@ export const customActionApi = http => ({
    */
   updateCustomAction: async (customAction, { signal } = {}) => {
     const id = idOf(customAction)
+    // Its id alone holds no field: the empty body would pass as a save.
+    if (typeof customAction !== 'object') {
+      throw new ParameterError(
+        'Wrong format: expected the custom action, not its id'
+      )
+    }
     const { name, url, entity_type, is_ajax } = customAction
     return http.update(
       'custom-actions',
       id,
-      withoutNil({ name, url, entity_type, is_ajax }),
+      changesOf({ name, url, entity_type, is_ajax }, withoutNil),
       { signal }
     )
   },
@@ -62,7 +75,7 @@ export const customActionApi = http => ({
   /**
    * @param {Model} customAction
    * @param {RequestOptions} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<null>}
    */
   removeCustomAction: async (customAction, { signal } = {}) =>
     http.remove('custom-actions', idOf(customAction), {}, { signal })

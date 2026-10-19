@@ -1,4 +1,4 @@
-import { idOf, optionalIdOf, orNull } from '../core/params.js'
+import { datetimeOf, idOf, optionalIdOf, orNull } from '../core/params.js'
 
 /**
  * @typedef {import('../core/params.js').Entity} Entity
@@ -7,8 +7,13 @@ import { idOf, optionalIdOf, orNull } from '../core/params.js'
  * @typedef {{
  *   data: Entity[],
  *   total: number,
+ *   nb_pages: number,
+ *   limit: number,
+ *   offset: number,
+ *   page: number,
  *   stats: Record<string, number>
- * }} NewsFeed One page of news, the total and the count per task status.
+ * }} NewsFeed One page of news, 50 by default, with the paging of the feed
+ *   and the count of news per task status id.
  */
 
 export const newsApi = http => ({
@@ -24,11 +29,12 @@ export const newsApi = http => ({
    *   episode?: Model,
    *   page?: number,
    *   limit?: number,
-   *   after?: string,
-   *   before?: string,
+   *   after?: Date|string,
+   *   before?: Date|string,
    *   signal?: AbortSignal
-   * }} [options] after and before are "YYYY-MM-DDTHH:mm:ss" strings, or
-   *   plain days.
+   * }} [options] after and before keep the news created strictly between
+   *   them, in UTC: a Date is sent to the second, a string
+   *   ("YYYY-MM-DDTHH:mm:ss" or "YYYY-MM-DD") is read as a UTC time.
    * @returns {Promise<NewsFeed>}
    */
   allNews: async ({
@@ -55,8 +61,8 @@ export const newsApi = http => ({
         episode_id: optionalIdOf(episode),
         page,
         limit,
-        after,
-        before
+        after: datetimeOf(after),
+        before: datetimeOf(before)
       },
       { signal }
     )

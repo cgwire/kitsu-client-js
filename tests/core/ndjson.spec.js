@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  KitsuError,
   NetworkError,
   NotAuthenticatedError,
   TimeoutError
@@ -65,6 +66,38 @@ describe('readNdjson', () => {
     expect(await readNdjson(ndjsonResponse(lines))).toEqual([{ id: 'a1' }])
   })
 
+  // TCP splits a stream anywhere: in a line, in a multi-byte character.
+  it.each([
+    ['with', '\n'],
+    ['without', '']
+  ])(
+    'decodes a stream split at every byte, %s a trailing newline',
+    async (_, end) => {
+      const lines = [
+        COMPACT[0],
+        ['a1', 'Héroïne 🦸', [['t1', ['p1']]]],
+        ['a2', '木の精', []]
+      ]
+      const bytes = new TextEncoder().encode(
+        lines.map(line => JSON.stringify(line)).join('\n') + end
+      )
+      const body = new ReadableStream({
+        start: stream => {
+          bytes.forEach(byte => stream.enqueue(Uint8Array.of(byte)))
+          stream.close()
+        }
+      })
+      expect(await readNdjson(new Response(body))).toEqual([
+        {
+          id: 'a1',
+          name: 'Héroïne 🦸',
+          tasks: [{ id: 't1', assignees: ['p1'] }]
+        },
+        { id: 'a2', name: '木の精', tasks: [] }
+      ])
+    }
+  )
+
   it('reports a malformed line as a SyntaxError and releases the stream', async () => {
     const cancel = vi.fn()
     const encoder = new TextEncoder()
@@ -116,6 +149,19 @@ describe('http.getNdjson', () => {
   it('falls back on an HTTP error so the plain request raises the typed error', async () => {
     const fake = createFakeFetch().reply(400, {}).reply(200, [])
     expect(await makeHttp(fake).getNdjson('data/assets/with-tasks')).toEqual([])
+  })
+
+  it('raises the error of a page answered instead of the stream', async () => {
+    const page = async () =>
+      new Response('<html></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' }
+      })
+    const err = await makeHttp(page)
+      .getNdjson('data/assets/with-tasks')
+      .catch(e => e)
+    expect(err).toBeInstanceOf(KitsuError)
+    expect(err).toMatchObject({ status: 200, body: '<html></html>' })
   })
 
   it('does not fall back on a 401', async () => {

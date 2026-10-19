@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ParameterError } from '../../src/core/errors.js'
 import { makeClient } from '../helpers/client.js'
-import { ENTITY_ID, NOTIFICATION_ID, TASK_ID } from '../helpers/ids.js'
+import {
+  ENTITY_ID,
+  NOTIFICATION_ID,
+  OTHER_ID,
+  PERSON_ID,
+  TASK_ID,
+  TASK_STATUS_ID,
+  TASK_TYPE_ID
+} from '../helpers/ids.js'
 
 const LOG_ID = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
+const DAY_OFF_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+const TIME_SPENT_ID = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1'
 
 describe('user namespace: time, notifications, subscriptions, chats', () => {
   let kitsu, fake
@@ -37,6 +48,22 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     expect(fake.calls[0].query.get('end_date')).toBe('2026-09-30')
     expect(fake.calls[1].query.get('start_date')).toBe('2026-09-01')
     expect(fake.calls[1].query.get('end_date')).toBe('2026-09-30')
+  })
+
+  // Without them, Zou answers an empty list, which reads as no time logged.
+  it('getTimespentsRange requires both days before any request', async () => {
+    const { user } = kitsu
+    await expect(user.getTimespentsRange()).rejects.toThrow(ParameterError)
+    await expect(user.getTimespentsRange('', '2026-09-30')).rejects.toThrow(
+      ParameterError
+    )
+    await expect(
+      user.getTimespentsRange('2026-09-01', undefined)
+    ).rejects.toThrow(ParameterError)
+    await expect(
+      user.getTimespentsRange('2026-09-01', '30/09/2026')
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('logDesktopSessionLogIn posts the current UTC time', async () => {
@@ -75,28 +102,49 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
     expect(fake.calls[1].path).toBe('/data/user/time-spents/2026-09-20')
   })
 
-  it('getTaskTimeSpent reads the time spent on a task, null on 404', async () => {
-    fake.reply(200, { duration: 120 }).reply(404, {})
+  // The route of a single task answers a 500 when nothing is logged: the
+  // time spent is read from the time spents of the day.
+  it('getTaskTimeSpent reads the time spent on a task, null when none', async () => {
+    const timeSpent = {
+      id: TIME_SPENT_ID,
+      task_id: TASK_ID,
+      person_id: PERSON_ID,
+      date: '2026-09-19',
+      duration: 120
+    }
+    const otherTask = { ...timeSpent, id: OTHER_ID, task_id: OTHER_ID }
+    fake
+      .reply(200, [otherTask, timeSpent])
+      .reply(200, [{ ...otherTask, date: '2026-09-20' }])
     expect(
       await kitsu.user.getTaskTimeSpent({ id: TASK_ID }, '2026-09-19')
-    ).toEqual({ duration: 120 })
-    expect(await kitsu.user.getTaskTimeSpent(TASK_ID, '2026-09-19')).toBeNull()
+    ).toEqual(timeSpent)
+    expect(
+      await kitsu.user.getTaskTimeSpent(TASK_ID, new Date(2026, 8, 20))
+    ).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
-      path: `/data/user/tasks/${TASK_ID}/time-spents/2026-09-19`
+      path: '/data/user/time-spents/2026-09-19'
     })
+    expect(fake.calls[1].path).toBe('/data/user/time-spents/2026-09-20')
   })
 
-  it('getDayOff reads the day off of a date, null on 404', async () => {
-    fake.reply(200, { date: '2026-09-19' }).reply(404, {})
-    expect(await kitsu.user.getDayOff('2026-09-19')).toEqual({
-      date: '2026-09-19'
-    })
-    expect(await kitsu.user.getDayOff('2026-09-19')).toBeNull()
+  // Zou answers an empty object, never a 404, when no day off covers the day.
+  it('getDayOff reads the day off of a date, null when there is none', async () => {
+    const dayOff = {
+      id: DAY_OFF_ID,
+      date: '2026-09-18',
+      end_date: '2026-09-21',
+      person_id: PERSON_ID
+    }
+    fake.reply(200, dayOff).reply(200, {})
+    expect(await kitsu.user.getDayOff('2026-09-19')).toEqual(dayOff)
+    expect(await kitsu.user.getDayOff(new Date(2026, 8, 22))).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/user/day-offs/2026-09-19'
     })
+    expect(fake.calls[1].path).toBe('/data/user/day-offs/2026-09-22')
   })
 
   it('date path functions reject anything but a day', async () => {
@@ -121,25 +169,51 @@ describe('user namespace: time, notifications, subscriptions, chats', () => {
       method: 'GET',
       path: '/data/user/notifications'
     })
+    expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
-  it('allNotifications sends the filters as Zou reads them', async () => {
-    fake.reply(200, [])
+  // Zou answers the 100 latest ones: before pages back to the older ones.
+  it('allNotifications filters the notifications and pages back', async () => {
+    fake.reply(200, []).reply(200, [])
     await kitsu.user.allNotifications({
-      filters: {
-        before: '2026-10-15T10:00:00',
-        task_type_id: TASK_ID,
-        type: 'mention',
-        read: false,
-        watching: true
-      }
+      after: new Date('2026-09-01T08:00:00.250Z'),
+      before: '2026-09-19T10:30:00.123456',
+      type: 'mention',
+      taskType: { id: TASK_TYPE_ID },
+      taskStatus: TASK_STATUS_ID,
+      read: false,
+      watching: true
     })
-    const { query } = fake.calls[0]
-    expect(query.get('before')).toBe('2026-10-15T10:00:00')
-    expect(query.get('task_type_id')).toBe(TASK_ID)
-    expect(query.get('type')).toBe('mention')
-    expect(query.get('read')).toBe('false')
-    expect(query.get('watching')).toBe('true')
+    await kitsu.user.allNotifications({ read: true })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      after: '2026-09-01T08:00:00',
+      before: '2026-09-19T10:30:00.123456',
+      type: 'mention',
+      task_type_id: TASK_TYPE_ID,
+      task_status_id: TASK_STATUS_ID,
+      read: 'false',
+      watching: 'true'
+    })
+    expect(Object.fromEntries(fake.calls[1].query)).toEqual({ read: 'true' })
+  })
+
+  // The filters object of a pre-release, or the keys of Zou, would be
+  // dropped without a word: the 100 latest notifications of every type.
+  it('allNotifications refuses an unknown filter before any request', async () => {
+    await expect(
+      kitsu.user.allNotifications({ filters: { type: 'mention' } })
+    ).rejects.toThrow(/unknown option filters/)
+    await expect(
+      kitsu.user.allNotifications({ task_type_id: TASK_TYPE_ID })
+    ).rejects.toThrow(/unknown option task_type_id/)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  it('allNotifications rejects a malformed task type before any request', async () => {
+    await expect(
+      kitsu.user.allNotifications({ taskType: 'Animation' })
+    ).rejects.toThrow(ParameterError)
+    expect(fake.calls).toHaveLength(0)
   })
 
   it('getNotification returns the notification, null on 404', async () => {

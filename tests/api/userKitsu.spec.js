@@ -38,7 +38,8 @@ describe('user namespace: Kitsu coverage', () => {
     })
   })
 
-  it('getChatMessage reads one message, null on 404', async () => {
+  // Zou only answers a 404 for a missing entity: a missing message is a 500.
+  it('getChatMessage reads one message, null when the entity is missing', async () => {
     fake.reply(200, { id: CHAT_MESSAGE_ID }).reply(404, {})
     expect(
       await kitsu.user.getChatMessage(
@@ -82,6 +83,24 @@ describe('user namespace: Kitsu coverage', () => {
     expect(body.get('message')).toBe('Look')
     expect(await body.get('file').text()).toBe('one')
     expect(await body.get('file-1').text()).toBe('two')
+  })
+
+  // A single File or Blob has no length: it used to be dropped silently.
+  it('newChatMessage sends a single attachment, named on demand', async () => {
+    fake.reply(201, { id: CHAT_MESSAGE_ID }).reply(201, { id: CHAT_MESSAGE_ID })
+    await kitsu.user.newChatMessage(ENTITY_ID, 'Look', {
+      attachments: new Blob(['one'])
+    })
+    await kitsu.user.newChatMessage(ENTITY_ID, '', {
+      attachments: new Blob(['two'], { type: 'image/png' }),
+      fileName: 'ref.png'
+    })
+    const [first, second] = fake.calls.map(call => call.body)
+    expect(first).toBeInstanceOf(FormData)
+    expect(first.get('message')).toBe('Look')
+    expect(await first.get('file').text()).toBe('one')
+    expect(second.get('message')).toBe('')
+    expect(second.get('file').name).toBe('ref.png')
   })
 
   it('newChatMessage forwards the caller signal with attachments', async () => {
@@ -147,11 +166,17 @@ describe('user namespace: Kitsu coverage', () => {
   })
 
   it('getTasksRequiringFeedbackFilterValues reads the filter values', async () => {
-    fake.reply(200, { projects: [], task_types: [] }).reply(404, {})
-    expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toEqual({
-      projects: [],
-      task_types: []
-    })
+    const values = {
+      project_ids: [OTHER_ID],
+      task_type_ids: [],
+      task_status_ids: [],
+      episode_ids: [],
+      person_ids: []
+    }
+    fake.reply(200, values).reply(404, {})
+    expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toEqual(
+      values
+    )
     expect(await kitsu.user.getTasksRequiringFeedbackFilterValues()).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',

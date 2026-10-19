@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_INSTANCE_ID,
@@ -165,7 +166,7 @@ describe('files namespace: output file paths and creation', () => {
         nbElements: 24,
         representation: 'abc',
         sep: '\\',
-        fileStatusId: FILE_STATUS_ID
+        fileStatus: { id: FILE_STATUS_ID }
       }
     )
     expect(fake.calls[0].body).toEqual({
@@ -226,7 +227,7 @@ describe('files namespace: output file paths and creation', () => {
         nbElements: 24,
         representation: 'abc',
         sep: '\\',
-        fileStatusId: FILE_STATUS_ID
+        fileStatus: FILE_STATUS_ID
       }
     )
     expect(fake.calls[0].body).toEqual({
@@ -242,5 +243,30 @@ describe('files namespace: output file paths and creation', () => {
       person_id: PERSON_ID,
       file_status_id: FILE_STATUS_ID
     })
+  })
+
+  // The 0.2.0 name would leave the default status without a word.
+  it('the output file creators refuse the former fileStatusId', async () => {
+    const errors = await Promise.all([
+      kitsu.files
+        .newEntityOutputFile(ENTITY_ID, OUTPUT_TYPE_ID, TASK_TYPE_ID, 'v2', {
+          // @ts-expect-error renamed fileStatus in 0.3.0
+          fileStatusId: FILE_STATUS_ID
+        })
+        .catch(err => err),
+      kitsu.files
+        .newAssetInstanceOutputFile(
+          ASSET_INSTANCE_ID,
+          SHOT_ID,
+          OUTPUT_TYPE_ID,
+          TASK_TYPE_ID,
+          'v2',
+          // @ts-expect-error renamed fileStatus in 0.3.0
+          { fileStatusId: FILE_STATUS_ID }
+        )
+        .catch(err => err)
+    ])
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
+    expect(fake.calls).toHaveLength(0)
   })
 })

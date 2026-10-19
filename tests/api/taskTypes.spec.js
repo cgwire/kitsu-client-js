@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
-import { DEPARTMENT_ID, TASK_STATUS_ID, TASK_TYPE_ID } from '../helpers/ids.js'
+import {
+  DEPARTMENT_ID,
+  OTHER_ID,
+  TASK_STATUS_ID,
+  TASK_TYPE_ID
+} from '../helpers/ids.js'
 
 describe('task namespace: task types and task statuses', () => {
   let kitsu, fake
@@ -21,13 +26,14 @@ describe('task namespace: task types and task statuses', () => {
   })
 
   it.each([
-    ['getTaskTypeByName', 'name'],
-    ['getTaskTypeByShortName', 'short_name']
+    ['getTaskTypeByName', 'name', 'Layout'],
+    ['getTaskTypeByShortName', 'short_name', 'lay']
   ])(
     '%s filters the task types, entity type and department on demand',
-    async (name, key) => {
-      fake.reply(200, [{ id: TASK_TYPE_ID }]).reply(200, [])
-      expect(await kitsu.task[name]('Layout')).toEqual({ id: TASK_TYPE_ID })
+    async (name, key, value) => {
+      const layout = { id: TASK_TYPE_ID, name: 'Layout', short_name: 'lay' }
+      fake.reply(200, [layout]).reply(200, [])
+      expect(await kitsu.task[name](value)).toEqual(layout)
       expect(
         await kitsu.task[name]('Nope', {
           forEntity: 'Shot',
@@ -39,7 +45,7 @@ describe('task namespace: task types and task statuses', () => {
         path: '/data/task-types'
       })
       expect(Object.fromEntries(fake.calls[0].query)).toEqual({
-        [key]: 'Layout'
+        [key]: value
       })
       expect(Object.fromEntries(fake.calls[1].query)).toEqual({
         [key]: 'Nope',
@@ -49,7 +55,7 @@ describe('task namespace: task types and task statuses', () => {
     }
   )
 
-  it('getDefaultTaskStatus returns the status flagged as default', async () => {
+  it('getDefaultTaskStatus returns the default status of the tasks', async () => {
     fake.reply(200, [{ id: TASK_STATUS_ID }]).reply(200, [])
     expect(await kitsu.task.getDefaultTaskStatus()).toEqual({
       id: TASK_STATUS_ID
@@ -59,21 +65,30 @@ describe('task namespace: task types and task statuses', () => {
       method: 'GET',
       path: '/data/task-status'
     })
-    expect(fake.calls[0].query.get('is_default')).toBe('true')
+    // Neutral, the default status of the concepts, is flagged too.
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({
+      is_default: 'true',
+      for_concept: 'false'
+    })
   })
 
   it.each([
-    ['getTaskStatusByName', 'name'],
-    ['getTaskStatusByShortName', 'short_name']
-  ])('%s filters the task statuses', async (name, key) => {
-    fake.reply(200, [{ id: TASK_STATUS_ID }]).reply(200, [])
-    expect(await kitsu.task[name]('wip')).toEqual({ id: TASK_STATUS_ID })
+    ['getTaskStatusByName', 'name', 'Work in progress'],
+    ['getTaskStatusByShortName', 'short_name', 'wip']
+  ])('%s filters the task statuses', async (name, key, value) => {
+    const wip = {
+      id: TASK_STATUS_ID,
+      name: 'Work in progress',
+      short_name: 'wip'
+    }
+    fake.reply(200, [wip]).reply(200, [])
+    expect(await kitsu.task[name](value)).toEqual(wip)
     expect(await kitsu.task[name]('nope')).toBeNull()
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: '/data/task-status'
     })
-    expect(Object.fromEntries(fake.calls[0].query)).toEqual({ [key]: 'wip' })
+    expect(Object.fromEntries(fake.calls[0].query)).toEqual({ [key]: value })
   })
 
   it('removeTaskType deletes the type, forcing on demand', async () => {
@@ -88,14 +103,15 @@ describe('task namespace: task types and task statuses', () => {
     expect(fake.calls[1].query.get('force')).toBe('true')
   })
 
-  it('removeTaskStatus always forces the deletion', async () => {
+  // Zou never reads force on this route.
+  it('removeTaskStatus deletes the status without any query', async () => {
     fake.reply(204)
     await kitsu.task.removeTaskStatus({ id: TASK_STATUS_ID })
     expect(fake.calls[0]).toMatchObject({
       method: 'DELETE',
       path: `/data/task-status/${TASK_STATUS_ID}`
     })
-    expect(fake.calls[0].query.get('force')).toBe('true')
+    expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
   it.each([
@@ -165,6 +181,49 @@ describe('task namespace: task types and task statuses', () => {
       expect(fake.calls).toHaveLength(0)
     }
   )
+
+  it('name lookups match the % and _ of a name literally', async () => {
+    // Zou matches names with ILIKE: FX_Sim would find FX-Sim.
+    fake.reply(200, []).reply(200, []).reply(200, [])
+    await kitsu.task.getTaskTypeByName('FX_Sim\\1')
+    await kitsu.task.getTaskStatusByName('100%')
+    await kitsu.task.getTaskByEntity(TASK_TYPE_ID, TASK_TYPE_ID, {
+      name: 'v_2'
+    })
+    expect(fake.calls.map(call => call.query.get('name'))).toEqual([
+      'FX\\_Sim\\\\1',
+      '100\\%',
+      'v\\_2'
+    ])
+  })
+
+  // PostgreSQL reads a backslash in a LIKE pattern as an escape: sent as
+  // is, it hides the next character, and a trailing one fails the query.
+  it('name lookups find a name holding a backslash', async () => {
+    const comp = { id: TASK_TYPE_ID, name: 'Comp\\Paint', for_entity: 'Shot' }
+    fake.reply(200, [comp])
+    expect(await kitsu.task.getTaskTypeByName('Comp\\Paint')).toEqual(comp)
+    expect(fake.calls[0].query.get('name')).toBe('Comp\\\\Paint')
+  })
+
+  // Zou keeps "DONE" and "Done" apart, and its ILIKE filter finds both.
+  it('name lookups prefer the exact spelling over another case', async () => {
+    const twins = [
+      { id: OTHER_ID, name: 'DONE', short_name: 'dn' },
+      { id: TASK_STATUS_ID, name: 'Done', short_name: 'done' }
+    ]
+    fake.reply(200, twins).reply(200, twins).reply(200, twins)
+    expect(await kitsu.task.getTaskStatusByName('Done')).toEqual(twins[1])
+    expect(await kitsu.task.getTaskStatusByName('DONE')).toEqual(twins[0])
+    expect(await kitsu.task.getTaskStatusByName('done')).toEqual(twins[0])
+  })
+
+  it('newTaskType looks the name up literally and creates it as given', async () => {
+    fake.reply(200, []).reply(201, { id: TASK_TYPE_ID, name: 'FX_Sim' })
+    await kitsu.task.newTaskType('FX_Sim', { forEntity: 'Shot' })
+    expect(fake.calls[0].query.get('name')).toBe('FX\\_Sim')
+    expect(fake.calls[1].body.name).toBe('FX_Sim')
+  })
 
   it('first-match lookups reject a blank filter before any request', async () => {
     const lookups = [

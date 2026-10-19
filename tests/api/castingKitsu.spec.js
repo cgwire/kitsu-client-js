@@ -27,10 +27,42 @@ describe('casting namespace: Kitsu parity', () => {
     expect([...fake.calls[0].query.keys()]).toEqual([])
   })
 
+  it('updateCastings sends the entity and asset ids in lowercase', async () => {
+    const entityId = 'E0E0E0E0-AB12-4CDE-8F00-0A1B2C3D4E5F'
+    const assetId = 'C46C80C6-AB12-4CDE-8F00-0A1B2C3D4E5F'
+    fake.reply(200, {})
+    await kitsu.casting.updateCastings(PROJECT_ID, {
+      [entityId]: [{ asset_id: assetId, nb_occurences: 2 }]
+    })
+    expect(fake.calls[0].body).toEqual({
+      [entityId.toLowerCase()]: [
+        { asset_id: assetId.toLowerCase(), nb_occurences: 2 }
+      ]
+    })
+  })
+
   it('updateCastings rejects missing castings without any request', async () => {
     await expect(
       kitsu.casting.updateCastings(PROJECT_ID)
     ).rejects.toBeInstanceOf(ParameterError)
+    expect(fake.calls).toHaveLength(0)
+  })
+
+  // An incomplete entry would silently drop its asset from the casting.
+  it('updateCastings rejects an incomplete casting before any request', async () => {
+    const wrongCastings = [
+      [[{ asset_id: ASSET_ID, nb_occurences: 1 }]],
+      { [SHOT_ID]: [{ asset_id: ASSET_ID }] },
+      { [SHOT_ID]: [], [EPISODE_ID]: [{ asset_id: ASSET_ID, label: 'x' }] },
+      { [SHOT_ID]: { asset_id: ASSET_ID, nb_occurences: 1 } },
+      { 'not-an-id': [] }
+    ]
+    const errors = await Promise.all(
+      wrongCastings.map(castings =>
+        kitsu.casting.updateCastings(PROJECT_ID, castings).catch(err => err)
+      )
+    )
+    errors.forEach(err => expect(err).toBeInstanceOf(ParameterError))
     expect(fake.calls).toHaveLength(0)
   })
 

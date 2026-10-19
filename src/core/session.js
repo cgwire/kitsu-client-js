@@ -11,12 +11,15 @@ const copy = tokens => (tokens ? { ...tokens } : null)
  * @param {object} [options]
  * @param {'bearer'|'cookie'} [options.auth]
  * @param {Tokens|null} [options.tokens]
+ * @param {() => void} [options.onChange] Called first on every change: a
+ *   new session or new tokens.
  * @param {(tokens: Tokens|null) => void} [options.onTokensChange]
  * @param {() => void} [options.onUnauthorized]
  */
 export const createSession = ({
   auth = 'bearer',
   tokens = null,
+  onChange = () => {},
   onTokensChange = () => {},
   onUnauthorized = () => {}
 } = {}) => {
@@ -25,15 +28,30 @@ export const createSession = ({
   // Counts the sessions this instance went through: logIn, logOut and
   // setToken open a new one, a token refresh does not.
   let generation = 0
+  // Cookie mode: whether the browser holds a session that a logIn (or a
+  // two-factor setup) of this instance opened. No token tells it.
+  let cookieLogIn = false
 
+  // The instance (its socket) follows the change first. The app hook
+  // persists the tokens: it runs whatever happens to the socket.
   const write = next => {
     current = copy(next)
-    onTokensChange(copy(current))
+    try {
+      onChange()
+    } finally {
+      onTokensChange(copy(current))
+    }
+  }
+
+  // A refresh still in flight belongs to the former session.
+  const nextSession = () => {
+    generation += 1
+    refreshing = null
   }
 
   const setTokens = next => {
-    generation += 1
-    refreshing = null
+    nextSession()
+    cookieLogIn = false
     write(next)
   }
 
@@ -41,12 +59,26 @@ export const createSession = ({
     mode: auth,
     getTokens: () => copy(current),
     setTokens,
+    // A cookie-mode logIn or two-factor setup: a new session, kept by the
+    // browser. There is no token to persist, but the instance follows it
+    // like any other.
+    startCookieSession: () => {
+      nextSession()
+      cookieLogIn = true
+      onChange()
+    },
     generation: () => generation,
     onUnauthorized,
     headers: () =>
       auth === 'bearer' && current && current.access_token
         ? { Authorization: `Bearer ${current.access_token}` }
         : {},
+    // Whether a connection opened now can authenticate: with the bearer
+    // token, or with the cookie that this instance had the browser set.
+    canAuthenticate: () =>
+      auth === 'bearer'
+        ? Boolean(current && current.access_token)
+        : cookieLogIn,
     canRefresh: () =>
       auth === 'bearer' && Boolean(current && current.refresh_token),
     // Single flight: concurrent 401s all await the same promise, so only one

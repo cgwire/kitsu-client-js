@@ -1,12 +1,16 @@
 import { KitsuError, ParameterError } from '../core/errors.js'
 import {
+  changesOf,
   dateOf,
   dayOf,
+  fieldsOf,
   idOf,
   idsOf,
+  likeLiteralOf,
   optionalIdOf,
   orNull,
   requiredOf,
+  sameNameOf,
   sortedByName
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
@@ -33,18 +37,42 @@ const intOf = value => {
 const twoDigits = value => String(intOf(value)).padStart(2, '0')
 
 /**
+ * A Date goes out as its local day, the way newDayOff sends it: JSON would
+ * write its UTC instant, the day before for anyone east of Greenwich.
+ * @param {Record<string, any>} fields
+ * @param {string[]} keys
+ * @returns {Record<string, any>} The fields, copied when a date is given.
+ */
+const withLocalDays = (fields, keys) =>
+  keys.reduce(
+    (result, key) =>
+      key in result ? { ...result, [key]: dateOf(result[key]) } : result,
+    fields
+  )
+
+/**
  * @typedef {{project?: Model, studio?: Model, signal?: AbortSignal}}
  *   TimeSpentOptions project and studio keep the time spent on that project
  *   or by the people of that studio.
  * @typedef {{project?: Model, signal?: AbortSignal}} PersonTimeSpentOptions
  *   project keeps the time spent on that project.
  * @typedef {{
- *   project?: Model,
- *   taskType?: Model,
- *   countMode?: string,
- *   signal?: AbortSignal
- * }} QuotaOptions countMode is weighted (default of the API), weighteddone,
- *   feedback or done.
+ *   task_id: string,
+ *   task_type_id: string,
+ *   project_id: string,
+ *   project_name: string,
+ *   entity_name: string,
+ *   entity_type_name: string,
+ *   sequence_name: string|null,
+ *   episode_name: string|null,
+ *   duration: number
+ * }} TaskTimeTotal The time a person spent on a task over a period, in
+ *   minutes, with the names a timesheet shows.
+ * @typedef {Record<string, Record<string, number>>} TimeTable Minutes spent
+ *   by each person, keyed by period, then by person id.
+ * @typedef {{countMode?: string, signal?: AbortSignal}} QuotaOptions
+ *   countMode is weighted (default of the API), weighteddone, feedback or
+ *   done.
  */
 
 /**
@@ -68,22 +96,28 @@ const getTimeSpents = (http, path, { project, studio, signal } = {}) =>
 const getPersonTimeSpents = (http, path, { project, signal } = {}) =>
   orNull(getTimeSpents(http, path, { project, signal }))
 
+// Zou filters the quota shots on the project and the task type even when
+// they are missing: without both, the answer is always empty.
 /**
  * @param {any} http
  * @param {string} path
+ * @param {Model} project
+ * @param {Model} taskType
  * @param {QuotaOptions} [options]
  */
 const getQuotaShots = (
   http,
   path,
-  { project, taskType, countMode, signal } = {}
+  project,
+  taskType,
+  { countMode, signal } = {}
 ) =>
   orNull(
     http.get(
       path,
       {
-        project_id: optionalIdOf(project),
-        task_type_id: optionalIdOf(taskType),
+        project_id: idOf(project),
+        task_type_id: idOf(taskType),
         count_mode: countMode
       },
       { signal }
@@ -96,7 +130,9 @@ const getQuotaShots = (
  * @param {RequestOptions} [options]
  */
 const getDepartmentByName = (http, name, { signal } = {}) =>
-  http.fetchFirst('departments', { name: requiredOf('name', name) }, { signal })
+  orNull(
+    http.fetchAll('departments', { name: likeLiteralOf(name) }, { signal })
+  ).then(departments => sameNameOf(departments, name))
 
 /**
  * @param {any} http
@@ -129,10 +165,12 @@ const withoutExpirationDate = person =>
  */
 const updatePerson = (http, person, { signal } = {}) => {
   const id = idOf(person)
+  // A string would reach the body as one key per character.
+  const fields = fieldsOf(person)
   // { id, expiration_date } is how 0.1.0 renewed a token: saved without the
   // date, it would answer 200 without any token.
   if (
-    Object.keys(person)
+    Object.keys(fields)
       .filter(key => key !== 'id')
       .join() === 'expiration_date'
   ) {
@@ -144,9 +182,9 @@ const updatePerson = (http, person, { signal } = {}) => {
     'persons',
     id,
     withoutExpirationDate(
-      Array.isArray(person.departments)
-        ? { ...person, departments: idsOf(person.departments) }
-        : person
+      Array.isArray(fields.departments)
+        ? { ...fields, departments: idsOf(fields.departments) }
+        : fields
     ),
     { signal }
   )
@@ -165,6 +203,21 @@ const removePerson = (http, person, { force = false, signal } = {}) =>
     { signal }
   )
 
+const fullNameKey = person => (person.full_name || '').toLowerCase()
+
+/**
+ * gazu's sort_by_name reads a name key Zou persons do not have: they sort
+ * the same way on their full name instead.
+ * @param {Entity[]} persons
+ * @returns {Entity[]} A new sorted array.
+ */
+const sortedByFullName = persons =>
+  [...persons].sort((a, b) => {
+    const [keyA, keyB] = [fullNameKey(a), fullNameKey(b)]
+    if (keyA < keyB) return -1
+    return keyA > keyB ? 1 : 0
+  })
+
 export const personApi = http => ({
   /**
    * @param {RequestOptions} [options]
@@ -181,16 +234,27 @@ export const personApi = http => ({
     http.fetchAll('departments', {}, { signal }).then(sortedByName),
 
   /**
-   * @param {RequestOptions} [options]
-   * @returns {Promise<Entity[]>} All persons, sorted by name.
+   * A non-admin gets the minimal fields of each person, without email or
+   * is_guest.
+   * @param {{relations?: boolean, isGuest?: boolean, signal?: AbortSignal}}
+   *   [options] relations also loads the departments of each person.
+   *   isGuest keeps the guests (true) or the other persons (false).
+   * @returns {Promise<Entity[]>} All persons, sorted by full name.
    */
-  allPersons: async ({ signal } = {}) =>
-    http.fetchAll('persons', {}, { signal }).then(sortedByName),
+  allPersons: async ({ relations = false, isGuest, signal } = {}) =>
+    http
+      .fetchAll(
+        'persons',
+        { relations: relations ? true : null, is_guest: isGuest },
+        { signal }
+      )
+      .then(sortedByFullName),
 
   /**
    * @param {string} name
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity|null>} First department matching the name.
+   * @returns {Promise<Entity|null>} The department of that name (the case
+   *   ignored, an exact match first), null when there is none.
    */
   getDepartmentByName: async (name, options) =>
     getDepartmentByName(http, name, options),
@@ -204,6 +268,8 @@ export const personApi = http => ({
     http.fetchOne('departments', idOf(department), { signal }),
 
   /**
+   * Read the person from the list of persons, like gazu: a non-admin gets
+   * its minimal fields there, without email or contract.
    * @param {Model} person
    * @param {{relations?: boolean, signal?: AbortSignal}} [options] relations
    *   also loads the links of the person (departments, ...).
@@ -282,7 +348,8 @@ export const personApi = http => ({
     http.update('organisations', idOf(organisation), organisation, { signal }),
 
   /**
-   * Create a department, or return the existing one bearing that name.
+   * Create a department, or return the existing one of that name, as
+   * getDepartmentByName finds it.
    * @param {string} name
    * @param {{color?: string, archived?: boolean, signal?: AbortSignal}}
    *   [options] color is a hex string such as "#00FF00".
@@ -326,8 +393,11 @@ export const personApi = http => ({
    *   active?: boolean,
    *   contractType?: string,
    *   signal?: AbortSignal
-   * }} [options] role is user, manager or admin (artist, supervisor and
-   *   studio manager). Zou sets a default password when none is given.
+   * }} [options] role is user (artist), supervisor, manager (production
+   *   manager), admin (studio manager), client or vendor. Without a
+   *   password, the person cannot log in until invited (invitePerson), sent
+   *   a reset link (generateResetPasswordLink) or given one
+   *   (changePasswordForPerson).
    * @returns {Promise<Entity>} The person.
    */
   newPerson: async (
@@ -344,24 +414,29 @@ export const personApi = http => ({
       contractType = 'open-ended',
       signal
     } = {}
-  ) =>
-    (await getPersonByEmail(http, email, { signal })) ||
-    http.post(
-      'data/persons',
-      {
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone,
-        role,
-        desktop_login: desktopLogin,
-        departments: idsOf(departments),
-        password,
-        active,
-        contract_type: contractType
-      },
-      { signal }
-    ),
+  ) => {
+    // Checked before the lookup, which skips the body when the email exists.
+    const departmentIds = idsOf(departments)
+    return (
+      (await getPersonByEmail(http, email, { signal })) ||
+      http.post(
+        'data/persons',
+        {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+          role,
+          desktop_login: desktopLogin,
+          departments: departmentIds,
+          password,
+          active,
+          contract_type: contractType
+        },
+        { signal }
+      )
+    )
+  },
 
   /**
    * Save the person. Its expiration_date is left out: Zou takes it as a
@@ -375,6 +450,11 @@ export const personApi = http => ({
   updatePerson: async (person, options) => updatePerson(http, person, options),
 
   /**
+   * Without force, Zou refuses (400) to delete a person still linked to
+   * comments, assignments, time spents or logs. force deletes first their
+   * comments, notifications, events, login logs, subscriptions, time spents
+   * and search filters, across every production, and removes them from the
+   * teams, the assignments and the files they appear on.
    * @param {Model} person
    * @param {{force?: boolean, signal?: AbortSignal}} [options]
    * @returns {Promise<null>}
@@ -390,7 +470,9 @@ export const personApi = http => ({
    *   active?: boolean,
    *   expirationDate?: Date|string|null,
    *   signal?: AbortSignal
-   * }} [options]
+   * }} [options] role takes the values of newPerson. expirationDate is the
+   *   last day the token works, "YYYY-MM-DD": left out, the token never
+   *   expires (generateToken can set a date later).
    * @returns {Promise<Entity>} The created bot, with its access token.
    */
   newBot: async (
@@ -407,9 +489,9 @@ export const personApi = http => ({
     http.post(
       'data/persons',
       {
-        first_name: name,
+        first_name: requiredOf('name', name),
         last_name: '',
-        email,
+        email: requiredOf('email', email),
         role,
         departments: idsOf(departments),
         active,
@@ -476,6 +558,8 @@ export const personApi = http => ({
   },
 
   /**
+   * Same rules as removePerson: without force, Zou refuses (400) a bot
+   * still linked to comments or logs, and force deletes them first.
    * @param {Model} bot
    * @param {{force?: boolean, signal?: AbortSignal}} [options]
    * @returns {Promise<null>}
@@ -494,7 +578,8 @@ export const personApi = http => ({
     orNull(
       http.get(
         `data/persons/${idOf(person)}/time-spents`,
-        { start_date: dateOf(startDate), end_date: dateOf(endDate) },
+        // Both are required: without them, Zou answers an empty list.
+        { start_date: dayOf(startDate), end_date: dayOf(endDate) },
         { signal }
       )
     ),
@@ -523,14 +608,23 @@ export const personApi = http => ({
    * @param {RequestOptions} [options]
    * @returns {Promise<string>} The presence log table of the month, as CSV.
    */
-  getPresenceLog: async (year, month, { signal } = {}) =>
-    http.get(
-      `data/persons/presence-logs/${intOf(year)}-${twoDigits(month)}`,
-      {},
-      // A CSV table: the http core refuses a non-JSON body unless told how
-      // to read it.
-      { signal, read: response => response.text() }
-    ),
+  getPresenceLog: async (year, month, { signal } = {}) => {
+    const path = `data/persons/presence-logs/${intOf(year)}-${twoDigits(month)}`
+    // A CSV table: the http core refuses a non-JSON body unless told how to
+    // read it, and then leaves the checks to the reader.
+    const read = async response => {
+      const text = await response.text()
+      const type = response.headers.get('Content-Type') || ''
+      if (type.includes('csv')) return text
+      // A page served with a 2xx (host without "/api", SSO portal) must not
+      // reach the caller as if it were the table.
+      throw new KitsuError(
+        `GET ${path} answered ${response.status} without CSV`,
+        { status: response.status, path, method: 'GET', body: text }
+      )
+    }
+    return http.get(path, {}, { signal, read })
+  },
 
   /**
    * @param {Model} person
@@ -553,8 +647,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} week
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the week,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the week, null when the person does not exist.
    */
   getWeekTimeSpents: async (person, year, week, options) =>
     getPersonTimeSpents(
@@ -568,8 +662,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the
-   *   month, null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the month, null when the person does not exist.
    */
   getMonthTimeSpents: async (person, year, month, options) =>
     getPersonTimeSpents(
@@ -584,8 +678,8 @@ export const personApi = http => ({
    * @param {number} month From 1 (January) to 12.
    * @param {number} day
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the day,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task that day, null when the person does not exist.
    */
   getDayTimeSpents: async (person, year, month, day, options) =>
     getPersonTimeSpents(
@@ -598,8 +692,8 @@ export const personApi = http => ({
    * @param {Model} person
    * @param {number} year
    * @param {PersonTimeSpentOptions} [options]
-   * @returns {Promise<Entity[]|null>} Time spents of the person for the year,
-   *   null when the person does not exist.
+   * @returns {Promise<TaskTimeTotal[]|null>} The time the person spent on
+   *   each task during the year, null when the person does not exist.
    */
   getYearTimeSpents: async (person, year, options) =>
     getPersonTimeSpents(
@@ -612,8 +706,8 @@ export const personApi = http => ({
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each day of the
-   *   month.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each day
+   *   of the month, keyed by day (1 to 31), then by person id.
    */
   getTimeSpentsDayTable: async (year, month, options) =>
     getTimeSpents(
@@ -625,8 +719,8 @@ export const personApi = http => ({
   /**
    * @param {number} year
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each week of the
-   *   year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each week
+   *   of the year, keyed by ISO week number, then by person id.
    */
   getTimeSpentsWeekTable: async (year, options) =>
     getTimeSpents(
@@ -638,8 +732,8 @@ export const personApi = http => ({
   /**
    * @param {number} year
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each month of the
-   *   year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each
+   *   month of the year, keyed by month (1 to 12), then by person id.
    */
   getTimeSpentsMonthTable: async (year, options) =>
     getTimeSpents(
@@ -650,74 +744,100 @@ export const personApi = http => ({
 
   /**
    * @param {TimeSpentOptions} [options]
-   * @returns {Promise<Entity>} Time spent by each person on each year.
+   * @returns {Promise<TimeTable>} Minutes spent by each person on each
+   *   year, keyed by year, then by person id.
    */
   getTimeSpentsYearTable: async options =>
     getTimeSpents(http, 'data/persons/time-spents/year-table', options),
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered each day of
-   *   the month, null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the month, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getMonthQuotaShots: async (person, year, month, options) =>
+  getMonthQuotaShots: async (person, project, taskType, year, month, options) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/month/${intOf(year)}/${intOf(month)}`,
+      project,
+      taskType,
       options
     ),
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} week
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered during the
-   *   week, null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the week, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getWeekQuotaShots: async (person, year, week, options) =>
+  getWeekQuotaShots: async (person, project, taskType, year, week, options) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/week/${intOf(year)}/${intOf(week)}`,
+      project,
+      taskType,
       options
     ),
 
   /**
    * @param {Model} person
+   * @param {Model} project
+   * @param {Model} taskType
    * @param {number} year
    * @param {number} month From 1 (January) to 12.
    * @param {number} day
    * @param {QuotaOptions} [options]
-   * @returns {Promise<Entity[]|null>} Shots the person delivered on that day,
-   *   null when the person does not exist.
+   * @returns {Promise<Entity[]|null>} The shots of the task type that count
+   *   in the quotas of the person for the day, each with its full_name and
+   *   its weight. Null when the person does not exist.
    */
-  getDayQuotaShots: async (person, year, month, day, options) =>
+  getDayQuotaShots: async (
+    person,
+    project,
+    taskType,
+    year,
+    month,
+    day,
+    options
+  ) =>
     getQuotaShots(
       http,
       `data/persons/${idOf(person)}/quota-shots/day/${intOf(year)}/${intOf(month)}/${intOf(day)}`,
+      project,
+      taskType,
       options
     ),
 
   /**
-   * The API narrows the day offs to a month only: year and month go together.
+   * The whole history is for admins only. A year or a month holds the day
+   * offs the user may read: all of them for an admin, else their own and
+   * those of the teams of the productions they manage, or supervise (dates
+   * only, without description).
    * @param {{year?: number, month?: number, signal?: AbortSignal}} [options]
-   *   month goes from 1 (January) to 12.
-   * @returns {Promise<Entity[]>} The day offs of everyone, of the whole
-   *   history or of one month.
+   *   month goes from 1 (January) to 12 and needs a year.
+   * @returns {Promise<Entity[]>} The day offs of the whole history, of a
+   *   year or of a month.
    */
   allDayOffs: async ({ year, month, signal } = {}) => {
     if (year == null && month == null)
       return http.fetchAll('day-offs', {}, { signal })
-    if (year == null || month == null)
-      throw new ParameterError('year and month must be given together')
-    return http.get(
-      `data/persons/day-offs/${intOf(year)}/${intOf(month)}`,
-      {},
-      { signal }
-    )
+    if (year == null) {
+      throw new ParameterError('Missing parameter: year is required with month')
+    }
+    const period =
+      month == null ? intOf(year) : `${intOf(year)}/${intOf(month)}`
+    return http.get(`data/persons/day-offs/${period}`, {}, { signal })
   },
 
   /**
@@ -725,16 +845,19 @@ export const personApi = http => ({
    * @param {Date|string} date "YYYY-MM-DD"
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity|null>} The day off of the person covering that
-   *   day, null when the person does not exist.
+   *   day, null when there is none or when the person does not exist.
    */
-  getDayOffByDate: async (person, date, { signal } = {}) =>
-    orNull(
+  getDayOffByDate: async (person, date, { signal } = {}) => {
+    const dayOff = await orNull(
       http.get(
         `data/persons/${idOf(person)}/day-offs/${dayOf(date)}`,
         {},
         { signal }
       )
-    ),
+    )
+    // Zou answers an empty object when no day off covers the day.
+    return dayOff && dayOff.id ? dayOff : null
+  },
 
   /**
    * @param {Model} person
@@ -830,13 +953,22 @@ export const personApi = http => ({
     ),
 
   /**
-   * @param {Entity} dayOff The fields that can change are date, end_date,
-   *   description and person_id.
+   * Zou rejects a period overlapping another day off of the person, and
+   * removes the time spents that fall within the new period.
+   * @param {Entity} dayOff The fields that can change are date and end_date
+   *   (Date or "YYYY-MM-DD"), description and person_id.
    * @param {RequestOptions} [options]
    * @returns {Promise<Entity>} The updated day off.
    */
   updateDayOff: async (dayOff, { signal } = {}) =>
-    http.update('day-offs', idOf(dayOff), dayOff, { signal }),
+    http.update(
+      'day-offs',
+      idOf(dayOff),
+      // Shifted by a day, the period would wipe the time spents of a
+      // working day.
+      withLocalDays(fieldsOf(dayOff), ['date', 'end_date']),
+      { signal }
+    ),
 
   /**
    * @param {Model} dayOff
@@ -873,7 +1005,8 @@ export const personApi = http => ({
    * sending any email.
    * @param {Model} person
    * @param {RequestOptions} [options]
-   * @returns {Promise<Entity>} The link, in reset_url.
+   * @returns {Promise<{reset_password_link: string}>} The link, in
+   *   reset_password_link.
    */
   generateResetPasswordLink: async (person, { signal } = {}) =>
     http.post(`actions/persons/${idOf(person)}/reset-password-link`, null, {
@@ -909,7 +1042,7 @@ export const personApi = http => ({
   /**
    * @param {Model} person
    * @param {RequestOptions} [options]
-   * @returns {Promise<null>}
+   * @returns {Promise<{success: boolean}>}
    */
   disableTwoFactorAuthentication: async (person, { signal } = {}) =>
     http.del(
@@ -935,8 +1068,9 @@ export const personApi = http => ({
    *   onProgress?: (progress: {loaded: number, total: number}) => void,
    *   signal?: AbortSignal
    * }} [options] onProgress needs XMLHttpRequest (browsers, webviews): fetch
-   *   cannot report it. A client given its own fetch (Tauri) uploads through
-   *   it and never calls onProgress.
+   *   cannot report it. A client given its own fetch (Tauri) calls it only
+   *   with xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<{thumbnail_path: string}>} Path of the stored picture,
    *   relative to the host url.
    */
@@ -958,8 +1092,9 @@ export const personApi = http => ({
    *   signal?: AbortSignal
    * }} [options] update also rewrites the persons that already exist.
    *   onProgress needs XMLHttpRequest (browsers, webviews): fetch cannot
-   *   report it. A client given its own fetch (Tauri) uploads through it and
-   *   never calls onProgress.
+   *   report it. A client given its own fetch (Tauri) calls it only with
+   *   xhrUploads: true, and a bearer client never for an upload to the
+   *   origin of its page.
    * @returns {Promise<Entity[]>} The persons created or updated by the import.
    */
   importPersonsWithCsv: async (
@@ -991,7 +1126,7 @@ export const personApi = http => ({
     http.update(
       'salary-scales',
       idOf(salaryScale),
-      { salary: salaryScale.salary },
+      changesOf({ salary: fieldsOf(salaryScale).salary }),
       { signal }
     ),
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   NetworkError,
@@ -70,6 +70,22 @@ describe('session', () => {
     session.setTokens({ access_token: 'a' })
     session.setTokens(null)
     expect(onTokensChange.mock.calls).toEqual([[{ access_token: 'a' }], [null]])
+  })
+
+  it('opens a cookie session without token to persist', () => {
+    const onChange = vi.fn()
+    const onTokensChange = vi.fn()
+    const session = createSession({ auth: 'cookie', onChange, onTokensChange })
+    expect(session.canAuthenticate()).toBe(false)
+
+    session.startCookieSession()
+
+    expect(session.generation()).toBe(1)
+    expect(session.canAuthenticate()).toBe(true)
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onTokensChange).not.toHaveBeenCalled()
+    session.setTokens(null)
+    expect(session.canAuthenticate()).toBe(false)
   })
 })
 
@@ -420,5 +436,75 @@ describe('session replaced while a request or a refresh is in flight', () => {
     await context.kitsu.logIn('bob@studio.test', 'secret')
     context.land()
     await expectNotReplayed(context)
+  })
+})
+
+// An exception of the app must not undo what the client did: it is rethrown
+// out of band, from a timer.
+describe('hooks of the app that throw', () => {
+  const keychainLocked = () => {
+    throw new Error('keychain locked')
+  }
+
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('let logIn resolve with its tokens kept', async () => {
+    const fake = createFakeFetch().reply(200, {
+      user: { id: 'u' },
+      access_token: 'access',
+      refresh_token: 'refresh'
+    })
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      onTokensChange: keychainLocked
+    })
+
+    expect((await kitsu.logIn('a@b.c', 'secret')).user).toEqual({ id: 'u' })
+
+    expect(kitsu.getTokens()).toEqual({
+      access_token: 'access',
+      refresh_token: 'refresh'
+    })
+    expect(() => kitsu.setToken('bot-token')).not.toThrow()
+    expect(() => vi.runAllTimers()).toThrow('keychain locked')
+  })
+
+  it('let the requests waiting on a refresh be replayed', async () => {
+    const fake = expiringApi()
+    fake.on('GET', '/auth/refresh-token', () =>
+      jsonResponse(200, { access_token: 'new' })
+    )
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'old', refresh_token: 'refresh' },
+      onTokensChange: keychainLocked
+    })
+
+    const results = await Promise.all(
+      Array.from({ length: 3 }, () => kitsu.http.get('data/persons'))
+    )
+
+    expect(results).toEqual(Array(3).fill([{ ok: true }]))
+    expect(() => vi.runAllTimers()).toThrow('keychain locked')
+  })
+
+  it('keep the NotAuthenticatedError of a lost session', async () => {
+    const fake = createFakeFetch().reply(401, {})
+    const kitsu = createCore({
+      host: HOST,
+      fetch: fake,
+      tokens: { access_token: 'old' },
+      onUnauthorized: () => {
+        throw new Error('router not ready')
+      }
+    })
+
+    await expect(kitsu.getCurrentUser()).rejects.toBeInstanceOf(
+      NotAuthenticatedError
+    )
+    expect(() => vi.runAllTimers()).toThrow('router not ready')
   })
 })

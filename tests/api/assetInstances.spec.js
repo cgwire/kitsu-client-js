@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { NotFoundError, ParameterError } from '../../src/index.js'
+import { ParameterError } from '../../src/index.js'
 import { makeClient } from '../helpers/client.js'
 import {
   ASSET_ID,
   ASSET_INSTANCE_ID,
   EPISODE_ID,
   OTHER_ID,
+  SCENE_ID,
   SHOT_ID
 } from '../helpers/ids.js'
+
+// Zou lists asset instances in a dict of lists, keyed by the shot, the
+// scene or the asset they belong to.
+const INSTANCE = { id: ASSET_INSTANCE_ID, asset_id: ASSET_ID, number: 1 }
 
 describe('asset namespace: asset instances', () => {
   let kitsu, fake
@@ -28,32 +33,32 @@ describe('asset namespace: asset instances', () => {
     })
   })
 
-  it('allShotAssetInstancesForAsset lists the instances in shots', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID }])
+  it('allShotAssetInstancesForAsset groups the instances by shot', async () => {
+    fake.reply(200, { [SHOT_ID]: [INSTANCE] })
     expect(
       await kitsu.asset.allShotAssetInstancesForAsset({ id: ASSET_ID })
-    ).toEqual([{ id: ASSET_INSTANCE_ID }])
+    ).toEqual({ [SHOT_ID]: [INSTANCE] })
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/assets/${ASSET_ID}/shot-asset-instances`
     })
   })
 
-  it('allSceneAssetInstancesForAsset lists the instances in scenes', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID }])
-    expect(await kitsu.asset.allSceneAssetInstancesForAsset(ASSET_ID)).toEqual([
-      { id: ASSET_INSTANCE_ID }
-    ])
+  it('allSceneAssetInstancesForAsset groups the instances by scene', async () => {
+    fake.reply(200, { [SCENE_ID]: [INSTANCE] })
+    expect(await kitsu.asset.allSceneAssetInstancesForAsset(ASSET_ID)).toEqual({
+      [SCENE_ID]: [INSTANCE]
+    })
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/assets/${ASSET_ID}/scene-asset-instances`
     })
   })
 
-  it('allAssetInstancesForShot lists the instances linked to a shot', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID }])
+  it('allAssetInstancesForShot groups the instances of a shot by asset', async () => {
+    fake.reply(200, { [ASSET_ID]: [INSTANCE] })
     expect(await kitsu.asset.allAssetInstancesForShot({ id: SHOT_ID })).toEqual(
-      [{ id: ASSET_INSTANCE_ID }]
+      { [ASSET_ID]: [INSTANCE] }
     )
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
@@ -61,11 +66,18 @@ describe('asset namespace: asset instances', () => {
     })
   })
 
-  it('allAssetInstancesForAsset lists the instances inside an asset', async () => {
-    fake.reply(200, [{ id: ASSET_INSTANCE_ID }])
-    expect(await kitsu.asset.allAssetInstancesForAsset(ASSET_ID)).toEqual([
-      { id: ASSET_INSTANCE_ID }
-    ])
+  it('allAssetInstancesForAsset groups the instances inside an asset by asset', async () => {
+    const instance = {
+      ...INSTANCE,
+      asset_id: OTHER_ID,
+      target_asset_id: ASSET_ID
+    }
+    fake.reply(200, { [OTHER_ID]: [instance] }).reply(200, {})
+    expect(await kitsu.asset.allAssetInstancesForAsset(ASSET_ID)).toEqual({
+      [OTHER_ID]: [instance]
+    })
+    // An asset without any instance inside: an empty dict, not a list.
+    expect(await kitsu.asset.allAssetInstancesForAsset(ASSET_ID)).toEqual({})
     expect(fake.calls[0]).toMatchObject({
       method: 'GET',
       path: `/data/assets/${ASSET_ID}/asset-asset-instances`
@@ -177,11 +189,10 @@ describe('asset namespace: asset instances', () => {
     ])
   })
 
-  it('getEpisodeFromAsset rejects when the asset is missing', async () => {
-    fake.reply(404, {})
-    await expect(
-      kitsu.asset.getEpisodeFromAsset(ASSET_ID)
-    ).rejects.toBeInstanceOf(NotFoundError)
+  // Like getSequenceFromShot: a missing entity has no parent.
+  it('getEpisodeFromAsset gives null for a missing asset', async () => {
+    fake.reply(404, { message: 'Asset not found' })
+    expect(await kitsu.asset.getEpisodeFromAsset(ASSET_ID)).toBeNull()
     expect(fake.calls).toHaveLength(1)
   })
 

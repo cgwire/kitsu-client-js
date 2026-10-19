@@ -1,7 +1,10 @@
 import {
   idOf,
+  metadataOf,
   optionalIdOf,
+  orNull,
   requiredOf,
+  sameNameOf,
   sortedByName,
   withoutNil
 } from '../core/params.js'
@@ -38,7 +41,9 @@ export const sceneApi = http => {
       ),
 
     /**
-     * @param {{project?: Model, signal?: AbortSignal}} [options]
+     * @param {{project?: Model, signal?: AbortSignal}} [options] Without a
+     *   project, Zou lists the scenes of every project to an admin only:
+     *   anyone else gets a NotAllowedError.
      * @returns {Promise<Entity[]>} Every scene, or the scenes of the project,
      *   sorted by name.
      */
@@ -77,14 +82,20 @@ export const sceneApi = http => {
      * @param {Model} sequence
      * @param {string} sceneName
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity|null>} The scene of the sequence with that name.
+     * @returns {Promise<Entity|null>} The scene of the sequence with that
+     *   name (the case ignored, an exact match first), null when there is
+     *   none.
      */
-    getSceneByName: async (sequence, sceneName, { signal } = {}) =>
-      http.fetchFirst(
-        'scenes/all',
-        { parent_id: idOf(sequence), name: requiredOf('sceneName', sceneName) },
-        { signal }
-      ),
+    getSceneByName: async (sequence, sceneName, { signal } = {}) => {
+      const sequenceId = idOf(sequence)
+      requiredOf('sceneName', sceneName)
+      // The scenes of the sequence are open to the members of its project,
+      // while a filtered list of every scene needs an admin.
+      const scenes = await orNull(
+        http.fetchAll(`sequences/${sequenceId}/scenes`, {}, { signal })
+      )
+      return sameNameOf(scenes, sceneName)
+    },
 
     /**
      * Save the scene. Zou merges the given metadata into the stored ones: a
@@ -113,7 +124,8 @@ export const sceneApi = http => {
     /**
      * @param {Model} scene
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The asset instances of the scene.
+     * @returns {Promise<Record<string, Entity[]>>} The asset instances of the
+     *   scene, keyed by the id of their asset.
      */
     allAssetInstancesForScene: async (scene, { signal } = {}) =>
       http.get(`data/scenes/${idOf(scene)}/asset-instances`, {}, { signal }),
@@ -123,19 +135,25 @@ export const sceneApi = http => {
      * @param {string} name
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity|null>} The asset instance of the scene with
-     *   that name.
+     *   that name (the case ignored, an exact match first), null when there
+     *   is none.
      */
-    getAssetInstanceByName: async (scene, name, { signal } = {}) =>
-      http.fetchFirst(
-        'asset-instances',
-        { name: requiredOf('name', name), scene_id: idOf(scene) },
-        { signal }
-      ),
+    getAssetInstanceByName: async (scene, name, { signal } = {}) => {
+      const sceneId = idOf(scene)
+      requiredOf('name', name)
+      // The instances of the scene are open to the members of its project,
+      // while the list of every instance needs an admin.
+      const instances = await orNull(
+        http.get(`data/scenes/${sceneId}/asset-instances`, {}, { signal })
+      )
+      return sameNameOf(Object.values(instances || {}).flat(), name)
+    },
 
     /**
      * @param {Model} scene
      * @param {RequestOptions} [options]
-     * @returns {Promise<Entity[]>} The camera instances of the scene.
+     * @returns {Promise<Record<string, Entity[]>>} The camera instances of the
+     *   scene, keyed by the id of their camera asset.
      */
     allCameraInstancesForScene: async (scene, { signal } = {}) =>
       http.get(`data/scenes/${idOf(scene)}/camera-instances`, {}, { signal }),
@@ -166,7 +184,7 @@ export const sceneApi = http => {
      * @param {Model} scene
      * @param {Model} shot
      * @param {RequestOptions} [options]
-     * @returns {Promise<any>}
+     * @returns {Promise<null>}
      */
     removeShotFromScene: async (scene, shot, { signal } = {}) =>
       http.del(`data/scenes/${idOf(scene)}/shots/${idOf(shot)}`, undefined, {
@@ -190,7 +208,7 @@ export const sceneApi = http => {
      * @returns {Promise<Entity>} The updated asset instance.
      */
     updateAssetInstanceData: async (assetInstance, data, { signal } = {}) =>
-      saveAssetInstance(assetInstance, { data }, signal),
+      saveAssetInstance(assetInstance, { data: metadataOf(data) }, signal),
 
     /**
      * @param {Model} scene
