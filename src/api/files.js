@@ -605,6 +605,59 @@ export const filesApi = http => {
       ),
 
     /**
+     * @param {Model} project
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity[]>} The softwares set for the task types of
+     *   the project, as project_id, task_type_id and software_id links.
+     */
+    allTaskTypeSoftwares: async (project, { signal } = {}) =>
+      http.get(
+        `data/projects/${idOf(project)}/task-type-softwares`,
+        {},
+        { signal }
+      ),
+
+    /**
+     * Set a software for a task type of the project. A second call returns
+     * the existing link.
+     * @param {Model} project
+     * @param {Model} taskType A task type of the project.
+     * @param {Model} software A software that is not archived.
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The link.
+     */
+    addSoftwareToTaskType: async (
+      project,
+      taskType,
+      software,
+      { signal } = {}
+    ) =>
+      http.post(
+        `data/projects/${idOf(project)}/task-types/${idOf(taskType)}/softwares`,
+        { software_id: idOf(software) },
+        { signal }
+      ),
+
+    /**
+     * @param {Model} project
+     * @param {Model} taskType
+     * @param {Model} software
+     * @param {RequestOptions} [options]
+     * @returns {Promise<null>}
+     */
+    removeSoftwareFromTaskType: async (
+      project,
+      taskType,
+      software,
+      { signal } = {}
+    ) =>
+      http.del(
+        `data/projects/${idOf(project)}/task-types/${idOf(taskType)}/softwares/${idOf(software)}`,
+        undefined,
+        { signal }
+      ),
+
+    /**
      * Build the path of a working file from the project file tree.
      * @param {Model} task
      * @param {{name?: string, mode?: string, software?: Model,
