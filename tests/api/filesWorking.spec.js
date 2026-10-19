@@ -181,6 +181,19 @@ describe('files namespace: working files', () => {
     })
   })
 
+  it('updateWorkingFile saves the given data on the working file', async () => {
+    const data = { validation_status: 'validated' }
+    fake.reply(200, { id: WORKING_FILE_ID, ...data })
+    expect(
+      await kitsu.files.updateWorkingFile({ id: WORKING_FILE_ID }, data)
+    ).toMatchObject({ validation_status: 'validated' })
+    expect(fake.calls[0]).toMatchObject({
+      method: 'PUT',
+      path: `/data/working-files/${WORKING_FILE_ID}`,
+      body: data
+    })
+  })
+
   it('updateModificationDate touches the working file', async () => {
     fake.reply(200, { id: WORKING_FILE_ID })
     expect(await kitsu.files.updateModificationDate(WORKING_FILE_ID)).toEqual({

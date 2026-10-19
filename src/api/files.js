@@ -1044,6 +1044,16 @@ export const filesApi = http => {
       ),
 
     /**
+     * @param {Model} workingFile
+     * @param {object} data Fields to change on the working file, such as
+     *   validation_status (neutral, validated or rejected).
+     * @param {RequestOptions} [options]
+     * @returns {Promise<Entity>} The updated working file.
+     */
+    updateWorkingFile: async (workingFile, data, { signal } = {}) =>
+      http.update('working-files', idOf(workingFile), data, { signal }),
+
+    /**
      * Set the modification date of a working file to now.
      * @param {Model} workingFile
      * @param {RequestOptions} [options]
@@ -1058,7 +1068,8 @@ export const filesApi = http => {
 
     /**
      * @param {Model} outputFile
-     * @param {object} data Fields to change on the output file.
+     * @param {object} data Fields to change on the output file, such as
+     *   quality (low, mid, high or null).
      * @param {RequestOptions} [options]
      * @returns {Promise<Entity>} The updated output file.
      */
