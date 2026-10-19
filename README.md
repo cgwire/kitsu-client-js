@@ -34,6 +34,17 @@ by itself only in Node. In bearer mode the events need Node or the main
 process of Electron; a browser or a webview listens in cookie mode, on the
 Kitsu origin (see [Real-time events](./docs/events.md#platforms)).
 
+With Vite, exclude the package from the pre-bundle of the dev server:
+
+```js
+// vite.config.js
+export default { optimizeDeps: { exclude: ['@cgwire/kitsu-client'] } }
+```
+
+The pre-bundle changes the optional import of socket.io-client into a
+literal import, and the dev server then cannot resolve it. The package is
+plain ESM, thus Vite can serve it as it is.
+
 ## Quick start
 
 With a bot token, the recommended mode for integrations:
