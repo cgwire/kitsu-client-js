@@ -106,8 +106,11 @@ A session alone does not change what protects the account. Zou also asks for:
 
 The second factor is one of `totp`, `emailOtp`, `recoveryCode` or
 `fidoAuthenticationResponse`. Without that proof Zou answers a 400: a
-`ParameterError`. An admin changing the email of somebody else is not asked
-for it, nor is a bot changing its own.
+`ParameterError`. On a two-factor setup, `error.body.wrong_existing_OTP` tells
+a refused factor from the refused code of the new method (`wrong_OTP`): Zou
+checks the new code first, so a refused one uses up no factor. An admin
+changing the email of somebody else is not asked for it, nor is a bot changing
+its own.
 
 ## One client, one session
 
