@@ -92,6 +92,22 @@ back. This holds for `getFidoChallenge` and the `logIn` that answers it, for
 `preRegisterFido` and `registerFido`, and for any `fidoAuthenticationResponse`
 given as proof of identity.
 
+## Proving one's identity again
+
+A session alone does not change what protects the account. Zou also asks for:
+
+- a method already enabled, to add a second-factor method to an account that
+  has one: `kitsu.enableTotp(code, { emailOtp })`, and the same options on
+  `enableEmailOtp` and `registerFido`;
+- the current password, and a second factor when one is enabled, to change
+  one's own email:
+  `kitsu.person.updatePerson({ id, email }, { currentPassword, totp })`.
+
+The second factor is one of `totp`, `emailOtp`, `recoveryCode` or
+`fidoAuthenticationResponse`. Without that proof Zou answers a 400: a
+`ParameterError`. An admin changing the email of somebody else is not asked
+for it, nor is a bot changing its own.
+
 ## One client, one session
 
 Nothing is shared between two clients: tokens, in-flight requests and the

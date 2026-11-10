@@ -395,6 +395,21 @@ describe('person namespace', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Zou asks for the current password, and a second factor when one is
+  // enabled, before it changes the email of the caller.
+  it('updatePerson sends the proof of identity next to the person', async () => {
+    fake.reply(200, { id: PERSON_ID })
+    await kitsu.person.updatePerson(
+      { id: PERSON_ID, email: 'new@doe.com' },
+      { currentPassword: 'secret', totp: '123456' }
+    )
+    expect(fake.calls[0].body).toEqual({
+      email: 'new@doe.com',
+      current_password: 'secret',
+      totp: '123456'
+    })
+  })
+
   it('removePerson deletes the person, forcing on demand', async () => {
     fake.reply(204).reply(204)
     await kitsu.person.removePerson(PERSON_ID)

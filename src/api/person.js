@@ -11,7 +11,9 @@ import {
   orNull,
   requiredOf,
   sameNameOf,
-  sortedByName
+  sortedByName,
+  twoFactorPayloadOf,
+  withoutNil
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
@@ -19,6 +21,13 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ */
+
+/**
+ * Proof of identity Zou asks before changing the email of the caller: the
+ * current password, and a second factor when one is enabled.
+ * @typedef {import('../core/auth.js').TwoFactorOptions &
+ *   {currentPassword?: string}} UpdatePersonOptions
  */
 
 /**
@@ -161,9 +170,13 @@ const withoutExpirationDate = person =>
 /**
  * @param {any} http
  * @param {Entity} person
- * @param {RequestOptions} [options]
+ * @param {UpdatePersonOptions} [options]
  */
-const updatePerson = (http, person, { signal } = {}) => {
+const updatePerson = (
+  http,
+  person,
+  { signal, currentPassword, ...proof } = {}
+) => {
   const id = idOf(person)
   // A string would reach the body as one key per character.
   const fields = fieldsOf(person)
@@ -181,11 +194,15 @@ const updatePerson = (http, person, { signal } = {}) => {
   return http.update(
     'persons',
     id,
-    withoutExpirationDate(
-      Array.isArray(fields.departments)
-        ? { ...fields, departments: idsOf(fields.departments) }
-        : fields
-    ),
+    {
+      ...withoutExpirationDate(
+        Array.isArray(fields.departments)
+          ? { ...fields, departments: idsOf(fields.departments) }
+          : fields
+      ),
+      ...withoutNil({ current_password: currentPassword }),
+      ...twoFactorPayloadOf(proof)
+    },
     { signal }
   )
 }
@@ -442,9 +459,11 @@ export const personApi = http => ({
    * Save the person. Its expiration_date is left out: Zou takes it as a
    * request for a new token, which revokes the previous one (see
    * generateToken). A person holding nothing else to save rejects with a
-   * ParameterError.
+   * ParameterError. Zou changes the email of the caller only with their
+   * current password, and a second factor when one is enabled: without them
+   * it answers a 400.
    * @param {Entity} person Its departments may be objects or ids.
-   * @param {RequestOptions} [options]
+   * @param {UpdatePersonOptions} [options] Proof of identity and signal.
    * @returns {Promise<Entity>} The updated person.
    */
   updatePerson: async (person, options) => updatePerson(http, person, options),

@@ -1149,7 +1149,7 @@
     "route": "/data/persons/<id>",
     "client": "person.updatePerson",
     "status": "existing",
-    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives, without expiration_date, which would revoke the token (see person.generateToken)."
+    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives, without expiration_date, which would revoke the token (see person.generateToken). To change the email of the caller, Kitsu adds current_password and the two factor payload to the body: the client takes them as options."
   },
   {
     "module": "people",
