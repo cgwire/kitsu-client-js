@@ -22,7 +22,8 @@ token that never expires, `bot.expiration_date` to keep the current one.
 `updateBot` and `updatePerson` never touch it. Only an admin can renew the
 token of a bot: when a bot without the admin role asks for its own, Zou issues
 none, `generateToken` rejects with a `KitsuError` and the current token keeps
-working.
+working. It rejects the same way for a human: Zou issues such a token for bots
+only (up to Zou 1.1.1, a human got one too).
 
 ## User credentials
 
