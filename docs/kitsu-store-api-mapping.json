@@ -1221,7 +1221,7 @@
     "route": "/auth/totp",
     "client": "root.enableTotp",
     "status": "added",
-    "note": "Body { totp }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { totp }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",
@@ -1257,7 +1257,7 @@
     "route": "/auth/email-otp",
     "client": "root.enableEmailOtp",
     "status": "added",
-    "note": "Body { email_otp }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { email_otp }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",
@@ -1284,7 +1284,7 @@
     "route": "/auth/fido",
     "client": "root.registerFido",
     "status": "added",
-    "note": "Body { registration_response, device_name }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { registration_response, device_name }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",
