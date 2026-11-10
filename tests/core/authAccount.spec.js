@@ -127,6 +127,13 @@ describe('TOTP', () => {
     expect(fake.calls).toHaveLength(0)
   })
 
+  // Zou asks for a method already enabled before it adds another one.
+  it('enableTotp sends the proof of a method already enabled', async () => {
+    fake.reply(200, REGISTRATION_BODY)
+    await kitsu.enableTotp('123456', { emailOtp: '654321', totp: 'ignored' })
+    expect(fake.calls[0].body).toEqual({ totp: '123456', email_otp: '654321' })
+  })
+
   it('disableTotp deletes with the two factor payload as body', async () => {
     fake.reply(200, { success: true })
     expect(await kitsu.disableTotp({ totp: '123456' })).toEqual({
@@ -179,6 +186,12 @@ describe('email OTP', () => {
     expect(kitsu.getTokens()).toEqual(NEW_TOKENS)
   })
 
+  it('enableEmailOtp sends the proof of a method already enabled', async () => {
+    fake.reply(200, REGISTRATION_BODY)
+    await kitsu.enableEmailOtp('654321', { totp: '123456' })
+    expect(fake.calls[0].body).toEqual({ email_otp: '654321', totp: '123456' })
+  })
+
   it('disableEmailOtp deletes with the two factor payload as body', async () => {
     fake.reply(200, { success: true })
     await kitsu.disableEmailOtp({ emailOtp: '654321', recoveryCode: 'rc' })
@@ -214,6 +227,20 @@ describe('FIDO', () => {
       body: { registration_response: registration, device_name: 'My key' }
     })
     expect(kitsu.getTokens()).toEqual(NEW_TOKENS)
+  })
+
+  it('registerFido sends the proof of a method already enabled', async () => {
+    fake.reply(200, REGISTRATION_BODY)
+    const registration = { id: 'credential' }
+    const fidoAuthenticationResponse = { id: 'assertion' }
+    await kitsu.registerFido(registration, 'Second key', {
+      fidoAuthenticationResponse
+    })
+    expect(fake.calls[0].body).toEqual({
+      registration_response: registration,
+      device_name: 'Second key',
+      fido_authentication_response: fidoAuthenticationResponse
+    })
   })
 
   it('registerFido rejects without a device name', async () => {

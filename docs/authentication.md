@@ -22,7 +22,8 @@ token that never expires, `bot.expiration_date` to keep the current one.
 `updateBot` and `updatePerson` never touch it. Only an admin can renew the
 token of a bot: when a bot without the admin role asks for its own, Zou issues
 none, `generateToken` rejects with a `KitsuError` and the current token keeps
-working.
+working. It rejects the same way for a human: Zou issues such a token for bots
+only (up to Zou 1.1.1, a human got one too).
 
 ## User credentials
 
@@ -91,6 +92,25 @@ WebAuthn ceremony in its cookie session, which a bearer client never sends
 back. This holds for `getFidoChallenge` and the `logIn` that answers it, for
 `preRegisterFido` and `registerFido`, and for any `fidoAuthenticationResponse`
 given as proof of identity.
+
+## Proving one's identity again
+
+A session alone does not change what protects the account. Zou also asks for:
+
+- a method already enabled, to add a second-factor method to an account that
+  has one: `kitsu.enableTotp(code, { emailOtp })`, and the same options on
+  `enableEmailOtp` and `registerFido`;
+- the current password, and a second factor when one is enabled, to change
+  one's own email:
+  `kitsu.person.updatePerson({ id, email }, { currentPassword, totp })`.
+
+The second factor is one of `totp`, `emailOtp`, `recoveryCode` or
+`fidoAuthenticationResponse`. Without that proof Zou answers a 400: a
+`ParameterError`. On a two-factor setup, `error.body.wrong_existing_OTP` tells
+a refused factor from the refused code of the new method (`wrong_OTP`): Zou
+checks the new code first, so a refused one uses up no factor. An admin
+changing the email of somebody else is not asked for it, nor is a bot changing
+its own.
 
 ## One client, one session
 

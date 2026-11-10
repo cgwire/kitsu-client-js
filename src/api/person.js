@@ -11,7 +11,9 @@ import {
   orNull,
   requiredOf,
   sameNameOf,
-  sortedByName
+  sortedByName,
+  twoFactorPayloadOf,
+  withoutNil
 } from '../core/params.js'
 import * as urls from '../utils/urls.js'
 
@@ -19,6 +21,13 @@ import * as urls from '../utils/urls.js'
  * @typedef {import('../core/params.js').Entity} Entity
  * @typedef {import('../core/params.js').Model} Model
  * @typedef {import('../core/params.js').RequestOptions} RequestOptions
+ */
+
+/**
+ * Proof of identity Zou asks before changing the email of the caller: the
+ * current password, and a second factor when one is enabled.
+ * @typedef {import('../core/auth.js').TwoFactorOptions &
+ *   {currentPassword?: string}} UpdatePersonOptions
  */
 
 /**
@@ -146,9 +155,10 @@ const getPersonByEmail = (http, email, { isBot = false, signal } = {}) =>
     { signal }
   )
 
-// Zou issues a new token, and revokes the previous one, whenever the body of
-// a person update holds expiration_date, even null. Every admin read holds
-// it: only generateToken sends it.
+// Zou issues a new token for a bot (for anybody up to Zou 1.1.1), and revokes
+// the previous one, whenever the body of a person update holds
+// expiration_date, even null. Every admin read holds it: only generateToken
+// sends it.
 /**
  * @param {Record<string, any>} person
  * @returns {Record<string, any>} A copy without expiration_date.
@@ -161,9 +171,13 @@ const withoutExpirationDate = person =>
 /**
  * @param {any} http
  * @param {Entity} person
- * @param {RequestOptions} [options]
+ * @param {UpdatePersonOptions} [options]
  */
-const updatePerson = (http, person, { signal } = {}) => {
+const updatePerson = (
+  http,
+  person,
+  { signal, currentPassword, ...proof } = {}
+) => {
   const id = idOf(person)
   // A string would reach the body as one key per character.
   const fields = fieldsOf(person)
@@ -181,11 +195,15 @@ const updatePerson = (http, person, { signal } = {}) => {
   return http.update(
     'persons',
     id,
-    withoutExpirationDate(
-      Array.isArray(fields.departments)
-        ? { ...fields, departments: idsOf(fields.departments) }
-        : fields
-    ),
+    {
+      ...withoutExpirationDate(
+        Array.isArray(fields.departments)
+          ? { ...fields, departments: idsOf(fields.departments) }
+          : fields
+      ),
+      ...withoutNil({ current_password: currentPassword }),
+      ...twoFactorPayloadOf(proof)
+    },
     { signal }
   )
 }
@@ -442,9 +460,11 @@ export const personApi = http => ({
    * Save the person. Its expiration_date is left out: Zou takes it as a
    * request for a new token, which revokes the previous one (see
    * generateToken). A person holding nothing else to save rejects with a
-   * ParameterError.
+   * ParameterError. Zou changes the email of the caller only with their
+   * current password, and a second factor when one is enabled: without them
+   * it answers a 400.
    * @param {Entity} person Its departments may be objects or ids.
-   * @param {RequestOptions} [options]
+   * @param {UpdatePersonOptions} [options] Proof of identity and signal.
    * @returns {Promise<Entity>} The updated person.
    */
   updatePerson: async (person, options) => updatePerson(http, person, options),
@@ -512,13 +532,13 @@ export const personApi = http => ({
   updateBot: async (bot, options) => updatePerson(http, bot, options),
 
   /**
-   * Issue a new access token for the bot, or an API token for a human. Zou
-   * revokes the previous one at once: whatever still uses it gets a 401.
-   * An admin can issue a token for anybody, a human for themselves only. A
-   * bot without the admin role cannot renew its own token: Zou answers
-   * without any token and changes nothing, as it does when sent the stored
-   * expiration date once past. The call then rejects with a KitsuError
-   * carrying that answer, and the current token keeps working.
+   * Issue a new access token for the bot. Zou revokes the previous one at
+   * once: whatever still uses it gets a 401. Only an admin gets a token, and
+   * for a bot only (up to Zou 1.1.1, a human got one too). A bot without the
+   * admin role cannot renew its own token: Zou answers without any token and
+   * changes nothing, as it does when sent the stored expiration date once
+   * past. For a human it issues none either. The call then rejects with a
+   * KitsuError carrying that answer, and the current token keeps working.
    * @param {Model} person
    * @param {Date|string|null} expirationDate The last day the token works,
    *   "YYYY-MM-DD", today or later, or null for a token that never expires.

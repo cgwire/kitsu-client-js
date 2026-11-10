@@ -97,6 +97,23 @@ export const withoutNil = data =>
   )
 
 /**
+ * @param {import('./auth.js').TwoFactorOptions} options
+ * @returns {Record<string, any>} The two factor payload of Zou.
+ */
+export const twoFactorPayloadOf = ({
+  totp,
+  emailOtp,
+  recoveryCode,
+  fidoAuthenticationResponse
+}) =>
+  withoutNil({
+    totp,
+    email_otp: emailOtp,
+    recovery_code: recoveryCode,
+    fido_authentication_response: fidoAuthenticationResponse
+  })
+
+/**
  * The keys left unset, the way JSON drops them. A null stays: it clears a
  * field.
  * @param {Record<string, any>} data

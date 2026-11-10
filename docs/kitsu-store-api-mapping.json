@@ -1131,7 +1131,7 @@
     "route": "/data/persons/<id>",
     "client": "person.generateToken",
     "status": "added",
-    "note": "Same route as updatePerson with the body { expiration_date }: Zou issues a new token and revokes the previous one. Kitsu sends the expiration date of the person; the client takes it as a required argument, null for no expiry. person.updatePerson and person.updateBot never send expiration_date. An answer without token, which Kitsu takes as is, rejects with a KitsuError."
+    "note": "Same route as updatePerson with the body { expiration_date }: Zou issues a new token, for a bot only, and revokes the previous one. Kitsu sends the expiration date of the person; the client takes it as a required argument, null for no expiry. person.updatePerson and person.updateBot never send expiration_date. An answer without token, which Kitsu takes as is, rejects with a KitsuError."
   },
   {
     "module": "people",
@@ -1149,7 +1149,7 @@
     "route": "/data/persons/<id>",
     "client": "person.updatePerson",
     "status": "existing",
-    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives, without expiration_date, which would revoke the token (see person.generateToken)."
+    "note": "Kitsu whitelists the fields it sends and casts the notification flags to booleans; the client sends the object it receives, without expiration_date, which would revoke the token (see person.generateToken). To change the email of the caller, Kitsu adds current_password and the two factor payload to the body: the client takes them as options."
   },
   {
     "module": "people",
@@ -1221,7 +1221,7 @@
     "route": "/auth/totp",
     "client": "root.enableTotp",
     "status": "added",
-    "note": "Body { totp }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { totp }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",
@@ -1257,7 +1257,7 @@
     "route": "/auth/email-otp",
     "client": "root.enableEmailOtp",
     "status": "added",
-    "note": "Body { email_otp }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { email_otp }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",
@@ -1284,7 +1284,7 @@
     "route": "/auth/fido",
     "client": "root.registerFido",
     "status": "added",
-    "note": "Body { registration_response, device_name }. Kitsu returns body.otp_recovery_codes."
+    "note": "Body { registration_response, device_name }, plus the two factor payload of a method already enabled when the account has one: an option of the client. Kitsu returns body.otp_recovery_codes."
   },
   {
     "module": "people",

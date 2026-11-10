@@ -6,7 +6,7 @@ import {
   loginErrorFrom
 } from './errors.js'
 import { unlessAborted } from './http.js'
-import { requiredOf, withoutNil } from './params.js'
+import { requiredOf, twoFactorPayloadOf } from './params.js'
 
 /**
  * @typedef {import('./params.js').Entity} Entity
@@ -28,8 +28,8 @@ import { requiredOf, withoutNil } from './params.js'
  */
 
 /**
- * Proof of identity Zou asks before weakening the two-factor setup: one of
- * the four is enough.
+ * Proof of identity Zou asks before changing the two-factor setup of an
+ * account that has one: one of the four is enough.
  * @typedef {object} TwoFactorOptions
  * @property {string} [totp] Time-based one-time password.
  * @property {string} [emailOtp] One-time password received by email.
@@ -46,23 +46,6 @@ import { requiredOf, withoutNil } from './params.js'
 // and also a timeout of its database pool. 401: inactive user. 409: no
 // authentication strategy configured, which refuses every user alike.
 const LOGIN_REFUSALS = [400, 401, 409]
-
-/**
- * @param {TwoFactorOptions} options
- * @returns {Record<string, any>} The two factor payload of Zou.
- */
-const twoFactorPayloadOf = ({
-  totp,
-  emailOtp,
-  recoveryCode,
-  fidoAuthenticationResponse
-}) =>
-  withoutNil({
-    totp,
-    email_otp: emailOtp,
-    recovery_code: recoveryCode,
-    fido_authentication_response: fidoAuthenticationResponse
-  })
 
 export const authApi = (http, session) => {
   // Session changes (logIn, logOut, setToken, a two-factor registration) are
@@ -346,12 +329,17 @@ export const authApi = (http, session) => {
      * Finish the TOTP setup. In bearer mode the tokens issued by Zou replace
      * the current ones.
      * @param {string} totp Code given by the authenticator application.
-     * @param {RequestOptions} [options]
+     * @param {TwoFactorOptions} [options] Proof of a method already enabled,
+     *   which Zou asks when the account has one, and signal.
      * @returns {Promise<string[]|null>} The recovery codes, or null when
      *   another method gave them already: the user keeps those.
      */
-    enableTotp: async (totp, { signal } = {}) =>
-      register('auth/totp', { totp: requiredOf('totp', totp) }, signal),
+    enableTotp: async (totp, { signal, ...proof } = {}) =>
+      register(
+        'auth/totp',
+        { ...twoFactorPayloadOf(proof), totp: requiredOf('totp', totp) },
+        signal
+      ),
 
     /**
      * Disable TOTP for the current user.
@@ -387,14 +375,18 @@ export const authApi = (http, session) => {
      * Finish the email OTP setup. In bearer mode the tokens issued by Zou
      * replace the current ones.
      * @param {string} emailOtp Code received by email.
-     * @param {RequestOptions} [options]
+     * @param {TwoFactorOptions} [options] Proof of a method already enabled,
+     *   which Zou asks when the account has one, and signal.
      * @returns {Promise<string[]|null>} The recovery codes, or null when
      *   another method gave them already: the user keeps those.
      */
-    enableEmailOtp: async (emailOtp, { signal } = {}) =>
+    enableEmailOtp: async (emailOtp, { signal, ...proof } = {}) =>
       register(
         'auth/email-otp',
-        { email_otp: requiredOf('emailOtp', emailOtp) },
+        {
+          ...twoFactorPayloadOf(proof),
+          email_otp: requiredOf('emailOtp', emailOtp)
+        },
         signal
       ),
 
@@ -421,14 +413,20 @@ export const authApi = (http, session) => {
      * origin (see preRegisterFido).
      * @param {object} registrationResponse Answer of the WebAuthn device.
      * @param {string} deviceName
-     * @param {RequestOptions} [options]
+     * @param {TwoFactorOptions} [options] Proof of a method already enabled,
+     *   which Zou asks when the account has one, and signal.
      * @returns {Promise<string[]|null>} The recovery codes, or null when
      *   another method gave them already: the user keeps those.
      */
-    registerFido: async (registrationResponse, deviceName, { signal } = {}) =>
+    registerFido: async (
+      registrationResponse,
+      deviceName,
+      { signal, ...proof } = {}
+    ) =>
       register(
         'auth/fido',
         {
+          ...twoFactorPayloadOf(proof),
           registration_response: requiredOf(
             'registrationResponse',
             registrationResponse
